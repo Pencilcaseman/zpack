@@ -6,6 +6,7 @@ use clap::{
 };
 use clap_complete::aot::{Generator, Shell, generate};
 use pyo3::{ffi::c_str, prelude::*, types::IntoPyDict};
+use saphyr::{LoadableYamlNode, Yaml, YamlEmitter};
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -93,4 +94,12 @@ print(math.pi)
         PyResult::Ok(())
     })
     .expect("Error");
+
+    let docs = Yaml::load_from_str("[1, 2, 3]").unwrap();
+    let doc = &docs[0]; // select the first YAML document
+    assert_eq!(doc[0].as_integer().unwrap(), 1); // access elements by index
+
+    let mut out_str = String::new();
+    let mut emitter = YamlEmitter::new(&mut out_str);
+    emitter.dump(doc).unwrap(); // dump the YAML object to a String
 }

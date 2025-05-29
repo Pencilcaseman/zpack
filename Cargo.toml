@@ -13,3 +13,4 @@ clap_complete = { version = "4.5.51", features = ["unstable-dynamic"] }
 mpi = { version = "0.8.0", optional=true, features = ["user-operations", "derive", "complex"] }
 pyo3 = { version = "0.25.0", features=["abi3", "auto-initialize", "full"] }
 rustpython = { version = "0.4.0", features=["stdlib"] }
+saphyr = "0.0.4"
