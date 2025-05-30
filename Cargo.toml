@@ -16,3 +16,23 @@ saphyr = "0.0.4"
 syntect = { version = "5.2.0", features = ["default-fancy"] }
 
 # pyo3 = { version = "0.25.0", features=["abi3", "auto-initialize", "full"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
+debug = false
+debug-assertions = false
+
+[profile.release.package."*"]
+codegen-units = 1
+opt-level = 3
+strip = true
+debug = false
+debug-assertions = false
+
+[profile.profile]
+inherits = "release"
+debug = true
