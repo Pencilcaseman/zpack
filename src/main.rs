@@ -85,15 +85,39 @@ zpack:
             version: "5.0.5"
             options:
                 - "fabrics=auto"
-- '+internal-pmix'
+                - '+internal-pmix'
 "##;
 
     match Yaml::load_from_str(yaml_str) {
-        Ok(docs) => {
-            let doc = &docs[0]; // select the first YAML document
+        Ok(mut docs) => {
+            let doc = &mut docs[0]; // select the first YAML document
 
             if let Some(yaml) = doc.as_mapping_get("zpack") {
                 println!("Info: {yaml:?}");
+            }
+
+            let mut out_str = String::new();
+            let mut emitter = YamlEmitter::new(&mut out_str);
+            emitter.dump(doc).unwrap(); // dump the YAML object to a String
+            println!("Output string: {out_str}");
+
+            if let Some(zpack) = doc.as_mapping_get_mut("zpack")
+                && let Some(packages) = zpack.as_mapping_get_mut("packages")
+                && let Some(openmpi) = packages.as_mapping_get_mut("openmpi")
+                && let Some(options) = openmpi.as_mapping_get_mut("options")
+            {
+                println!("Options: {options:?}");
+
+                match options {
+                    Yaml::Representation(cow, scalar_style, tag) => todo!(),
+                    Yaml::Value(scalar) => todo!(),
+                    Yaml::Sequence(yamls) => yamls.push(yamls[0].clone()),
+                    Yaml::Mapping(linked_hash_map) => todo!(),
+                    Yaml::Alias(_) => todo!(),
+                    Yaml::BadValue => todo!(),
+                }
+            } else {
+                println!("Did not find options!");
             }
 
             let mut out_str = String::new();
