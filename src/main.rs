@@ -5,12 +5,16 @@ use clap::{
     value_parser,
 };
 use clap_complete::aot::{Generator, Shell, generate};
-use pyo3::{ffi::c_str, prelude::*, types::IntoPyDict};
-use saphyr::{LoadableYamlNode, Yaml, YamlEmitter};
+use saphyr::{LoadableYamlNode, ScanError, Yaml, YamlEmitter};
+use syntect::{
+    easy::HighlightLines,
+    highlighting::{Color, Style, ThemeSet},
+    parsing::SyntaxSet,
+    util::{LinesWithEndings, as_24_bit_terminal_escaped},
+};
 
 fn build_cli() -> Command {
     Command::new("zpack")
-        // .version(crate_version!())
         .long_version(format!("{}\n{}", crate_version!(), crate_description!()))
         .arg(
             Arg::new("file")
@@ -61,6 +65,8 @@ fn main() {
             vm.new_scope_with_builtins(),
             r"
 import math
+import zpack
+
 print('hello')
 print(math.pi)
             ",
@@ -71,35 +77,55 @@ print(math.pi)
         }
     });
 
-    Python::with_gil(|py| {
-        let sys = py.import("sys")?;
-        let version: String = sys.getattr("version")?.extract()?;
+    let yaml_str = r##"
+zpack:
+    packages:
+        openmpi:
+            compiler: gcc@14
+            version: "5.0.5"
+            options:
+                - "fabrics=auto"
+- '+internal-pmix'
+"##;
 
-        let locals = [("os", py.import("os")?)].into_py_dict(py)?;
-        let code =
-            c_str!("os.getenv('USER') or os.getenv('USERNAME') or 'Unknown'");
-        let user: String = py.eval(code, None, Some(&locals))?.extract()?;
+    match Yaml::load_from_str(yaml_str) {
+        Ok(docs) => {
+            let doc = &docs[0]; // select the first YAML document
 
-        let code = c_str!(
-            "
-import math
-print(math.pi)
-        "
-        );
+            if let Some(yaml) = doc.as_mapping_get("zpack") {
+                println!("Info: {yaml:?}");
+            }
 
-        let out = py.eval(code, None, Some(&locals));
+            let mut out_str = String::new();
+            let mut emitter = YamlEmitter::new(&mut out_str);
+            emitter.dump(doc).unwrap(); // dump the YAML object to a String
+            println!("Output string: {out_str}");
+        }
 
-        println!("Hello {user}, I'm Python {version}");
+        Err(err) => {
+            // Load these once at the start of your program
+            let ps = SyntaxSet::load_defaults_newlines();
+            let ts = ThemeSet::load_defaults();
 
-        PyResult::Ok(())
-    })
-    .expect("Error");
+            let reference = ps
+                .find_syntax_by_extension("rs")
+                .expect("Unknown file extension");
 
-    let docs = Yaml::load_from_str("[1, 2, 3]").unwrap();
-    let doc = &docs[0]; // select the first YAML document
-    assert_eq!(doc[0].as_integer().unwrap(), 1); // access elements by index
+            let mut theme = ts.themes["base16-ocean.dark"].clone();
 
-    let mut out_str = String::new();
-    let mut emitter = YamlEmitter::new(&mut out_str);
-    emitter.dump(doc).unwrap(); // dump the YAML object to a String
+            theme.settings.background =
+                Some(Color { r: 255, g: 0, b: 0, a: 0 });
+
+            let mut h = HighlightLines::new(reference, &theme);
+
+            for line in LinesWithEndings::from(yaml_str) {
+                let ranges: Vec<(Style, &str)> =
+                    h.highlight_line(line, &ps).unwrap();
+                let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
+                print!("{escaped}");
+            }
+
+            println!("Error: {err:?}");
+        }
+    }
 }

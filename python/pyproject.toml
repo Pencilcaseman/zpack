@@ -1,0 +1,27 @@
+[project]
+name = "zpack"
+authors = [
+    { name = "Toby Davis", email = "pencilcaseman@gmail.com" }
+]
+version = "0.1.0"
+description = "Python utility types and scripts for the zpack package manager"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project.urls]
+"Homepage" = "https://github.com/Pencilcaseman/zpack"
+"Bug Tracker" = "https://github.com/Pencilcaseman/zpack/issues"
