@@ -20,4 +20,8 @@ target/
 
 /target
 Cargo.lock
+
+# Directories we want to ignore
+
 python/dist
+*/.DS_Store

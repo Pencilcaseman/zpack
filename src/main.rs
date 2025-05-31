@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic, clippy::nursery)]
+
 use std::io;
 
 use clap::{
@@ -5,7 +7,8 @@ use clap::{
     value_parser,
 };
 use clap_complete::aot::{Generator, Shell, generate};
-use saphyr::{LoadableYamlNode, ScanError, Yaml, YamlEmitter};
+use color_eyre::Result;
+use saphyr::{LoadableYamlNode, Yaml, YamlEmitter};
 use syntect::{
     easy::HighlightLines,
     highlighting::{Color, Style, ThemeSet},
@@ -42,7 +45,9 @@ fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
     generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let matches = build_cli().get_matches();
 
     if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
@@ -108,10 +113,15 @@ zpack:
             {
                 println!("Options: {options:?}");
 
+                let new_val = "+static";
+                let new_val = Yaml::load_from_str(new_val)
+                    .expect("Invalid temporary value")[0]
+                    .clone();
+
                 match options {
                     Yaml::Representation(cow, scalar_style, tag) => todo!(),
                     Yaml::Value(scalar) => todo!(),
-                    Yaml::Sequence(yamls) => yamls.push(yamls[0].clone()),
+                    Yaml::Sequence(yamls) => yamls.push(new_val),
                     Yaml::Mapping(linked_hash_map) => todo!(),
                     Yaml::Alias(_) => todo!(),
                     Yaml::BadValue => todo!(),
@@ -152,4 +162,11 @@ zpack:
             println!("Error: {err:?}");
         }
     }
+
+    let package_option = &Yaml::load_from_str("static = true").unwrap()[0];
+    let s = package_option.clone().into_string().unwrap();
+    let option = zpack::package::spec::parse_spec_option(&s)?;
+    println!("Option: {option:?}");
+
+    Ok(())
 }
