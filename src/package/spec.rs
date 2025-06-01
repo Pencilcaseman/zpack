@@ -112,6 +112,7 @@ fn parse_str(opt: &str) -> Option<(String, SpecOption)> {
         } else {
             if b == quote_type {
                 // End of string
+                prev = b;
                 break;
             }
 
@@ -123,7 +124,7 @@ fn parse_str(opt: &str) -> Option<(String, SpecOption)> {
         prev = b;
     }
 
-    if iter.count() == 0 {
+    if iter.count() == 0 && prev == quote_type {
         Some((first.into(), SpecOption::String(res)))
     } else {
         None
