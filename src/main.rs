@@ -45,23 +45,7 @@ fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
     generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
-
-    let matches = build_cli().get_matches();
-
-    if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
-        let mut cmd = build_cli();
-        eprintln!("Generating completion file for {generator}...");
-        print_completions(generator, &mut cmd);
-    }
-
-    if let Some(print) = matches.subcommand_matches("print")
-        && let Some(file) = print.get_one::<String>("file")
-    {
-        println!("File path: {file}");
-    }
-
+fn test_python() {
     let interpreter =
         rustpython::InterpreterConfig::new().init_stdlib().interpreter();
 
@@ -81,7 +65,9 @@ print(math.pi)
             println!("Error: {:?}", e.traceback());
         }
     });
+}
 
+fn test_yaml() {
     let yaml_str = r##"
 zpack:
     packages:
@@ -162,8 +148,31 @@ zpack:
             println!("Error: {err:?}");
         }
     }
+}
 
-    let package_option = &Yaml::load_from_str("static = true").unwrap()[0];
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
+    let matches = build_cli().get_matches();
+
+    if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
+        let mut cmd = build_cli();
+        eprintln!("Generating completion file for {generator}...");
+        print_completions(generator, &mut cmd);
+    }
+
+    if let Some(print) = matches.subcommand_matches("print")
+        && let Some(file) = print.get_one::<String>("file")
+    {
+        println!("File path: {file}");
+    }
+
+    test_python();
+    test_yaml();
+
+    let package_option =
+        &Yaml::load_from_str("txt=\"Hello, \\\"Quoted\\\" World!\"").unwrap()
+            [0];
     let s = package_option.clone().into_string().unwrap();
     let option = zpack::package::spec::parse_spec_option(&s)?;
     println!("Option: {option:?}");

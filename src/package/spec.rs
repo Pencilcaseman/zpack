@@ -27,11 +27,11 @@ pub struct PackageSpec {
 /// Parses a boolean option.
 ///
 /// Valid syntaxes are:
-/// - "my_option=true"  => my_option = True
-/// - "my_option=false" => my_option = False
-/// - "+my_option"      => my_option = True
-/// - "-my_option"      => my_option = False
-/// - "~my_option"      => my_option = False
+/// - my_option=true  => my_option = True
+/// - my_option=false => my_option = False
+/// - +my_option      => my_option = True
+/// - '-my_option'    => my_option = False
+/// - ~my_option      => my_option = False
 fn parse_bool(opt: &str) -> Option<(String, SpecOption)> {
     fn parse_equals(opt: &str) -> Option<(String, SpecOption)> {
         let truth_map: HashMap<&'static str, bool> = [
@@ -69,6 +69,67 @@ fn parse_bool(opt: &str) -> Option<(String, SpecOption)> {
     Some((name, SpecOption::Bool(value)))
 }
 
+/// Parses an integer option.
+///
+/// Valid syntaxes are:
+/// - my_option=123  => my_option = 123
+/// - my_option=+123 => my_option = 123
+/// - my_option=-123 => my_option = -123
+fn parse_int(opt: &str) -> Option<(String, SpecOption)> {
+    let eq = opt.rfind("=")?;
+    let first = opt.split_at(eq).0.trim();
+    let last = opt.split_at(eq + 1).1.trim();
+
+    let val = last.parse::<i64>().ok()?;
+
+    Some((first.into(), SpecOption::Int(val)))
+}
+
+/// Parse a string option.
+///
+/// Valid syntaxes are:
+/// - "my_option='Hello, World!'"
+/// - "my_option="Hello, World!""
+/// - "my_option="This \"contains\" quotes!""
+fn parse_str(opt: &str) -> Option<(String, SpecOption)> {
+    let eq = opt.rfind("=")?;
+    let first = opt.split_at(eq).0.trim();
+    let last = opt.split_at(eq + 1).1.trim();
+
+    let mut iter = last.bytes();
+
+    let quote_type = match iter.next()? {
+        c if c == b'"' || c == b'\'' => c,
+        _ => return None,
+    };
+
+    let mut prev = b'\0';
+    let mut res = String::new();
+
+    for b in iter.by_ref() {
+        if prev == b'\\' {
+            res += &String::from(b as char);
+        } else {
+            if b == quote_type {
+                // End of string
+                break;
+            }
+
+            if b != b'\\' {
+                res += &String::from(b as char);
+            }
+        }
+
+        prev = b;
+    }
+
+    if iter.count() == 0 {
+        Some((first.into(), SpecOption::String(res)))
+    } else {
+        None
+    }
+}
+
 pub fn parse_spec_option(opt: &str) -> Result<(String, SpecOption)> {
     // +name => Bool(true)
     // -name => Bool(true)
@@ -90,7 +151,10 @@ pub fn parse_spec_option(opt: &str) -> Result<(String, SpecOption)> {
 
     println!("Parse result: {:?}", parse_bool(opt));
 
-    parse_bool(opt).or(None).ok_or_eyre(eyre!("Invalid option: '{opt}'"))
+    [parse_bool, parse_int, parse_str]
+        .iter()
+        .find_map(|f| f(opt))
+        .ok_or_eyre(eyre!("Invalid option: '{opt}'"))
 }
 
 pub struct Package {
@@ -150,6 +214,80 @@ pub mod test {
 
         for (input, output) in &args {
             assert_eq!(parse_bool(input), *output);
+
+            let Ok(parsed) = parse_spec_option(input) else {
+                panic!("Failed to parse")
+            };
+
+            assert_eq!(Some(parsed), *output);
+        }
+    }
+
+    #[test]
+    pub fn test_parse_int() {
+        let args: Vec<(&'static str, Option<(String, SpecOption)>)> =
+            Vec::from([
+                ("num=123", Some(("num".into(), SpecOption::Int(123)))),
+                ("num=+123", Some(("num".into(), SpecOption::Int(123)))),
+                ("num=-123", Some(("num".into(), SpecOption::Int(-123)))),
+                ("num= +123", Some(("num".into(), SpecOption::Int(123)))),
+                ("num= -123", Some(("num".into(), SpecOption::Int(-123)))),
+                ("num =+123", Some(("num".into(), SpecOption::Int(123)))),
+                ("num =-123", Some(("num".into(), SpecOption::Int(-123)))),
+                ("num = +123", Some(("num".into(), SpecOption::Int(123)))),
+                ("num = -123", Some(("num".into(), SpecOption::Int(-123)))),
+            ]);
+
+        for (input, output) in &args {
+            assert_eq!(parse_int(input), *output, "Input: {input}");
+
+            let Ok(parsed) = parse_spec_option(input) else {
+                panic!("Failed to parse")
+            };
+
+            assert_eq!(Some(parsed), *output);
+        }
+    }
+
+    #[test]
+    pub fn test_parse_str() {
+        let args: Vec<(&'static str, Option<(String, SpecOption)>)> =
+            Vec::from([
+                (
+                    "str='Hello, World!'",
+                    Some((
+                        "str".into(),
+                        SpecOption::String("Hello, World!".into()),
+                    )),
+                ),
+                (
+                    "str=\"Hello, World!\"",
+                    Some((
+                        "str".into(),
+                        SpecOption::String("Hello, World!".into()),
+                    )),
+                ),
+                (
+                    "str=\"'''\"",
+                    Some(("str".into(), SpecOption::String("'''".into()))),
+                ),
+                (
+                    "str=\"This \\\"is\\\" quoted\"",
+                    Some((
+                        "str".into(),
+                        SpecOption::String("This \"is\" quoted".into()),
+                    )),
+                ),
+            ]);
+
+        for (input, output) in &args {
+            assert_eq!(parse_str(input), *output, "Input: {input}");
+
+            let Ok(parsed) = parse_spec_option(input) else {
+                panic!("Failed to parse")
+            };
+
+            assert_eq!(Some(parsed), *output);
         }
     }
 }
