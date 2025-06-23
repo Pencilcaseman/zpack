@@ -131,6 +131,35 @@ fn parse_str(opt: &str) -> Option<(String, SpecOption)> {
     }
 }
 
+/// Parse a list of values.
+///
+/// Valid syntaxes include:
+/// - my_list = [1, 2, 3]
+/// - my_list = ["hello", 123, ["a", 'nested', "list"], true]
+fn parse_list(opt: &str) -> Option<(String, SpecOption)> {
+    let eq = opt.rfind("=")?;
+    let first = opt.split_at(eq).0.trim();
+    let last = opt.split_at(eq + 1).1.trim();
+
+    let mut iter = last.bytes();
+
+    // Opening '['
+    match iter.next() {
+        Some(b'[') => (),
+        _ => return None,
+    }
+
+    let mut current = String::new();
+
+    // while let Some(next) = iter.next() {
+    //     match next {
+    //         // 'b'
+    //     }
+    // }
+
+    todo!()
+}
+
 pub fn parse_spec_option(opt: &str) -> Result<(String, SpecOption)> {
     // +name => Bool(true)
     // -name => Bool(true)

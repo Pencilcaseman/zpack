@@ -2,6 +2,8 @@
 
 use std::io;
 
+use std::sync::Arc;
+
 use clap::{
     Arg, ArgAction, Command, ValueHint, crate_description, crate_version,
     value_parser,
@@ -68,7 +70,7 @@ print(math.pi)
 }
 
 fn test_yaml() {
-    let yaml_str = r##"
+    let yaml_str = r#"
 zpack:
     packages:
         openmpi:
@@ -77,7 +79,7 @@ zpack:
             options:
                 - "fabrics=auto"
                 - '+internal-pmix'
-"##;
+"#;
 
     match Yaml::load_from_str(yaml_str) {
         Ok(mut docs) => {
@@ -92,29 +94,29 @@ zpack:
             emitter.dump(doc).unwrap(); // dump the YAML object to a String
             println!("Output string: {out_str}");
 
-            if let Some(zpack) = doc.as_mapping_get_mut("zpack")
-                && let Some(packages) = zpack.as_mapping_get_mut("packages")
-                && let Some(openmpi) = packages.as_mapping_get_mut("openmpi")
-                && let Some(options) = openmpi.as_mapping_get_mut("options")
-            {
-                println!("Options: {options:?}");
-
-                let new_val = "+static";
-                let new_val = Yaml::load_from_str(new_val)
-                    .expect("Invalid temporary value")[0]
-                    .clone();
-
-                match options {
-                    Yaml::Representation(cow, scalar_style, tag) => todo!(),
-                    Yaml::Value(scalar) => todo!(),
-                    Yaml::Sequence(yamls) => yamls.push(new_val),
-                    Yaml::Mapping(linked_hash_map) => todo!(),
-                    Yaml::Alias(_) => todo!(),
-                    Yaml::BadValue => todo!(),
-                }
-            } else {
-                println!("Did not find options!");
-            }
+            // if let Some(zpack) = doc.as_mapping_get_mut("zpack")
+            //     && let Some(packages) = zpack.as_mapping_get_mut("packages")
+            //     && let Some(openmpi) = packages.as_mapping_get_mut("openmpi")
+            //     && let Some(options) = openmpi.as_mapping_get_mut("options")
+            // {
+            //     println!("Options: {options:?}");
+            //
+            //     let new_val = "+static";
+            //     let new_val = Yaml::load_from_str(new_val)
+            //         .expect("Invalid temporary value")[0]
+            //         .clone();
+            //
+            //     match options {
+            //         Yaml::Representation(_, _, _) => todo!(),
+            //         Yaml::Value(_) => todo!(),
+            //         Yaml::Sequence(yamls) => yamls.push(new_val),
+            //         Yaml::Mapping(_) => todo!(),
+            //         Yaml::Alias(_) => todo!(),
+            //         Yaml::BadValue => todo!(),
+            //     }
+            // } else {
+            //     println!("Did not find options!");
+            // }
 
             let mut out_str = String::new();
             let mut emitter = YamlEmitter::new(&mut out_str);
@@ -150,6 +152,65 @@ zpack:
     }
 }
 
+use rune::runtime::Function;
+// use rune::sync::Arc;
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::{Diagnostics, Vm};
+
+fn test_rune() -> rune::support::Result<()> {
+    let context = rune_modules::default_context()?;
+    let runtime = Arc::new(context.runtime()?);
+    // let runtime = context.runtime()?;
+
+    let mut sources = rune::sources! {
+        entry => {
+            fn foo(a, b) {
+                a + b
+            }
+
+            pub fn fib(n) {
+                if n < 2 {
+                    n
+                } else {
+                    fib(n - 1) + fib(n - 2)
+                }
+            }
+
+            pub fn main() {
+                foo
+            }
+        }
+    };
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit(&mut writer, &sources)?;
+    }
+
+    let unit = result?;
+    let unit = Arc::new(unit);
+    let mut vm = Vm::new(runtime, unit);
+    let output = vm.call(["main"], ())?;
+    let output: Function = rune::from_value(output)?;
+
+    println!("{}", output.call::<i64>((1, 3)).unwrap());
+    println!("{}", output.call::<i64>((2, 6)).unwrap());
+
+    for i in 0..=30 {
+        let output = vm.call(["fib"], (i,))?;
+        println!("fib({i}) = {output:?}");
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     color_eyre::install()?;
 
@@ -161,14 +222,15 @@ fn main() -> Result<()> {
         print_completions(generator, &mut cmd);
     }
 
-    if let Some(print) = matches.subcommand_matches("print")
-        && let Some(file) = print.get_one::<String>("file")
-    {
-        println!("File path: {file}");
+    if let Some(print) = matches.subcommand_matches("print") {
+        if let Some(file) = print.get_one::<String>("file") {
+            println!("File path: {file}");
+        }
     }
 
     test_python();
     test_yaml();
+    test_rune().unwrap();
 
     let package_option =
         &Yaml::load_from_str("txt=\"Hello, \\\"Quoted\\\" World!\"").unwrap()
