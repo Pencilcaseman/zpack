@@ -1,18 +1,24 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    iter::{Iterator, Peekable},
+};
 
 use color_eyre::{
-    Result,
+    Result, Section,
     eyre::{OptionExt, eyre},
 };
+
+use crate::util::num;
 
 /// The valid data types a configuration option can have in a package
 /// description.
 ///
 /// Each data type supports a syntax in YAML for assigning a value of that type.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SpecOption {
     Bool(bool),
     Int(i64),
+    Float(f64),
     String(String),
     List(Vec<SpecOption>),
 }
@@ -22,6 +28,319 @@ pub struct PackageSpec {
     pub compiler: (),
     pub builder: (),
     pub options: HashMap<String, SpecOption>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OptionToken {
+    Space,         // _
+    Plus,          // +
+    Minus,         // -
+    Tilde,         // ~
+    Equal,         // =
+    SingleQuote,   // '
+    DoubleQuote,   // "
+    OpenBracket,   // (
+    CloseBracket,  // )
+    OpenSquare,    // [
+    CloseSquare,   // ]
+    Comma,         // ,
+    Bool(bool),    // true/false
+    Int(i64),      // Integer value
+    Float(f64),    // Floating point value
+    Named(String), // Named literal
+}
+
+pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
+    let bytes = opt.as_bytes();
+
+    let mut res = Vec::new();
+    let mut idx = 0;
+
+    while idx < opt.len() {
+        use OptionToken::*;
+
+        let value = match bytes[idx] {
+            b' ' => Space,
+            b'+' => Plus,
+            b'-' => Minus,
+            b'~' => Tilde,
+            b'=' => Equal,
+            b'\'' => SingleQuote,
+            b'"' => DoubleQuote,
+            b'(' => OpenBracket,
+            b')' => CloseBracket,
+            b'[' => OpenSquare,
+            b']' => CloseSquare,
+            b',' => Comma,
+
+            _ if bytes[idx..(idx + 4).min(opt.len())]
+                .iter()
+                .map(|b| b.to_ascii_lowercase() as char)
+                .collect::<String>()
+                == "true" =>
+            {
+                idx += 3;
+                Bool(true)
+            }
+
+            _ if bytes[idx..(idx + 5).min(opt.len())]
+                .iter()
+                .map(|b| b.to_ascii_lowercase() as char)
+                .collect::<String>()
+                == "false" =>
+            {
+                idx += 4;
+                Bool(false)
+            }
+
+            _ if bytes[idx].is_ascii_digit() => {
+                let literal = bytes
+                    .iter()
+                    .skip(idx)
+                    .take_while(|&&b| {
+                        b.is_ascii_digit()
+                            || b == b'.' // 3.14
+                            || b == b'_' // 123_456
+                            || b == b'e' // 1e5
+                            || b == b'+' // 1e+5 or +123
+                            || b == b'-' // 1e-5 or -123
+                    })
+                    .map(|&b| b as char)
+                    .collect::<String>();
+
+                if literal.is_empty() {
+                    return Err(eyre!("Invalid spec option: {opt:?}")
+                        .with_section(move || {
+                            format!(
+                                "Unexpected token at index {}: {:?}",
+                                idx, bytes[idx] as char
+                            )
+                        }));
+                }
+
+                let result = match num::parse_num(&literal)? {
+                    num::Number::Integer(int) => Int(int),
+                    num::Number::Float(float) => Float(float),
+                };
+
+                idx += literal.len() - 1;
+
+                result
+            }
+
+            _ => {
+                let literal = bytes
+                    .iter()
+                    .skip(idx)
+                    .take_while(|&&b| {
+                        b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
+                    })
+                    .map(|&b| b as char)
+                    .collect::<String>();
+
+                if literal.is_empty() {
+                    return Err(eyre!("Invalid spec option: {opt:?}")
+                        .with_section(move || {
+                            format!(
+                                "Unexpected token at index {}: {:?}",
+                                idx, bytes[idx] as char
+                            )
+                        }));
+                }
+
+                idx += literal.len() - 1;
+
+                Named(literal)
+            }
+        };
+
+        idx += 1;
+
+        res.push(value);
+    }
+
+    Ok(res)
+}
+
+#[derive(Debug)]
+pub struct ConsumeResult {
+    pub name: Option<String>,
+    pub value: SpecOption,
+}
+
+/// Consume a boolean value.
+///
+/// Valid syntaxes are:
+/// - `+my_option`      => my_option = True
+/// - `'-my_option'`    => my_option = False
+/// - `~my_option`      => my_option = False
+/// - `true`            => True
+/// - `false`           => False
+fn consume_bool(
+    tokens: &[OptionToken],
+) -> (Result<ConsumeResult>, &[OptionToken]) {
+    use OptionToken::*;
+
+    if tokens.is_empty() {
+        return (
+            Err(eyre!("Expected Bool. Received empty token stream.")),
+            tokens,
+        );
+    }
+
+    if matches!(tokens[0], Plus | Minus | Tilde) {
+        if let Named(name) = &tokens[1] {
+            (
+                Ok(ConsumeResult {
+                    name: Some(name.to_string()),
+                    value: SpecOption::Bool(match tokens[0] {
+                        Plus => true,
+                        Minus | Tilde => false,
+                        _ => unreachable!(),
+                    }),
+                }),
+                &tokens[2..],
+            )
+        } else {
+            (
+                Err(eyre!(
+                    "Invalid syntax. Expected `+option`, `-option` or `~option`"
+                )),
+                tokens,
+            )
+        }
+    } else if let Bool(value) = tokens[0] {
+        (
+            Ok(ConsumeResult { name: None, value: SpecOption::Bool(value) }),
+            &tokens[1..],
+        )
+    } else if let Named(name) = &tokens[0]
+        && matches!(tokens[1], Equal)
+        && let Bool(value) = tokens[2]
+    {
+        (
+            Ok(ConsumeResult {
+                name: Some(name.to_string()),
+                value: SpecOption::Bool(value),
+            }),
+            &tokens[3..],
+        )
+    } else {
+        (
+            Err(eyre!(
+                "Invalid syntax. Expected `+option`, `-option` or `~option`"
+            )),
+            tokens,
+        )
+    }
+}
+
+fn consume_num(
+    tokens: &[OptionToken],
+) -> (Result<ConsumeResult>, &[OptionToken]) {
+    use OptionToken::*;
+
+    if tokens.is_empty() {
+        return (
+            Err(eyre!("Expected Number. Received empty token stream")),
+            tokens,
+        );
+    }
+
+    if let Int(num) = tokens[0] {
+        (
+            Ok(ConsumeResult { name: None, value: SpecOption::Int(num) }),
+            &tokens[1..],
+        )
+    } else if matches!(tokens[0], Plus | Minus) {
+        let num = consume_num(&tokens[1..]);
+
+        if let Ok(mut thing) = num.0 {
+            if let SpecOption::Int(num) = thing.value {
+                thing.value = SpecOption::Int(match tokens[0] {
+                    Plus => num,
+                    Minus => -num,
+                    _ => unreachable!(),
+                });
+            } else if let SpecOption::Float(num) = thing.value {
+                thing.value = SpecOption::Float(match tokens[0] {
+                    Plus => num,
+                    Minus => -num,
+                    _ => unreachable!(),
+                });
+            }
+
+            (Ok(ConsumeResult { name: None, value: thing.value }), num.1)
+        } else {
+            (Err(eyre!("Unknown syntax error.")), tokens)
+        }
+    } else {
+        (Err(eyre!("Expected Number.")), tokens)
+    }
+}
+
+fn consume_nextthing(
+    tokens: &[OptionToken],
+) -> (Result<ConsumeResult>, &[OptionToken]) {
+    use OptionToken::*;
+
+    if tokens.is_empty() {
+        return (
+            Err(eyre!("Expected Number. Received empty token stream")),
+            tokens,
+        );
+    }
+
+    if let Int(num) = tokens[0] {
+        (
+            Ok(ConsumeResult { name: None, value: SpecOption::Int(num) }),
+            &tokens[1..],
+        )
+    } else if matches!(tokens[0], Plus | Minus) {
+        let num = consume_num(&tokens[1..]);
+
+        if let Ok(mut thing) = num.0 {
+            if let SpecOption::Int(num) = thing.value {
+                thing.value = SpecOption::Int(match tokens[0] {
+                    Plus => num,
+                    Minus => -num,
+                    _ => unreachable!(),
+                });
+            } else if let SpecOption::Float(num) = thing.value {
+                thing.value = SpecOption::Float(match tokens[0] {
+                    Plus => num,
+                    Minus => -num,
+                    _ => unreachable!(),
+                });
+            }
+
+            (Ok(ConsumeResult { name: None, value: thing.value }), num.1)
+        } else {
+            (Err(eyre!("Unknown syntax error.")), tokens)
+        }
+    } else {
+        (Err(eyre!("Expected Number.")), tokens)
+    }
+}
+
+pub fn consume_spec_option(
+    tokens: &[OptionToken],
+) -> (Result<ConsumeResult>, &[OptionToken]) {
+    {
+        let bool_result = consume_bool(tokens);
+        if let Ok(result) = bool_result.0 {
+            return (Ok(result), bool_result.1);
+        }
+    }
+
+    {
+        let num_result = consume_num(tokens);
+        if num_result.0.is_ok() {
+            return num_result;
+        }
+    }
+
+    todo!()
 }
 
 /// Parses a boolean option.

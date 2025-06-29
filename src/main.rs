@@ -1,8 +1,6 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::io;
-
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use clap::{
     Arg, ArgAction, Command, ValueHint, crate_description, crate_version,
@@ -152,13 +150,50 @@ zpack:
     }
 }
 
-use rune::runtime::Function;
-// use rune::sync::Arc;
-use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Diagnostics, Vm};
+use rune::{
+    ContextError, Diagnostics, Module,
+    runtime::{Function, Vm},
+    termcolor::{ColorChoice, StandardStream},
+};
+
+// #[derive(rune::Any)]
+// struct MyStruct {
+//     #[rune(get, set)]
+//     my_field: i32,
+// }
+//
+// impl MyStruct {
+//     #[rune::function(keep)]
+//     const fn my_function(&self) -> i32 {
+//         self.my_field * 10
+//     }
+// }
+
+#[derive(Default, Debug, rune::Any, PartialEq, Eq)]
+#[rune(constructor)]
+struct External {
+    #[rune(get, set)]
+    suite_name: String,
+    #[rune(get, set)]
+    room_number: usize,
+}
+
+impl External {
+    #[rune::function(keep)]
+    const fn my_function(&self) -> usize {
+        self.room_number * 10
+    }
+}
 
 fn test_rune() -> rune::support::Result<()> {
-    let context = rune_modules::default_context()?;
+    let mut module = rune::Module::with_crate("my_thing").unwrap();
+
+    module.ty::<External>().unwrap();
+    module.function_meta(External::my_function__meta).unwrap();
+
+    let mut context = rune_modules::default_context()?;
+    context.install(module).unwrap();
+
     let runtime = Arc::new(context.runtime()?);
     // let runtime = context.runtime()?;
 
@@ -176,7 +211,19 @@ fn test_rune() -> rune::support::Result<()> {
                 }
             }
 
-            pub fn main() {
+            pub fn main(thingy) {
+                println!("Hello, World!");
+
+                println!("Thingy: {}", thingy.room_number);
+                dbg!(thingy);
+
+                let thing = External {
+                    suite_name: "test",
+                    room_number: 1234
+                };
+
+                println!("Result: {}", thing.my_function());
+
                 foo
             }
         }
@@ -197,13 +244,16 @@ fn test_rune() -> rune::support::Result<()> {
     let unit = result?;
     let unit = Arc::new(unit);
     let mut vm = Vm::new(runtime, unit);
-    let output = vm.call(["main"], ())?;
+    let output = vm.call(
+        ["main"],
+        (External { suite_name: "Hello".into(), room_number: 123 },),
+    )?;
     let output: Function = rune::from_value(output)?;
 
     println!("{}", output.call::<i64>((1, 3)).unwrap());
     println!("{}", output.call::<i64>((2, 6)).unwrap());
 
-    for i in 0..=30 {
+    for i in 0..=20 {
         let output = vm.call(["fib"], (i,))?;
         println!("fib({i}) = {output:?}");
     }
@@ -222,10 +272,10 @@ fn main() -> Result<()> {
         print_completions(generator, &mut cmd);
     }
 
-    if let Some(print) = matches.subcommand_matches("print") {
-        if let Some(file) = print.get_one::<String>("file") {
-            println!("File path: {file}");
-        }
+    if let Some(print) = matches.subcommand_matches("print")
+        && let Some(file) = print.get_one::<String>("file")
+    {
+        println!("File path: {file}");
     }
 
     test_python();
@@ -238,6 +288,15 @@ fn main() -> Result<()> {
     let s = package_option.clone().into_string().unwrap();
     let option = zpack::package::spec::parse_spec_option(&s)?;
     println!("Option: {option:?}");
+
+    // let sample = "[+thing, ~other_thing, boolean_val = true, 'string']";
+    let sample = "~1234";
+    let tokenized = zpack::package::spec::tokenize_option(sample)?;
+    println!("Result: {tokenized:?}");
+    println!(
+        "Result: {:?}",
+        zpack::package::spec::consume_spec_option(&tokenized)
+    );
 
     Ok(())
 }
