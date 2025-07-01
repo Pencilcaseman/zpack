@@ -289,8 +289,13 @@ fn main() -> Result<()> {
     let option = zpack::package::spec::parse_spec_option(&s)?;
     println!("Option: {option:?}");
 
+    println!();
+
     // let sample = "[+thing, ~other_thing, boolean_val = true, 'string']";
-    let sample = "~1234";
+    let test = "\'hello\'";
+    println!("{test:?}");
+
+    let sample = "'hello, \\\"quoted\\\" world'";
     let tokenized = zpack::package::spec::tokenize_option(sample)?;
     println!("Result: {tokenized:?}");
     println!(

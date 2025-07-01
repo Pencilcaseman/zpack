@@ -32,21 +32,22 @@ pub struct PackageSpec {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OptionToken {
-    Space,         // _
-    Plus,          // +
-    Minus,         // -
-    Tilde,         // ~
-    Equal,         // =
-    SingleQuote,   // '
-    DoubleQuote,   // "
-    OpenBracket,   // (
-    CloseBracket,  // )
+    Space, // _
+    Plus,  // +
+    Minus, // -
+    Tilde, // ~
+    Equal, // =
+    // SingleQuote,   // ' // Replaced by String
+    // DoubleQuote,   // "
+    // OpenBracket,   // ( // Unnecessary
+    // CloseBracket,  // )
     OpenSquare,    // [
     CloseSquare,   // ]
     Comma,         // ,
     Bool(bool),    // true/false
     Int(i64),      // Integer value
     Float(f64),    // Floating point value
+    Str(String),   // String literal
     Named(String), // Named literal
 }
 
@@ -65,13 +66,56 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
             b'-' => Minus,
             b'~' => Tilde,
             b'=' => Equal,
-            b'\'' => SingleQuote,
-            b'"' => DoubleQuote,
-            b'(' => OpenBracket,
-            b')' => CloseBracket,
             b'[' => OpenSquare,
             b']' => CloseSquare,
             b',' => Comma,
+
+            b'\'' | b'"' => {
+                let start_idx = idx;
+                let quote_type = bytes[idx];
+                let mut escaped = Vec::new();
+
+                idx += 1;
+
+                while idx < bytes.len() {
+                    match bytes[idx] {
+                        b'\\' => {
+                            println!("Backslash: {idx}");
+                            escaped.push(idx - 1);
+                            idx += 1;
+
+                            match bytes[idx] {
+                                b'\\' | b'\n' | b'\"' | b'\'' => {
+                                    // Escaped
+                                }
+                                unknown => {
+                                    return Err(eyre!(
+                                        "Invalid escape sequence: \\{unknown}"
+                                    ));
+                                }
+                            }
+                        }
+
+                        matching if matching == quote_type => break,
+
+                        _ => (),
+                    }
+
+                    idx += 1;
+                }
+
+                Str(bytes[start_idx + 1..idx]
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, b)| {
+                        if escaped.contains(&i) {
+                            None
+                        } else {
+                            Some(*b as char)
+                        }
+                    })
+                    .collect())
+            }
 
             _ if bytes[idx..(idx + 4).min(opt.len())]
                 .iter()
@@ -279,47 +323,28 @@ fn consume_num(
     }
 }
 
-fn consume_nextthing(
+fn consume_str(
     tokens: &[OptionToken],
 ) -> (Result<ConsumeResult>, &[OptionToken]) {
     use OptionToken::*;
 
     if tokens.is_empty() {
         return (
-            Err(eyre!("Expected Number. Received empty token stream")),
+            Err(eyre!("Expected String. Received empty token stream")),
             tokens,
         );
     }
 
-    if let Int(num) = tokens[0] {
+    if let Str(txt) = &tokens[0] {
         (
-            Ok(ConsumeResult { name: None, value: SpecOption::Int(num) }),
+            Ok(ConsumeResult {
+                name: None,
+                value: SpecOption::String(txt.clone()),
+            }),
             &tokens[1..],
         )
-    } else if matches!(tokens[0], Plus | Minus) {
-        let num = consume_num(&tokens[1..]);
-
-        if let Ok(mut thing) = num.0 {
-            if let SpecOption::Int(num) = thing.value {
-                thing.value = SpecOption::Int(match tokens[0] {
-                    Plus => num,
-                    Minus => -num,
-                    _ => unreachable!(),
-                });
-            } else if let SpecOption::Float(num) = thing.value {
-                thing.value = SpecOption::Float(match tokens[0] {
-                    Plus => num,
-                    Minus => -num,
-                    _ => unreachable!(),
-                });
-            }
-
-            (Ok(ConsumeResult { name: None, value: thing.value }), num.1)
-        } else {
-            (Err(eyre!("Unknown syntax error.")), tokens)
-        }
     } else {
-        (Err(eyre!("Expected Number.")), tokens)
+        (Err(eyre!("Unknown syntax error.")), tokens)
     }
 }
 
@@ -337,6 +362,13 @@ pub fn consume_spec_option(
         let num_result = consume_num(tokens);
         if num_result.0.is_ok() {
             return num_result;
+        }
+    }
+
+    {
+        let str_result = consume_str(tokens);
+        if str_result.0.is_ok() {
+            return str_result;
         }
     }
 
