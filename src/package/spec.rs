@@ -80,17 +80,21 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                 while idx < bytes.len() {
                     match bytes[idx] {
                         b'\\' => {
-                            println!("Backslash: {idx}");
                             escaped.push(idx - 1);
                             idx += 1;
 
+                            if idx >= bytes.len() {
+                                return Err(eyre!("Unexpected end of string"));
+                            }
+
                             match bytes[idx] {
-                                b'\\' | b'\n' | b'\"' | b'\'' => {
+                                b'\\' | b'\n' | b'\t' | b'\"' | b'\'' => {
                                     // Escaped
                                 }
                                 unknown => {
                                     return Err(eyre!(
-                                        "Invalid escape sequence: \\{unknown}"
+                                        "Invalid escape sequence: '\\{}'",
+                                        unknown as char
                                     ));
                                 }
                             }

@@ -295,7 +295,7 @@ fn main() -> Result<()> {
     let test = "\'hello\'";
     println!("{test:?}");
 
-    let sample = "'hello, \\\"quoted\\\" world'";
+    let sample = r#"'hello, \"quoted\" world \' this is also escaped \' \t '"#;
     let tokenized = zpack::package::spec::tokenize_option(sample)?;
     println!("Result: {tokenized:?}");
     println!(
