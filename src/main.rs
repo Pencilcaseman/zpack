@@ -286,16 +286,15 @@ fn main() -> Result<()> {
         &Yaml::load_from_str("txt=\"Hello, \\\"Quoted\\\" World!\"").unwrap()
             [0];
     let s = package_option.clone().into_string().unwrap();
-    let option = zpack::package::spec::parse_spec_option(&s)?;
-    println!("Option: {option:?}");
+    // let option = zpack::package::spec::parse_spec_option(&s)?;
+    // println!("Option: {option:?}");
 
     println!();
 
     // let sample = "[+thing, ~other_thing, boolean_val = true, 'string']";
-    let test = "\'hello\'";
-    println!("{test:?}");
-
-    let sample = r#"'hello, \"quoted\" world \' this is also escaped \' \t '"#;
+    // let sample = r#"'hello, \"quoted\" world \' this is also escaped \' \t
+    // '"#;
+    let sample = r#"[1, 2, 3, "hello, world", true]"#;
     let tokenized = zpack::package::spec::tokenize_option(sample)?;
     println!("Result: {tokenized:?}");
     println!(
