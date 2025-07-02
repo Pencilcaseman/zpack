@@ -75,22 +75,28 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                 let quote_type = bytes[idx];
                 let mut escaped = Vec::new();
 
-                idx += 1;
-
                 while idx < bytes.len() {
+                    idx += 1;
+
                     match bytes[idx] {
                         b'\\' => {
-                            escaped.push(idx - 1);
+                            escaped.push((idx - 1, None));
+                            escaped.push((idx, None));
                             idx += 1;
 
                             if idx >= bytes.len() {
                                 return Err(eyre!("Unexpected end of string"));
                             }
 
+                            let popped = escaped.pop().unwrap().0;
+
                             match bytes[idx] {
-                                b'\\' | b'\n' | b'\t' | b'\"' | b'\'' => {
-                                    // Escaped
-                                }
+                                b'\\' => escaped.push((popped, Some('\\'))),
+                                b'\'' => escaped.push((popped, Some('\''))),
+                                b'\"' => escaped.push((popped, Some('\"'))),
+                                b't' => escaped.push((popped, Some('\t'))),
+                                b'n' => escaped.push((popped, Some('\n'))),
+
                                 unknown => {
                                     return Err(eyre!(
                                         "Invalid escape sequence: '\\{}'",
@@ -104,18 +110,15 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
 
                         _ => (),
                     }
-
-                    idx += 1;
                 }
 
                 Str(bytes[start_idx + 1..idx]
                     .iter()
                     .enumerate()
                     .filter_map(|(i, b)| {
-                        if escaped.contains(&i) {
-                            None
-                        } else {
-                            Some(*b as char)
+                        match escaped.iter().find(|(j, _)| i == *j) {
+                            Some((_, c)) => *c,
+                            None => Some(*b as char),
                         }
                     })
                     .collect())
