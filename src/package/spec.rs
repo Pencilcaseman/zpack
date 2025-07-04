@@ -354,7 +354,7 @@ fn consume_str(
 }
 
 fn consume_list(
-    tokens: &[OptionToken],
+    mut tokens: &[OptionToken],
 ) -> (Result<ConsumeResult>, &[OptionToken]) {
     use OptionToken::*;
 
@@ -366,7 +366,7 @@ fn consume_list(
     }
 
     if tokens[0] != OpenSquare {
-        println!("Returning here because tokens = {:?}", tokens);
+        println!("Returning here because tokens = {tokens:?}");
         return (Err(eyre!("Expected open square bracket ('[')")), tokens);
     }
 
@@ -379,6 +379,8 @@ fn consume_list(
         }
 
         if idx >= tokens.len() {
+            println!("HERE??");
+
             return (
                 Err(eyre!(
                     "Unexpected end of string. Expected closing square bracket (']')"
@@ -389,6 +391,10 @@ fn consume_list(
 
         {
             let (res, rem) = consume_spec_option(&tokens[idx..]);
+            println!("VALUES: {res:?} {rem:?}\n");
+
+            tokens = rem;
+            idx = 0;
 
             if let Ok(val) = res {
                 values.push(val.value);
@@ -397,11 +403,11 @@ fn consume_list(
                 return (res, tokens);
             }
         }
-
-        idx += 1;
     }
 
     idx += 1;
+
+    println!("Tokens: {:?}", &tokens[idx..]);
 
     (
         Ok(ConsumeResult { name: None, value: SpecOption::List(values) }),
@@ -414,8 +420,8 @@ pub fn consume_spec_option(
 ) -> (Result<ConsumeResult>, &[OptionToken]) {
     {
         let bool_result = consume_bool(tokens);
-        if let Ok(result) = bool_result.0 {
-            return (Ok(result), bool_result.1);
+        if bool_result.0.is_ok() {
+            return bool_result;
         }
     }
 
