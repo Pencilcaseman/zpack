@@ -295,7 +295,8 @@ fn main() -> Result<()> {
     // let sample = r#"'hello, \"quoted\" world \' this is also escaped \' \t
     // '"#;
     // let sample = r#"[1, 2, 3, "hello, world", true, [123, 456], +hello]"#;
-    let sample = r#"[1, [2, 3], 4]"#;
+    // let sample = r#"[1, [2, 3], 4, +thingy]"#;
+    let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false, TrUe]"#;
     let tokenized = zpack::package::spec::tokenize_option(sample)?;
     println!("Result: {tokenized:?}");
     println!(

@@ -74,6 +74,10 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                 while idx < bytes.len() {
                     idx += 1;
 
+                    if idx >= bytes.len() {
+                        return Err(eyre!("Unexpected end of string"));
+                    }
+
                     match bytes[idx] {
                         b'\\' => {
                             escaped.push((idx - 1, None));
@@ -227,147 +231,127 @@ pub struct ConsumeResult {
 /// - `false`           => False
 fn consume_bool(
     tokens: &[OptionToken],
-) -> (Result<ConsumeResult>, &[OptionToken]) {
+) -> Result<(ConsumeResult, &[OptionToken])> {
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return (
-            Err(eyre!("Expected Bool. Received empty token stream.")),
-            tokens,
-        );
+        return Err(eyre!("Expected Bool. Received empty token stream."));
     }
 
     if matches!(tokens[0], Plus | Minus | Tilde) {
         if let Named(name) = &tokens[1] {
-            (
-                Ok(ConsumeResult {
+            Ok((
+                ConsumeResult {
                     name: Some(name.to_string()),
                     value: SpecOption::Bool(match tokens[0] {
                         Plus => true,
                         Minus | Tilde => false,
                         _ => unreachable!(),
                     }),
-                }),
+                },
                 &tokens[2..],
-            )
+            ))
         } else {
-            (
-                Err(eyre!(
-                    "Invalid syntax. Expected `+option`, `-option` or `~option`"
-                )),
-                tokens,
-            )
+            Err(eyre!(
+                "Invalid syntax. Expected `+option`, `-option` or `~option`"
+            ))
         }
     } else if let Bool(value) = tokens[0] {
-        (
-            Ok(ConsumeResult { name: None, value: SpecOption::Bool(value) }),
+        Ok((
+            ConsumeResult { name: None, value: SpecOption::Bool(value) },
             &tokens[1..],
-        )
+        ))
     } else if let Named(name) = &tokens[0]
         && matches!(tokens[1], Equal)
         && let Bool(value) = tokens[2]
     {
-        (
-            Ok(ConsumeResult {
+        Ok((
+            ConsumeResult {
                 name: Some(name.to_string()),
                 value: SpecOption::Bool(value),
-            }),
+            },
             &tokens[3..],
-        )
+        ))
     } else {
-        (
-            Err(eyre!(
-                "Invalid syntax. Expected `+option`, `-option` or `~option`"
-            )),
-            tokens,
-        )
+        Err(eyre!("Invalid syntax. Expected `+option`, `-option` or `~option`"))
     }
 }
 
 fn consume_num(
     tokens: &[OptionToken],
-) -> (Result<ConsumeResult>, &[OptionToken]) {
+) -> Result<(ConsumeResult, &[OptionToken])> {
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return (
-            Err(eyre!("Expected Number. Received empty token stream")),
-            tokens,
-        );
+        return Err(eyre!("Expected Number. Received empty token stream"));
     }
 
     if let Int(num) = tokens[0] {
-        (
-            Ok(ConsumeResult { name: None, value: SpecOption::Int(num) }),
+        Ok((
+            ConsumeResult { name: None, value: SpecOption::Int(num) },
             &tokens[1..],
-        )
+        ))
+    } else if let Float(num) = tokens[0] {
+        Ok((
+            ConsumeResult { name: None, value: SpecOption::Float(num) },
+            &tokens[1..],
+        ))
     } else if matches!(tokens[0], Plus | Minus) {
-        let num = consume_num(&tokens[1..]);
+        let (mut num, rem) = consume_num(&tokens[1..])?;
 
-        if let Ok(mut thing) = num.0 {
-            if let SpecOption::Int(num) = thing.value {
-                thing.value = SpecOption::Int(match tokens[0] {
-                    Plus => num,
-                    Minus => -num,
-                    _ => unreachable!(),
-                });
-            } else if let SpecOption::Float(num) = thing.value {
-                thing.value = SpecOption::Float(match tokens[0] {
-                    Plus => num,
-                    Minus => -num,
-                    _ => unreachable!(),
-                });
-            }
-
-            (Ok(ConsumeResult { name: None, value: thing.value }), num.1)
-        } else {
-            (Err(eyre!("Unknown syntax error.")), tokens)
+        if let SpecOption::Int(num) = &mut num.value {
+            *num = match tokens[0] {
+                Plus => *num,
+                Minus => -*num,
+                _ => unreachable!(),
+            };
+        } else if let SpecOption::Float(num) = &mut num.value {
+            *num = match tokens[0] {
+                Plus => *num,
+                Minus => -*num,
+                _ => unreachable!(),
+            };
         }
+
+        Ok((ConsumeResult { name: None, value: num.value }, rem))
     } else {
-        (Err(eyre!("Expected Number.")), tokens)
+        Err(eyre!("Expected Number."))
     }
 }
 
 fn consume_str(
     tokens: &[OptionToken],
-) -> (Result<ConsumeResult>, &[OptionToken]) {
+) -> Result<(ConsumeResult, &[OptionToken])> {
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return (
-            Err(eyre!("Expected String. Received empty token stream")),
-            tokens,
-        );
+        return Err(eyre!("Expected String. Received empty token stream"));
     }
 
     if let Str(txt) = &tokens[0] {
-        (
-            Ok(ConsumeResult {
+        Ok((
+            ConsumeResult {
                 name: None,
                 value: SpecOption::String(txt.clone()),
-            }),
+            },
             &tokens[1..],
-        )
+        ))
     } else {
-        (Err(eyre!("Unknown syntax error.")), tokens)
+        Err(eyre!("Unknown syntax error."))
     }
 }
 
 fn consume_list(
     mut tokens: &[OptionToken],
-) -> (Result<ConsumeResult>, &[OptionToken]) {
+) -> Result<(ConsumeResult, &[OptionToken])> {
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return (
-            Err(eyre!("Expected String. Received empty token stream")),
-            tokens,
-        );
+        return Err(eyre!("Expected String. Received empty token stream"));
     }
 
     if tokens[0] != OpenSquare {
-        println!("Returning here because tokens = {tokens:?}");
-        return (Err(eyre!("Expected open square bracket ('[')")), tokens);
+        return Err(eyre!("Expected open square bracket ('[')"));
     }
 
     let mut idx = 1;
@@ -379,72 +363,114 @@ fn consume_list(
         }
 
         if idx >= tokens.len() {
-            println!("HERE??");
-
-            return (
-                Err(eyre!(
-                    "Unexpected end of string. Expected closing square bracket (']')"
-                )),
-                tokens,
-            );
+            return Err(eyre!(
+                "Unexpected end of string. Expected closing square bracket (']')"
+            ));
         }
 
         {
-            let (res, rem) = consume_spec_option(&tokens[idx..]);
-            println!("VALUES: {res:?} {rem:?}\n");
+            let (res, rem) = consume_spec_option(&tokens[idx..])?;
 
             tokens = rem;
             idx = 0;
 
-            if let Ok(val) = res {
-                values.push(val.value);
-            } else {
-                println!("Failed: {res:?}");
-                return (res, tokens);
+            if let Some(name) = res.name {
+                return Err(eyre!(
+                    "Named values are not allowed in lists. Found '{name}'"
+                ));
             }
+
+            values.push(res.value);
         }
     }
 
     idx += 1;
 
-    println!("Tokens: {:?}", &tokens[idx..]);
-
-    (
-        Ok(ConsumeResult { name: None, value: SpecOption::List(values) }),
+    Ok((
+        ConsumeResult { name: None, value: SpecOption::List(values) },
         &tokens[idx..],
-    )
+    ))
+}
+
+pub fn consume_named(
+    tokens: &[OptionToken],
+) -> Result<(ConsumeResult, &[OptionToken])> {
+    use OptionToken::*;
+
+    if let Named(name) = &tokens[0]
+        && tokens[1] == Equal
+    {
+        let (res, rem) = consume_spec_option(&tokens[2..])?;
+
+        if res.name.is_some() {
+            Err(eyre!("Nested naming is not allowed"))
+        } else {
+            Ok((
+                ConsumeResult { name: Some(name.to_owned()), value: res.value },
+                rem,
+            ))
+        }
+    } else {
+        Err(eyre!("Expected `name = <option>`"))
+    }
 }
 
 pub fn consume_spec_option(
     tokens: &[OptionToken],
-) -> (Result<ConsumeResult>, &[OptionToken]) {
+) -> Result<(ConsumeResult, &[OptionToken])> {
+    let mut errors = Vec::new();
+
     {
         let bool_result = consume_bool(tokens);
-        if bool_result.0.is_ok() {
+        if bool_result.is_ok() {
             return bool_result;
+        } else {
+            errors.push(bool_result);
         }
     }
 
     {
         let num_result = consume_num(tokens);
-        if num_result.0.is_ok() {
+        if num_result.is_ok() {
             return num_result;
+        } else {
+            errors.push(num_result);
         }
     }
 
     {
         let str_result = consume_str(tokens);
-        if str_result.0.is_ok() {
+        if str_result.is_ok() {
             return str_result;
+        } else {
+            errors.push(str_result);
         }
     }
 
     {
         let list_result = consume_list(tokens);
-        if list_result.0.is_ok() {
+        if list_result.is_ok() {
             return list_result;
+        } else {
+            errors.push(list_result);
         }
     }
 
-    todo!()
+    {
+        let named_result = consume_named(tokens);
+        if named_result.is_ok() {
+            return named_result;
+        } else {
+            errors.push(named_result);
+        }
+    }
+
+    let mut err = eyre!("Failed to parse option.");
+    for err_val in errors {
+        if let Err(e) = err_val {
+            err = err.wrap_err(e);
+        }
+    }
+
+    Err(err)
 }
