@@ -1,12 +1,6 @@
-use std::{
-    collections::HashMap,
-    iter::{Iterator, Peekable},
-};
+use std::{collections::HashMap, iter::Iterator};
 
-use color_eyre::{
-    Result, Section,
-    eyre::{OptionExt, eyre},
-};
+use color_eyre::{Result, Section, eyre::eyre};
 
 use crate::util::num;
 

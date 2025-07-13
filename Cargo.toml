@@ -8,13 +8,12 @@ edition = "2024"
 mpi = ["dep:mpi"]
 
 [dependencies]
-clap = { version = "4.5.39", features = ["deprecated", "derive", "cargo", "env", "unicode", "wrap_help", "string"] }
-clap_complete = { version = "4.5.54", features = ["unstable-dynamic"] }
+clap = { version = "4.5.41", features = ["deprecated", "derive", "cargo", "env", "unicode", "wrap_help", "string"] }
+clap_complete = { version = "4.5.55", features = ["unstable-dynamic"] }
 color-eyre = "0.6.5"
 mpi = { version = "0.8.0", optional=true, features = ["user-operations", "derive", "complex"] }
 rune = { version = "0.14.0", features = ["std", "cli", "byte-code", "alloc", "bench", "capture-io"] }
 rune-modules = { version = "0.14.0", features = ["full", "core", "fmt", "io", "test", "base64", "fs", "json", "macros", "nanorand", "process", "rand", "reqwest", "serde_json", "signal", "time", "tokio", "toml"] }
-rustpython = { version = "0.4.0", features = ["stdlib"] }
 saphyr = "0.0.6"
 syntect = { version = "5.2.0", features = ["default-fancy"] }
 

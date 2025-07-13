@@ -45,28 +45,6 @@ fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
     generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
-fn test_python() {
-    let interpreter =
-        rustpython::InterpreterConfig::new().init_stdlib().interpreter();
-
-    interpreter.enter(|vm| {
-        if let Err(e) = vm.run_code_string(
-            vm.new_scope_with_builtins(),
-            r"
-import math
-import zpack
-
-print('hello')
-print(math.pi)
-            ",
-            ".".into(),
-        ) {
-            println!("Error: {e:?}");
-            println!("Error: {:?}", e.traceback());
-        }
-    });
-}
-
 fn test_yaml() {
     let yaml_str = r#"
 zpack:
@@ -151,7 +129,9 @@ zpack:
 }
 
 use rune::{
-    ContextError, Diagnostics, Module,
+    Context, ContextError, Diagnostics, Module, Sources,
+    compile::FileSourceLoader,
+    diagnostics::EmitError,
     runtime::{Function, Vm},
     termcolor::{ColorChoice, StandardStream},
 };
@@ -185,51 +165,61 @@ impl External {
     }
 }
 
-fn test_rune() -> rune::support::Result<()> {
-    let mut module = rune::Module::with_crate("my_thing").unwrap();
-
-    module.ty::<External>().unwrap();
-    module.function_meta(External::my_function__meta).unwrap();
-
+fn build_module() -> rune::support::Result<rune::Module> {
+    let module = rune::Module::new();
     let mut context = rune_modules::default_context()?;
-    context.install(module).unwrap();
+    let mut diagnostics = Diagnostics::new();
 
-    let runtime = Arc::new(context.runtime()?);
-    // let runtime = context.runtime()?;
-
-    let mut sources = rune::sources! {
+    let mut sources = rune::sources!(
         entry => {
-            fn foo(a, b) {
-                a + b
-            }
-
-            pub fn fib(n) {
-                if n < 2 {
-                    n
-                } else {
-                    fib(n - 1) + fib(n - 2)
+            pub mod test_module {
+                pub fn fib(n) {
+                    if n < 2 {
+                        n
+                    } else {
+                        fib(n - 1) + fib(n - 2)
+                    }
                 }
             }
+        }
+    );
 
-            pub fn main(thingy) {
+    let result = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    context.install(&module)?;
+
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit(&mut writer, &sources)?;
+    }
+
+    Ok(module)
+}
+
+fn test_rune() -> rune::support::Result<()> {
+    // let context = rune::Context::with_default_modules()?;
+    let mut context = rune_modules::default_context()?;
+    let runtime = Arc::new(context.runtime()?);
+    let mut diagnostics = Diagnostics::new();
+
+    context.install(build_module()?)?;
+
+    let mut sources = rune::sources!(
+        entry => {
+            mod test_module;
+
+            pub fn main(number) {
                 println!("Hello, World!");
 
-                println!("Thingy: {}", thingy.room_number);
-                dbg!(thingy);
+                println!("fib(20) = {}", test_module::fib(20));
 
-                let thing = External {
-                    suite_name: "test",
-                    room_number: 1234
-                };
-
-                println!("Result: {}", thing.my_function());
-
-                foo
+                number >> 1
             }
         }
-    };
-
-    let mut diagnostics = Diagnostics::new();
+    );
 
     let result = rune::prepare(&mut sources)
         .with_context(&context)
@@ -241,22 +231,13 @@ fn test_rune() -> rune::support::Result<()> {
         diagnostics.emit(&mut writer, &sources)?;
     }
 
-    let unit = result?;
-    let unit = Arc::new(unit);
+    let unit = Arc::new(result?);
+
+    println!("Executing");
     let mut vm = Vm::new(runtime, unit);
-    let output = vm.call(
-        ["main"],
-        (External { suite_name: "Hello".into(), room_number: 123 },),
-    )?;
-    let output: Function = rune::from_value(output)?;
-
-    println!("{}", output.call::<i64>((1, 3)).unwrap());
-    println!("{}", output.call::<i64>((2, 6)).unwrap());
-
-    for i in 0..=20 {
-        let output = vm.call(["fib"], (i,))?;
-        println!("fib({i}) = {output:?}");
-    }
+    let output = vm.call(["main"], (33i64,))?;
+    let res: i64 = rune::from_value(output)?;
+    println!("Result: {res}");
 
     Ok(())
 }
@@ -278,16 +259,15 @@ fn main() -> Result<()> {
         println!("File path: {file}");
     }
 
-    test_python();
     test_yaml();
+
+    println!();
     test_rune().unwrap();
+    println!();
 
     let package_option =
-        &Yaml::load_from_str("txt=\"Hello, \\\"Quoted\\\" World!\"").unwrap()
-            [0];
+        &Yaml::load_from_str(r#"txt="Hello, \"Quoted\" World!""#).unwrap()[0];
     let s = package_option.clone().into_string().unwrap();
-    // let option = zpack::package::spec::parse_spec_option(&s)?;
-    // println!("Option: {option:?}");
 
     println!();
 
@@ -296,12 +276,13 @@ fn main() -> Result<()> {
     // '"#;
     // let sample = r#"[1, 2, 3, "hello, world", true, [123, 456], +hello]"#;
     // let sample = r#"[1, [2, 3], 4, +thingy]"#;
-    let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false, TrUe]"#;
-    let tokenized = zpack::package::spec::tokenize_option(sample)?;
+    let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false]"#;
+
+    let tokenized = zpack::spec::parse::tokenize_option(sample)?;
     println!("Result: {tokenized:?}");
     println!(
         "Result: {:?}",
-        zpack::package::spec::consume_spec_option(&tokenized)
+        zpack::spec::parse::consume_spec_option(&tokenized)
     );
 
     Ok(())
