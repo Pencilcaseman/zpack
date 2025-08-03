@@ -16,6 +16,7 @@ rune = { version = "0.14.0", features = ["std", "cli", "byte-code", "alloc", "be
 rune-modules = { version = "0.14.0", features = ["full", "core", "fmt", "io", "test", "base64", "fs", "json", "macros", "nanorand", "process", "rand", "reqwest", "serde_json", "signal", "time", "tokio", "toml"] }
 saphyr = "0.0.6"
 syntect = { version = "5.2.0", features = ["default-fancy"] }
+tempfile = "3.20.0"
 
 [profile.release]
 panic = "abort"

@@ -1,6 +1,6 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::{io, sync::Arc};
+use std::{env::temp_dir, io, sync::Arc};
 
 use clap::{
     Arg, ArgAction, Command, ValueHint, crate_description, crate_version,
@@ -132,6 +132,7 @@ use rune::{
     Context, ContextError, Diagnostics, Module, Sources,
     compile::FileSourceLoader,
     diagnostics::EmitError,
+    macros::test,
     runtime::{Function, Vm},
     termcolor::{ColorChoice, StandardStream},
 };
@@ -200,7 +201,6 @@ fn build_module() -> rune::support::Result<rune::Module> {
 }
 
 fn test_rune() -> rune::support::Result<()> {
-    // let context = rune::Context::with_default_modules()?;
     let mut context = rune_modules::default_context()?;
     let runtime = Arc::new(context.runtime()?);
     let mut diagnostics = Diagnostics::new();
@@ -209,17 +209,60 @@ fn test_rune() -> rune::support::Result<()> {
 
     let mut sources = rune::sources!(
         entry => {
-            mod test_module;
-
             pub fn main(number) {
                 println!("Hello, World!");
 
-                println!("fib(20) = {}", test_module::fib(20));
+                println!("fib({number}): {}", test_module::fib(number));
+                println!("fact({number}): {}", test_module_2::fact(number));
+                println!("test({number}): {}", test(number));
+                println!("test_thing({number}, {number} + 1): {}", another_test::test_thing(number, number + 1));
 
+                // Syntax error:
                 number >> 1
             }
         }
     );
+
+    let test_from_file = rune::Source::from_path("./test.rn")?;
+
+    let test_source = rune::Source::new(
+        "test_module",
+        r#"
+    mod test_module {
+        pub fn fib(n) {
+            if n < 2 {
+                n
+            } else {
+                fib(n - 1) + fib(n - 2)
+            }
+        }
+    }
+    "#,
+    );
+
+    let source_2 = rune::Source::new(
+        "test_module_2",
+        r#"
+    mod test_module_2 {
+        pub fn fact(n) {
+            if n < 2 {
+                n
+            } else {
+                n * fact(n - 1)
+            }
+        }
+    }
+    "#,
+    );
+
+    let id = sources.insert(test_source?);
+    println!("Source ID: {id:?}");
+
+    let id2 = sources.insert(source_2?);
+    println!("Source ID: {id2:?}");
+
+    let id3 = sources.insert(test_from_file);
+    println!("Source ID: {id3:?}");
 
     let result = rune::prepare(&mut sources)
         .with_context(&context)
@@ -235,7 +278,7 @@ fn test_rune() -> rune::support::Result<()> {
 
     println!("Executing");
     let mut vm = Vm::new(runtime, unit);
-    let output = vm.call(["main"], (33i64,))?;
+    let output = vm.call(["main"], (6,))?;
     let res: i64 = rune::from_value(output)?;
     println!("Result: {res}");
 
