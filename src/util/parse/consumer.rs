@@ -12,17 +12,17 @@ pub trait Consumer: std::fmt::Debug {
 }
 
 #[derive(Debug)]
-pub struct LiteralParser<'a> {
+pub struct LiteralConsumer<'a> {
     target: &'a str,
 }
 
-impl<'a> LiteralParser<'a> {
+impl<'a> LiteralConsumer<'a> {
     pub fn new(target: &'a str) -> Self {
         Self { target }
     }
 }
 
-impl<'a> Consumer for LiteralParser<'a> {
+impl<'a> Consumer for LiteralConsumer<'a> {
     type Output = ();
 
     fn consume<'b>(
@@ -30,7 +30,7 @@ impl<'a> Consumer for LiteralParser<'a> {
         cursor: Cursor<'b>,
     ) -> Result<(Self::Output, Cursor<'b>)> {
         let target_len = self.target.len();
-        let (extract, cursor) = cursor.grab(target_len)?;
+        let (extract, cursor) = cursor.step(target_len)?;
 
         if extract == self.target {
             Ok(((), cursor))
@@ -41,7 +41,42 @@ impl<'a> Consumer for LiteralParser<'a> {
 }
 
 #[derive(Debug)]
-pub struct BoundedParser<T>
+pub struct OptionalConsumer<T>
+where
+    T: Consumer,
+{
+    opt: T,
+}
+
+impl<T> OptionalConsumer<T>
+where
+    T: Consumer,
+{
+    pub fn new(opt: T) -> Self {
+        Self { opt }
+    }
+}
+
+impl<T> Consumer for OptionalConsumer<T>
+where
+    T: Consumer,
+{
+    type Output = Option<<T as Consumer>::Output>;
+
+    fn consume<'a>(
+        &self,
+        cursor: Cursor<'a>,
+    ) -> Result<(Self::Output, Cursor<'a>)> {
+        if let Ok((result, c)) = self.opt.consume(cursor) {
+            Ok((Some(result), c))
+        } else {
+            Ok((None, cursor))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BoundedConsumer<T>
 where
     T: Consumer,
 {
@@ -50,7 +85,7 @@ where
     parser: T,
 }
 
-impl<T> BoundedParser<T>
+impl<T> BoundedConsumer<T>
 where
     T: Consumer,
 {
@@ -67,9 +102,10 @@ where
     }
 }
 
-impl<T> Consumer for BoundedParser<T>
+impl<T> Consumer for BoundedConsumer<T>
 where
-    T: Consumer,
+    T: Consumer + std::fmt::Debug,
+    <T as Consumer>::Output: std::fmt::Debug,
 {
     type Output = Vec<T::Output>;
 
@@ -86,7 +122,7 @@ where
         }
 
         let min = self.min.unwrap_or(0);
-        let max = self.min.unwrap_or(usize::MAX);
+        let max = self.max.unwrap_or(usize::MAX);
 
         if (min..max).contains(&res.len()) {
             Ok((res, cur))
@@ -98,7 +134,11 @@ where
                 (None, None) => "0...".to_string(),
             };
 
-            Err(eyre!("Expected {desc} instances of {:?}", self.parser))
+            Err(eyre!(
+                "Expected {desc} instances of {:?}; found {}",
+                self.parser,
+                res.len()
+            ))
         }
     }
 }

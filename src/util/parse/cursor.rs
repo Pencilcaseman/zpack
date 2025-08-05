@@ -11,44 +11,37 @@ impl<'a> Cursor<'a> {
         Self { text, offset: 0 }
     }
 
+    pub fn peek(&self) -> Result<char> {
+        self.text.chars().next().ok_or(eyre!(
+            "Stepped past end of string; offset={} length={}",
+            self.offset,
+            self.text.len()
+        ))
+    }
+
     pub fn remaining(&self) -> &'a str {
         &self.text[self.offset..]
     }
 
-    pub fn grab(self, chars: usize) -> Result<(&'a str, Self)> {
+    pub fn step_mut(&mut self, chars: usize) -> Result<&'a str> {
         let offset = self.offset;
-        let rem = self.remaining();
-        match self.step(chars) {
-            Ok(new_self) => Ok((&rem[offset..new_self.offset], new_self)),
+        if let Some((n, _)) = self.text[self.offset..].char_indices().nth(chars)
+        {
+            self.offset += n;
+            Ok(&self.text[offset..self.offset])
+        } else {
+            Err(eyre!(
+                "Stepped past end of string; offset={} step={chars} length={}",
+                self.offset,
+                self.remaining().len()
+            ))
+        }
+    }
+
+    pub fn step(mut self, chars: usize) -> Result<(&'a str, Self)> {
+        match self.step_mut(chars) {
+            Ok(s) => Ok((s, self)),
             Err(e) => Err(e),
-        }
-    }
-
-    pub fn step_mut(&mut self, chars: usize) -> Result<()> {
-        if let Some((n, _)) = self.text[self.offset..].char_indices().nth(chars)
-        {
-            self.offset += n;
-            Ok(())
-        } else {
-            Err(eyre!(
-                "Stepped past end of string; offset={} step={chars} length={}",
-                self.offset,
-                self.remaining().len()
-            ))
-        }
-    }
-
-    pub fn step(mut self, chars: usize) -> Result<Self> {
-        if let Some((n, _)) = self.text[self.offset..].char_indices().nth(chars)
-        {
-            self.offset += n;
-            Ok(self)
-        } else {
-            Err(eyre!(
-                "Stepped past end of string; offset={} step={chars} length={}",
-                self.offset,
-                self.remaining().len()
-            ))
         }
     }
 }

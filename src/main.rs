@@ -288,6 +288,11 @@ fn test_rune() -> rune::support::Result<()> {
 fn main() -> Result<()> {
     color_eyre::install()?;
 
+    let thing = "Hello, World!";
+    let things: Vec<usize> = thing.char_indices().map(|(idx, _)| idx).collect();
+    println!("Thing:  {thing}");
+    println!("Things: {things:?}");
+
     let matches = build_cli().get_matches();
 
     if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
