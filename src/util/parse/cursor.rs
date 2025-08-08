@@ -45,3 +45,15 @@ impl<'a> Cursor<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_cursor() {
+        let sample_text = "12345";
+        let sample_cursor = Cursor::new(sample_text);
+        assert!(sample_cursor.step(4).is_ok());
+    }
+}

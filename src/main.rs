@@ -15,6 +15,7 @@ use syntect::{
     parsing::SyntaxSet,
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
+use tracing::instrument;
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -45,6 +46,7 @@ fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
     generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
+#[instrument]
 fn test_yaml() {
     let yaml_str = r#"
 zpack:
@@ -288,6 +290,18 @@ fn test_rune() -> rune::support::Result<()> {
 fn main() -> Result<()> {
     color_eyre::install()?;
 
+    let subscriber = tracing_subscriber::fmt()
+        .pretty()
+        .with_file(true)
+        .with_line_number(true)
+        .with_thread_ids(true)
+        .with_target(true)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
+
+    tracing::info!("Debug Information");
+    tracing::warn!("Warning Information");
+
     let thing = "Hello, World!";
     let things: Vec<usize> = thing.char_indices().map(|(idx, _)| idx).collect();
     println!("Thing:  {thing}");
@@ -309,9 +323,9 @@ fn main() -> Result<()> {
 
     test_yaml();
 
-    println!();
-    test_rune().unwrap();
-    println!();
+    // println!();
+    // test_rune().unwrap();
+    // println!();
 
     let package_option =
         &Yaml::load_from_str(r#"txt="Hello, \"Quoted\" World!""#).unwrap()[0];
