@@ -35,6 +35,10 @@ where
 {
     type Output = Vec<T::Output>;
 
+    fn info(&self) -> String {
+        format!("BoundedConsumerParser")
+    }
+
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,

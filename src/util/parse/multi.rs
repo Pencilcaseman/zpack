@@ -1,7 +1,7 @@
 use super::{consumer::Consumer, cursor::Cursor};
 use color_eyre::{Result, eyre::eyre};
+use itertools::Itertools;
 
-#[derive(Debug)]
 pub struct MultiConsumer<E> {
     consumers: Vec<Box<dyn Consumer<Output = E>>>,
 }
@@ -35,6 +35,11 @@ where
 {
     type Output = E;
 
+    fn info(&self) -> String {
+        "one of: ".to_owned()
+            + &self.consumers.iter().map(|c| c.info()).join(", ")
+    }
+
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
@@ -48,7 +53,7 @@ where
                     None
                 }
             })
-            .ok_or(eyre!("Failed to find a valid option"))
+            .ok_or(eyre!("no valid options"))
     }
 }
 

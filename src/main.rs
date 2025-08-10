@@ -287,6 +287,44 @@ fn test_rune() -> rune::support::Result<()> {
     Ok(())
 }
 
+fn test_parser_combinator() {
+    use zpack::util::parse::cursor::Cursor;
+    use zpack::util::parse::{
+        Consumer, ConsumerExt, IntegerConsumer, LiteralConsumer,
+        OptionalConsumer,
+    };
+
+    // Semantic version parser
+    // [v](num).(num).(num)
+
+    #[derive(Debug)]
+    struct SemVer {
+        major: u32,
+        minor: u32,
+        patch: u32,
+    }
+
+    let v = OptionalConsumer::new(LiteralConsumer::new("v"));
+    let num = IntegerConsumer::new();
+    let dot = LiteralConsumer::new(".");
+    let semver = v
+        .ignore_then(num)
+        .then_ignore(dot)
+        .then(num)
+        .then_ignore(dot)
+        .then(num)
+        .map(|((major, minor), patch)| SemVer {
+            major: u32::try_from(major).unwrap(),
+            minor: u32::try_from(minor).unwrap(),
+            patch: u32::try_from(patch).unwrap(),
+        });
+
+    let test = "v1.23.4";
+    let cursor = Cursor::new(test);
+    let res = semver.consume(cursor);
+    println!("Result: {res:?}");
+}
+
 fn main() -> Result<()> {
     color_eyre::install()?;
 
@@ -346,6 +384,9 @@ fn main() -> Result<()> {
         "Result: {:?}",
         zpack::spec::parse::consume_spec_option(&tokenized)
     );
+
+    println!();
+    test_parser_combinator();
 
     Ok(())
 }

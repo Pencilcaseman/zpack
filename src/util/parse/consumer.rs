@@ -2,8 +2,10 @@ use super::cursor::Cursor;
 
 use color_eyre::Result;
 
-pub trait Consumer: std::fmt::Debug {
+pub trait Consumer {
     type Output;
+
+    fn info(&self) -> String;
 
     fn consume<'a>(
         &self,

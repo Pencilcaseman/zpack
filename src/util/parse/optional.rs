@@ -24,6 +24,10 @@ where
 {
     type Output = Option<<T as Consumer>::Output>;
 
+    fn info(&self) -> String {
+        format!("optional[{}]", self.opt.info())
+    }
+
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,

@@ -7,6 +7,10 @@ pub struct WhitespaceConsumer {}
 impl Consumer for WhitespaceConsumer {
     type Output = ();
 
+    fn info(&self) -> String {
+        "whitespace".into()
+    }
+
     fn consume<'b>(
         &self,
         mut cursor: Cursor<'b>,

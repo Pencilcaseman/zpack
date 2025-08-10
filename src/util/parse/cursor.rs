@@ -25,16 +25,18 @@ impl<'a> Cursor<'a> {
 
     pub fn step_mut(&mut self, chars: usize) -> Result<&'a str> {
         let offset = self.offset;
-        if let Some((n, _)) = self.text[self.offset..].char_indices().nth(chars)
-        {
-            self.offset += n;
-            Ok(&self.text[offset..self.offset])
-        } else {
+
+        let rem = self.remaining();
+        if chars > rem.len() {
             Err(eyre!(
                 "Stepped past end of string; offset={} step={chars} length={}",
                 self.offset,
                 self.remaining().len()
             ))
+        } else {
+            self.offset +=
+                rem.chars().take(chars).map(|c| c.len_utf8()).sum::<usize>();
+            Ok(&self.text[offset..self.offset])
         }
     }
 
@@ -43,6 +45,15 @@ impl<'a> Cursor<'a> {
             Ok(s) => Ok((s, self)),
             Err(e) => Err(e),
         }
+    }
+
+    pub fn take_while(
+        self,
+        predicate: fn(&char) -> bool,
+    ) -> Result<(&'a str, Self)> {
+        let to_take = self.remaining().chars().take_while(predicate).count();
+        println!("self: {self:?} to_take: {to_take}");
+        self.step(to_take)
     }
 }
 

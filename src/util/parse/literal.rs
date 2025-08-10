@@ -1,7 +1,7 @@
 use super::{consumer::Consumer, cursor::Cursor};
 use color_eyre::{Result, eyre::eyre};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct LiteralConsumer<'a> {
     target: &'a str,
 }
@@ -15,6 +15,10 @@ impl<'a> LiteralConsumer<'a> {
 impl<'a> Consumer for LiteralConsumer<'a> {
     type Output = ();
 
+    fn info(&self) -> String {
+        format!("literal '{}'", self.target)
+    }
+
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
@@ -25,7 +29,7 @@ impl<'a> Consumer for LiteralConsumer<'a> {
         if extract == self.target {
             Ok(((), cursor))
         } else {
-            Err(eyre!("Expected '{}'; received '{extract}'", self.target))
+            Err(eyre!("literal '{extract}'"))
         }
     }
 }

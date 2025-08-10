@@ -31,6 +31,10 @@ where
 {
     type Output = E;
 
+    fn info(&self) -> String {
+        self.consumer.info().to_string()
+    }
+
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
