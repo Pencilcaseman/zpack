@@ -13,12 +13,14 @@ impl Consumer for WhitespaceConsumer {
 
     fn consume<'b>(
         &self,
-        mut cursor: Cursor<'b>,
+        cursor: Cursor<'b>,
     ) -> Result<(Self::Output, Cursor<'b>)> {
-        while cursor.peek().is_ok_and(|c| c.is_ascii_whitespace()) {
-            let _ = cursor.step_mut(1)?;
+        if let Ok((white, cur)) = cursor.take_while(|c| c.is_ascii_whitespace())
+            && !white.is_empty()
+        {
+            Ok(((), cur))
+        } else {
+            Err(eyre!("Expected whitespace"))
         }
-
-        Ok(((), cursor))
     }
 }

@@ -2,11 +2,17 @@ use super::{consumer::Consumer, cursor::Cursor};
 use color_eyre::{Result, eyre::eyre};
 use itertools::Itertools;
 
-pub struct MultiConsumer<E> {
+pub struct MultiConsumer<E>
+where
+    E: 'static,
+{
     consumers: Vec<Box<dyn Consumer<Output = E>>>,
 }
 
-impl<E> MultiConsumer<E> {
+impl<E> MultiConsumer<E>
+where
+    E: 'static,
+{
     pub fn new() -> Self {
         Self { consumers: Default::default() }
     }
@@ -59,7 +65,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::super::{EnumConsumer, LiteralConsumer};
+    use super::super::{EnumConsumer, MatchConsumer};
     use super::*;
 
     #[test]
@@ -70,11 +76,11 @@ mod test {
             Function,
         }
 
-        let class_lit = LiteralConsumer::new("class");
+        let class_lit = MatchConsumer::new("class");
         let class_enum =
             EnumConsumer::new(class_lit, |_| Some(TestEnum::Class));
 
-        let function_lit = LiteralConsumer::new("function");
+        let function_lit = MatchConsumer::new("function");
         let function_enum =
             EnumConsumer::new(function_lit, |_| Some(TestEnum::Function));
 

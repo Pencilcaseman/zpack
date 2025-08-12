@@ -1,4 +1,7 @@
-use super::consumer::Consumer;
+use color_eyre::Result;
+
+use super::Consumer;
+use super::OptionalConsumer;
 
 use super::map::Map;
 use super::then::{IgnoreThen, Then, ThenIgnore};
@@ -21,7 +24,11 @@ where
 
     fn map<F, R>(self, function: F) -> Map<Self, F, R>
     where
-        F: Fn(<Self as Consumer>::Output) -> R;
+        F: Fn(<Self as Consumer>::Output) -> Result<R>;
+
+    fn maybe<T>(self, opt: T) -> Then<Self, OptionalConsumer<T>>
+    where
+        T: Consumer;
 }
 
 impl<C> ConsumerExt for C
@@ -51,8 +58,15 @@ where
 
     fn map<F, R>(self, function: F) -> Map<Self, F, R>
     where
-        F: Fn(<Self as Consumer>::Output) -> R,
+        F: Fn(<Self as Consumer>::Output) -> Result<R>,
     {
         Map::new(self, function)
+    }
+
+    fn maybe<T>(self, opt: T) -> Then<Self, OptionalConsumer<T>>
+    where
+        T: Consumer,
+    {
+        Then::new(self, OptionalConsumer::new(opt))
     }
 }

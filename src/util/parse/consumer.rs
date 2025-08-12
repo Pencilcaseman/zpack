@@ -3,7 +3,7 @@ use super::cursor::Cursor;
 use color_eyre::Result;
 
 pub trait Consumer {
-    type Output;
+    type Output: 'static;
 
     fn info(&self) -> String;
 

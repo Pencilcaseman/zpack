@@ -28,19 +28,27 @@ impl Consumer for IntegerConsumer {
         cursor: Cursor<'b>,
     ) -> Result<(Self::Output, Cursor<'b>)> {
         let (p, c) = cursor.take_while(|c| c.is_ascii_digit())?;
-        Ok((p.parse()?, c))
+        if !p.is_empty() {
+            Ok((p.parse()?, c))
+        } else {
+            Err(eyre!("Expected integer;"))
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::util::parse::ConsumerExt;
+    use crate::util::parse::WhitespaceConsumer;
+
     use super::*;
 
     #[test]
     fn test_literal() {
-        let parser = IntegerConsumer::default();
+        let parser = IntegerConsumer::default()
+            .then_ignore(WhitespaceConsumer::default());
 
-        let sample_text = "12345Hello";
+        let sample_text = "12345 Hello";
         let sample_cursor = Cursor::new(sample_text);
 
         match parser.consume(sample_cursor) {

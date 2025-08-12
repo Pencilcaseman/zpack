@@ -52,7 +52,6 @@ impl<'a> Cursor<'a> {
         predicate: fn(&char) -> bool,
     ) -> Result<(&'a str, Self)> {
         let to_take = self.remaining().chars().take_while(predicate).count();
-        println!("self: {self:?} to_take: {to_take}");
         self.step(to_take)
     }
 }

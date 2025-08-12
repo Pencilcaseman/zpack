@@ -4,7 +4,7 @@ use color_eyre::{Result, eyre::eyre};
 #[derive(Debug)]
 pub struct EnumConsumer<E, T>
 where
-    E: std::fmt::Debug,
+    E: std::fmt::Debug + 'static,
     T: Consumer,
 {
     consumer: T,
@@ -13,7 +13,7 @@ where
 
 impl<E, T> EnumConsumer<E, T>
 where
-    E: std::fmt::Debug,
+    E: std::fmt::Debug + 'static,
     T: Consumer,
 {
     pub fn new(
@@ -27,7 +27,7 @@ where
 impl<E, T> Consumer for EnumConsumer<E, T>
 where
     T: Consumer,
-    E: std::fmt::Debug,
+    E: std::fmt::Debug + 'static,
 {
     type Output = E;
 
@@ -51,7 +51,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::super::LiteralConsumer;
+    use super::super::MatchConsumer;
     use super::*;
 
     #[test]
@@ -61,7 +61,7 @@ mod test {
             Class,
         }
 
-        let class_lit = LiteralConsumer::new("class");
+        let class_lit = MatchConsumer::new("class");
         let class_enum =
             EnumConsumer::new(class_lit, |_| Some(TestEnum::Class));
 

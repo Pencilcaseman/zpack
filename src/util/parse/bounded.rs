@@ -75,12 +75,12 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::super::LiteralConsumer;
+    use super::super::MatchConsumer;
     use super::*;
 
     #[test]
     fn test_bounded_single() {
-        let a = LiteralConsumer::new("A");
+        let a = MatchConsumer::new("A");
         let aaa = BoundedConsumer::new(Some(0), Some(5), a);
 
         let sample_text = "AAAAhello";
@@ -97,7 +97,7 @@ mod test {
 
     #[test]
     fn test_bounded_multi() {
-        let a = LiteralConsumer::new("void");
+        let a = MatchConsumer::new("void");
         let aaa = BoundedConsumer::new(Some(0), None, a);
 
         let sample_text = "voidvoidvoidvoidvoidvoid123456void";

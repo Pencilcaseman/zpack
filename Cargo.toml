@@ -21,6 +21,13 @@ tempfile = "3.20.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 
+[dev-dependencies]
+criterion = { version = "0.7.0", features = ["html_reports", "real_blackbox"] }
+
+[[bench]]
+name = "version_parser"
+harness = false
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

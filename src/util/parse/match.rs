@@ -2,21 +2,21 @@ use super::{consumer::Consumer, cursor::Cursor};
 use color_eyre::{Result, eyre::eyre};
 
 #[derive(Debug, Copy, Clone)]
-pub struct LiteralConsumer<'a> {
+pub struct MatchConsumer<'a> {
     target: &'a str,
 }
 
-impl<'a> LiteralConsumer<'a> {
+impl<'a> MatchConsumer<'a> {
     pub fn new(target: &'a str) -> Self {
         Self { target }
     }
 }
 
-impl<'a> Consumer for LiteralConsumer<'a> {
+impl<'a> Consumer for MatchConsumer<'a> {
     type Output = ();
 
     fn info(&self) -> String {
-        format!("literal '{}'", self.target)
+        format!("matching '{}'", self.target)
     }
 
     fn consume<'b>(
@@ -29,7 +29,7 @@ impl<'a> Consumer for LiteralConsumer<'a> {
         if extract == self.target {
             Ok(((), cursor))
         } else {
-            Err(eyre!("literal '{extract}'"))
+            Err(eyre!("Expected '{}'; received '{extract}", self.target))
         }
     }
 }
@@ -40,7 +40,7 @@ mod test {
 
     #[test]
     fn test_literal() {
-        let parser = LiteralConsumer::new("Hello");
+        let parser = MatchConsumer::new("Hello");
 
         let sample_text = "Hello, World!";
         let sample_cursor = Cursor::new(sample_text);

@@ -42,12 +42,12 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::super::LiteralConsumer;
+    use super::super::MatchConsumer;
     use super::*;
 
     #[test]
     fn test_optional_matching() {
-        let lit = LiteralConsumer::new("Optional");
+        let lit = MatchConsumer::new("Optional");
         let optional_consumer = OptionalConsumer::new(lit);
 
         let matching = "OptionalString";
@@ -64,7 +64,7 @@ mod test {
 
     #[test]
     fn test_optional_not_matching() {
-        let lit = LiteralConsumer::new("Optional");
+        let lit = MatchConsumer::new("Optional");
         let optional_consumer = OptionalConsumer::new(lit);
 
         let not_matching = "StringOptional";
