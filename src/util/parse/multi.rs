@@ -1,45 +1,48 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
+use anyhow::{Result, anyhow};
 use itertools::Itertools;
 
-pub struct MultiConsumer<E>
+pub struct MultiConsumer<O, E>
 where
-    E: 'static,
+    O: 'static,
 {
-    consumers: Vec<Box<dyn Consumer<Output = E>>>,
+    consumers: Vec<Box<dyn Consumer<Output = O, Error = E>>>,
 }
 
-impl<E> MultiConsumer<E>
+impl<O, E> MultiConsumer<O, E>
 where
-    E: 'static,
+    O: 'static,
 {
     pub fn new() -> Self {
         Self { consumers: Default::default() }
     }
 
-    pub fn new_with(consumers: Vec<Box<dyn Consumer<Output = E>>>) -> Self {
+    pub fn new_with(
+        consumers: Vec<Box<dyn Consumer<Output = O, Error = E>>>,
+    ) -> Self {
         Self { consumers }
     }
 
     pub fn push<C>(&mut self, consumer: C)
     where
-        C: Consumer<Output = E> + 'static,
+        C: Consumer<Output = O, Error = E> + 'static,
     {
         self.consumers.push(Box::new(consumer));
     }
 }
 
-impl<E> Default for MultiConsumer<E> {
+impl<O, E> Default for MultiConsumer<O, E> {
     fn default() -> Self {
         Self { consumers: Vec::new() }
     }
 }
 
-impl<E> Consumer for MultiConsumer<E>
+impl<O, E> Consumer for MultiConsumer<O, E>
 where
-    E: std::fmt::Debug,
+    O: 'static + std::fmt::Debug,
 {
-    type Output = E;
+    type Output = O;
+    type Error = ();
 
     fn info(&self) -> String {
         "one of: ".to_owned()
@@ -49,7 +52,7 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>)> {
+    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
         self.consumers
             .iter()
             .find_map(|consumer| {
@@ -59,7 +62,7 @@ where
                     None
                 }
             })
-            .ok_or(eyre!("no valid options"))
+            .ok_or(()) // Nothing matched -- no extra information necessary
     }
 }
 

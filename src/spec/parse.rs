@@ -1,6 +1,6 @@
 use std::{collections::HashMap, iter::Iterator};
 
-use color_eyre::{Result, Section, eyre::eyre};
+use anyhow::{Context, Result, anyhow};
 
 use crate::util::num;
 
@@ -69,7 +69,7 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                     idx += 1;
 
                     if idx >= bytes.len() {
-                        return Err(eyre!("Unexpected end of string"));
+                        return Err(anyhow!("Unexpected end of string"));
                     }
 
                     match bytes[idx] {
@@ -79,7 +79,9 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                             idx += 1;
 
                             if idx >= bytes.len() {
-                                return Err(eyre!("Unexpected end of string"));
+                                return Err(anyhow!(
+                                    "Unexpected end of string"
+                                ));
                             }
 
                             let popped = escaped.pop().unwrap().0;
@@ -92,7 +94,7 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                                 b'n' => escaped.push((popped, Some('\n'))),
 
                                 unknown => {
-                                    return Err(eyre!(
+                                    return Err(anyhow!(
                                         "Invalid escape sequence: '\\{}'",
                                         unknown as char
                                     ));
@@ -154,13 +156,13 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                     .collect::<String>();
 
                 if literal.is_empty() {
-                    return Err(eyre!("Invalid spec option: {opt:?}")
-                        .with_section(move || {
+                    return Err(anyhow!("Invalid spec option: {opt:?}"))
+                        .with_context(|| {
                             format!(
                                 "Unexpected token at index {}: {:?}",
                                 idx, bytes[idx] as char
                             )
-                        }));
+                        });
                 }
 
                 let result = match num::parse_num(&literal)? {
@@ -184,13 +186,11 @@ pub fn tokenize_option(opt: &str) -> Result<Vec<OptionToken>> {
                     .collect::<String>();
 
                 if literal.is_empty() {
-                    return Err(eyre!("Invalid spec option: {opt:?}")
-                        .with_section(move || {
-                            format!(
-                                "Unexpected token at index {}: {:?}",
-                                idx, bytes[idx] as char
-                            )
-                        }));
+                    return Err(anyhow!("Invalid spec option: {opt:?}")
+                        .context(format!(
+                            "Unexpected token at index {}: {:?}",
+                            idx, bytes[idx] as char
+                        )));
                 }
 
                 idx += literal.len() - 1;
@@ -229,7 +229,7 @@ fn consume_bool(
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return Err(eyre!("Expected Bool. Received empty token stream."));
+        return Err(anyhow!("Expected Bool. Received empty token stream."));
     }
 
     if matches!(tokens[0], Plus | Minus | Tilde) {
@@ -246,7 +246,7 @@ fn consume_bool(
                 &tokens[2..],
             ))
         } else {
-            Err(eyre!(
+            Err(anyhow!(
                 "Invalid syntax. Expected `+option`, `-option` or `~option`"
             ))
         }
@@ -267,7 +267,9 @@ fn consume_bool(
             &tokens[3..],
         ))
     } else {
-        Err(eyre!("Invalid syntax. Expected `+option`, `-option` or `~option`"))
+        Err(anyhow!(
+            "Invalid syntax. Expected `+option`, `-option` or `~option`"
+        ))
     }
 }
 
@@ -277,7 +279,7 @@ fn consume_num(
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return Err(eyre!("Expected Number. Received empty token stream"));
+        return Err(anyhow!("Expected Number. Received empty token stream"));
     }
 
     if let Int(num) = tokens[0] {
@@ -309,7 +311,7 @@ fn consume_num(
 
         Ok((ConsumeResult { name: None, value: num.value }, rem))
     } else {
-        Err(eyre!("Expected Number."))
+        Err(anyhow!("Expected Number."))
     }
 }
 
@@ -319,7 +321,7 @@ fn consume_str(
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return Err(eyre!("Expected String. Received empty token stream"));
+        return Err(anyhow!("Expected String. Received empty token stream"));
     }
 
     if let Str(txt) = &tokens[0] {
@@ -331,7 +333,7 @@ fn consume_str(
             &tokens[1..],
         ))
     } else {
-        Err(eyre!("Unknown syntax error."))
+        Err(anyhow!("Unknown syntax error."))
     }
 }
 
@@ -341,11 +343,11 @@ fn consume_list(
     use OptionToken::*;
 
     if tokens.is_empty() {
-        return Err(eyre!("Expected String. Received empty token stream"));
+        return Err(anyhow!("Expected String. Received empty token stream"));
     }
 
     if tokens[0] != OpenSquare {
-        return Err(eyre!("Expected open square bracket ('[')"));
+        return Err(anyhow!("Expected open square bracket ('[')"));
     }
 
     let mut idx = 1;
@@ -357,7 +359,7 @@ fn consume_list(
         }
 
         if idx >= tokens.len() {
-            return Err(eyre!(
+            return Err(anyhow!(
                 "Unexpected end of string. Expected closing square bracket (']')"
             ));
         }
@@ -369,7 +371,7 @@ fn consume_list(
             idx = 0;
 
             if let Some(name) = res.name {
-                return Err(eyre!(
+                return Err(anyhow!(
                     "Named values are not allowed in lists. Found '{name}'"
                 ));
             }
@@ -397,7 +399,7 @@ pub fn consume_named(
         let (res, rem) = consume_spec_option(&tokens[2..])?;
 
         if res.name.is_some() {
-            Err(eyre!("Nested naming is not allowed"))
+            Err(anyhow!("Nested naming is not allowed"))
         } else {
             Ok((
                 ConsumeResult { name: Some(name.to_owned()), value: res.value },
@@ -405,7 +407,7 @@ pub fn consume_named(
             ))
         }
     } else {
-        Err(eyre!("Expected `name = <option>`"))
+        Err(anyhow!("Expected `name = <option>`"))
     }
 }
 
@@ -459,10 +461,10 @@ pub fn consume_spec_option(
         }
     }
 
-    let mut err = eyre!("Failed to parse option.");
+    let mut err = anyhow!("Failed to parse option.");
     for err_val in errors {
         if let Err(e) = err_val {
-            err = err.wrap_err(e);
+            err = err.context(e);
         }
     }
 

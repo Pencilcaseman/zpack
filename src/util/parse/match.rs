@@ -1,5 +1,11 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
+use anyhow::Result;
+
+#[derive(Debug)]
+pub struct MatchConsumerError<'a> {
+    expected: &'a str,
+    received: String,
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct MatchConsumer<'a> {
@@ -14,6 +20,7 @@ impl<'a> MatchConsumer<'a> {
 
 impl<'a> Consumer for MatchConsumer<'a> {
     type Output = ();
+    type Error = MatchConsumerError<'a>;
 
     fn info(&self) -> String {
         format!("matching '{}'", self.target)
@@ -22,14 +29,18 @@ impl<'a> Consumer for MatchConsumer<'a> {
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
-    ) -> Result<(Self::Output, Cursor<'b>)> {
+    ) -> Result<(Self::Output, Cursor<'b>), Self::Error> {
         let target_len = self.target.len();
-        let (extract, cursor) = cursor.step(target_len)?;
-
-        if extract == self.target {
+        let remaining = cursor.remaining();
+        if let Some((extract, cursor)) = cursor.step(target_len)
+            && extract == self.target
+        {
             Ok(((), cursor))
         } else {
-            Err(eyre!("Expected '{}'; received '{extract}", self.target))
+            Err(MatchConsumerError {
+                expected: self.target,
+                received: remaining.into(),
+            })
         }
     }
 }

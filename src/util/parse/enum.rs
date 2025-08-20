@@ -1,5 +1,10 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EnumConsumerError<T> {
+    ConsumeFailed(T),
+    ConvFailed,
+}
 
 #[derive(Debug)]
 pub struct EnumConsumer<E, T>
@@ -30,6 +35,7 @@ where
     E: std::fmt::Debug + 'static,
 {
     type Output = E;
+    type Error = EnumConsumerError<<T as Consumer>::Error>;
 
     fn info(&self) -> String {
         self.consumer.info().to_string()
@@ -38,13 +44,13 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>)> {
+    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
         match self.consumer.consume(cursor) {
             Ok((res, cur)) => match (self.conv)(res) {
                 Some(val) => Ok((val, cur)),
-                None => Err(eyre!("Failed to parse")),
+                None => Err(EnumConsumerError::ConvFailed),
             },
-            Err(e) => Err(e),
+            Err(e) => Err(EnumConsumerError::ConsumeFailed(e)),
         }
     }
 }

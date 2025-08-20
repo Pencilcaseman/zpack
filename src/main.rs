@@ -1,13 +1,13 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::{io, sync::Arc};
+use std::io;
 
+use anyhow::Result;
 use clap::{
     Arg, ArgAction, Command, ValueHint, crate_description, crate_version,
     value_parser,
 };
 use clap_complete::aot::{Generator, Shell, generate};
-use color_eyre::Result;
 use saphyr::{LoadableYamlNode, Yaml, YamlEmitter};
 use syntect::{
     easy::HighlightLines,
@@ -130,166 +130,7 @@ zpack:
     }
 }
 
-use rune::{
-    Context, ContextError, Diagnostics, Module, Sources,
-    compile::FileSourceLoader,
-    diagnostics::EmitError,
-    macros::test,
-    runtime::{Function, Vm},
-    termcolor::{ColorChoice, StandardStream},
-};
-
-// #[derive(rune::Any)]
-// struct MyStruct {
-//     #[rune(get, set)]
-//     my_field: i32,
-// }
-//
-// impl MyStruct {
-//     #[rune::function(keep)]
-//     const fn my_function(&self) -> i32 {
-//         self.my_field * 10
-//     }
-// }
-
-#[derive(Default, Debug, rune::Any, PartialEq, Eq)]
-#[rune(constructor)]
-struct External {
-    #[rune(get, set)]
-    suite_name: String,
-    #[rune(get, set)]
-    room_number: usize,
-}
-
-impl External {
-    #[rune::function(keep)]
-    const fn my_function(&self) -> usize {
-        self.room_number * 10
-    }
-}
-
-fn build_module() -> rune::support::Result<rune::Module> {
-    let module = rune::Module::new();
-    let mut context = rune_modules::default_context()?;
-    let mut diagnostics = Diagnostics::new();
-
-    let mut sources = rune::sources!(
-        entry => {
-            pub mod test_module {
-                pub fn fib(n) {
-                    if n < 2 {
-                        n
-                    } else {
-                        fib(n - 1) + fib(n - 2)
-                    }
-                }
-            }
-        }
-    );
-
-    let result = rune::prepare(&mut sources)
-        .with_context(&context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
-
-    context.install(&module)?;
-
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-
-    Ok(module)
-}
-
-fn test_rune() -> rune::support::Result<()> {
-    let mut context = rune_modules::default_context()?;
-    let runtime = Arc::new(context.runtime()?);
-    let mut diagnostics = Diagnostics::new();
-
-    context.install(build_module()?)?;
-
-    let mut sources = rune::sources!(
-        entry => {
-            pub fn main(number) {
-                println!("Hello, World!");
-
-                println!("fib({number}): {}", test_module::fib(number));
-                println!("fact({number}): {}", test_module_2::fact(number));
-                println!("test({number}): {}", test(number));
-                println!("test_thing({number}, {number} + 1): {}", another_test::test_thing(number, number + 1));
-
-                // Syntax error:
-                number >> 1
-            }
-        }
-    );
-
-    let test_from_file = rune::Source::from_path("./test.rn")?;
-
-    let test_source = rune::Source::new(
-        "test_module",
-        r#"
-    mod test_module {
-        pub fn fib(n) {
-            if n < 2 {
-                n
-            } else {
-                fib(n - 1) + fib(n - 2)
-            }
-        }
-    }
-    "#,
-    );
-
-    let source_2 = rune::Source::new(
-        "test_module_2",
-        r#"
-    mod test_module_2 {
-        pub fn fact(n) {
-            if n < 2 {
-                n
-            } else {
-                n * fact(n - 1)
-            }
-        }
-    }
-    "#,
-    );
-
-    let id = sources.insert(test_source?);
-    println!("Source ID: {id:?}");
-
-    let id2 = sources.insert(source_2?);
-    println!("Source ID: {id2:?}");
-
-    let id3 = sources.insert(test_from_file);
-    println!("Source ID: {id3:?}");
-
-    let result = rune::prepare(&mut sources)
-        .with_context(&context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
-
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-
-    let unit = Arc::new(result?);
-
-    println!("Executing");
-    let mut vm = Vm::new(runtime, unit);
-    let output = vm.call(["main"], (6,))?;
-    let res: i64 = rune::from_value(output)?;
-    println!("Result: {res}");
-
-    Ok(())
-}
-
 fn main() -> Result<()> {
-    color_eyre::install()?;
-
     let subscriber = tracing_subscriber::fmt()
         .pretty()
         .with_file(true)
@@ -322,10 +163,6 @@ fn main() -> Result<()> {
     }
 
     test_yaml();
-
-    // println!();
-    // test_rune().unwrap();
-    // println!();
 
     let package_option =
         &Yaml::load_from_str(r#"txt="Hello, \"Quoted\" World!""#).unwrap()[0];

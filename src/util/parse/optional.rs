@@ -1,5 +1,5 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
+use anyhow::Result;
 
 #[derive(Debug)]
 pub struct OptionalConsumer<T>
@@ -23,6 +23,7 @@ where
     T: Consumer,
 {
     type Output = Option<<T as Consumer>::Output>;
+    type Error = ();
 
     fn info(&self) -> String {
         format!("optional[{}]", self.opt.info())
@@ -31,7 +32,7 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>)> {
+    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
         if let Ok((result, c)) = self.opt.consume(cursor) {
             Ok((Some(result), c))
         } else {

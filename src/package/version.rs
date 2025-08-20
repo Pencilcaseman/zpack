@@ -1,5 +1,5 @@
 use crate::util::parse::*;
-use color_eyre::{Result, eyre::eyre};
+use anyhow::{Result, anyhow};
 
 /// A type representing a concrete version.
 ///
@@ -30,22 +30,25 @@ fn parse_version(version: &str) -> Result<Version> {
 
     // Parses [v]<num>[.<num>][.<num>][-<something>]
     let semver = opt_v
-        .ignore_then(num.map(|v| Ok(u64::try_from(v)?)))
-        .maybe(dot.ignore_then(num.map(|v| Ok(u64::try_from(v)?))))
-        .maybe(dot.ignore_then(num.map(|v| Ok(u64::try_from(v)?))))
+        .ignore_then(num.map(u64::try_from))
+        .maybe(dot.ignore_then(num.map(u64::try_from)))
+        .maybe(dot.ignore_then(num.map(u64::try_from)))
         .maybe(dash.ignore_then(RawConsumer::new(|cursor| {
-            match cursor.take_while(|c| !c.is_ascii_whitespace())? {
-                ("", _) => Err(eyre!("Did not find additional version info")),
-                (rc, cur) => Ok((rc.to_owned(), cur)),
+            match cursor.take_while(|c| !c.is_ascii_whitespace()) {
+                Some((rc, cur)) if !rc.is_empty() => Ok((rc.to_owned(), cur)),
+                _ => Err(anyhow!("Did not find additional version info")),
             }
         })))
-        .map(|(((major, minor), patch), rc)| {
+        .map(|(((major, minor), patch), rc)| -> Result<_, ()> {
             Ok(Version::SemVer { major, minor, patch, rc })
         });
 
     let cur = Cursor::new(version);
 
-    Ok(semver.consume(cur)?.0)
+    match semver.consume(cur) {
+        Ok((res, _)) => Ok(res),
+        Err(_) => Err(anyhow!("Parsing version failed")),
+    }
 }
 
 impl Version {

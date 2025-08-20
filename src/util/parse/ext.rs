@@ -1,4 +1,4 @@
-use color_eyre::Result;
+use anyhow::Result;
 
 use super::Consumer;
 use super::OptionalConsumer;
@@ -22,9 +22,9 @@ where
     where
         T: Consumer;
 
-    fn map<F, R>(self, function: F) -> Map<Self, F, R>
+    fn map<F, R, E>(self, function: F) -> Map<Self, F, R, E>
     where
-        F: Fn(<Self as Consumer>::Output) -> Result<R>;
+        F: Fn(<Self as Consumer>::Output) -> Result<R, E>;
 
     fn maybe<T>(self, opt: T) -> Then<Self, OptionalConsumer<T>>
     where
@@ -56,9 +56,9 @@ where
         ThenIgnore::new(self, second)
     }
 
-    fn map<F, R>(self, function: F) -> Map<Self, F, R>
+    fn map<F, R, E>(self, function: F) -> Map<Self, F, R, E>
     where
-        F: Fn(<Self as Consumer>::Output) -> Result<R>,
+        F: Fn(<Self as Consumer>::Output) -> Result<R, E>,
     {
         Map::new(self, function)
     }

@@ -1,5 +1,11 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum BoundedConsumerError {
+    ExpectedAtLeast(usize),
+    ExpectedAtMost(usize),
+    ExpectedBetween(usize, usize),
+}
 
 #[derive(Debug)]
 pub struct BoundedConsumer<T>
@@ -34,6 +40,7 @@ where
     <T as Consumer>::Output: std::fmt::Debug,
 {
     type Output = Vec<T::Output>;
+    type Error = BoundedConsumerError;
 
     fn info(&self) -> String {
         format!("BoundedConsumerParser")
@@ -42,7 +49,7 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>)> {
+    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
         let mut res = Vec::new();
         let mut cur = cursor;
 
@@ -57,18 +64,16 @@ where
         if (min..max).contains(&res.len()) {
             Ok((res, cur))
         } else {
-            let desc = match (self.min, self.max) {
-                (Some(min), Some(max)) => format!("between {min} and {max}"),
-                (Some(min), None) => format!("{min}..."),
-                (None, Some(max)) => format!("...{max}"),
-                (None, None) => "0...".to_string(),
-            };
-
-            Err(eyre!(
-                "Expected {desc} instances of {:?}; found {}",
-                self.parser,
-                res.len()
-            ))
+            Err(match (self.min, self.max) {
+                (Some(min), Some(max)) => {
+                    BoundedConsumerError::ExpectedBetween(min, max)
+                }
+                (Some(min), None) => BoundedConsumerError::ExpectedAtLeast(min),
+                (None, Some(max)) => BoundedConsumerError::ExpectedAtMost(max),
+                (None, None) => {
+                    BoundedConsumerError::ExpectedBetween(0, usize::MAX)
+                }
+            })
         }
     }
 }

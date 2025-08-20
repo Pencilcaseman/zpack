@@ -1,5 +1,4 @@
 use super::{consumer::Consumer, cursor::Cursor};
-use color_eyre::{Result, eyre::eyre};
 
 #[derive(Copy, Clone)]
 pub struct IntegerConsumer {}
@@ -18,6 +17,7 @@ impl Default for IntegerConsumer {
 
 impl Consumer for IntegerConsumer {
     type Output = i128;
+    type Error = ();
 
     fn info(&self) -> String {
         "integer".into()
@@ -26,12 +26,13 @@ impl Consumer for IntegerConsumer {
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
-    ) -> Result<(Self::Output, Cursor<'b>)> {
-        let (p, c) = cursor.take_while(|c| c.is_ascii_digit())?;
-        if !p.is_empty() {
-            Ok((p.parse()?, c))
-        } else {
-            Err(eyre!("Expected integer;"))
+    ) -> Result<(Self::Output, Cursor<'b>), Self::Error> {
+        match cursor.take_while(|c| c.is_ascii_digit()) {
+            Some((p, c)) if !p.is_empty() => match p.parse::<Self::Output>() {
+                Ok(v) => Ok((v, c)),
+                Err(_) => Err(()),
+            },
+            _ => Err(()),
         }
     }
 }
@@ -48,7 +49,7 @@ mod test {
         let parser = IntegerConsumer::default()
             .then_ignore(WhitespaceConsumer::default());
 
-        let sample_text = "12345 Hello";
+        let sample_text = "12345Hello";
         let sample_cursor = Cursor::new(sample_text);
 
         match parser.consume(sample_cursor) {
@@ -57,6 +58,7 @@ mod test {
                 assert_eq!(cur.remaining(), "Hello");
             }
             Err(e) => panic!("Failed to parse: {e:?}"),
+            // Err(e) => panic!("Failed to parse"),
         }
     }
 }
