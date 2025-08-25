@@ -1,32 +1,33 @@
 use std::marker::PhantomData;
 
+use anyhow::{Result, anyhow};
+
 use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Copy, Clone)]
-pub struct RawConsumer<P, Out, Err>
+pub struct RawConsumer<P, Out>
 where
-    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>), Err>,
+    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>)>,
     Out: 'static,
 {
     predicate: P,
     phantom: PhantomData<Out>,
 }
 
-impl<P, Out, Err> RawConsumer<P, Out, Err>
+impl<P, Out> RawConsumer<P, Out>
 where
-    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>), Err>,
+    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>)>,
 {
     pub fn new(predicate: P) -> Self {
         Self { predicate, phantom: PhantomData }
     }
 }
 
-impl<P, Out, Err> Consumer for RawConsumer<P, Out, Err>
+impl<P, Out> Consumer for RawConsumer<P, Out>
 where
-    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>), Err>,
+    P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>)>,
 {
     type Output = Out;
-    type Error = Err;
 
     fn info(&self) -> String {
         "raw".into()
@@ -35,7 +36,7 @@ where
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
-    ) -> Result<(Self::Output, Cursor<'b>), Err> {
+    ) -> Result<(Self::Output, Cursor<'b>)> {
         (self.predicate)(cursor)
     }
 }
@@ -45,12 +46,12 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_raw() -> Result<(), ()> {
+    fn test_raw() -> Result<()> {
         let raw = RawConsumer::new(|cursor| {
             cursor
                 .take_while(|c| c.is_ascii_alphanumeric())
                 .map(|(s, c)| (s.to_owned(), c))
-                .ok_or(())
+                .ok_or(anyhow!("Stepped past end of string"))
         });
 
         let sample_text = "Hello, World!";

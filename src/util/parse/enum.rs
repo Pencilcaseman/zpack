@@ -1,41 +1,34 @@
+use anyhow::{Result, anyhow};
+
 use super::{consumer::Consumer, cursor::Cursor};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum EnumConsumerError<T> {
-    ConsumeFailed(T),
-    ConvFailed,
-}
-
 #[derive(Debug)]
-pub struct EnumConsumer<E, T>
+pub struct EnumConsumer<T, E>
 where
-    E: std::fmt::Debug + 'static,
     T: Consumer,
 {
     consumer: T,
-    conv: fn(<T as Consumer>::Output) -> Option<<Self as Consumer>::Output>,
+    conv: fn(<T as Consumer>::Output) -> Result<E>,
 }
 
-impl<E, T> EnumConsumer<E, T>
+impl<T, E> EnumConsumer<T, E>
 where
-    E: std::fmt::Debug + 'static,
     T: Consumer,
 {
     pub fn new(
         consumer: T,
-        conv: fn(<T as Consumer>::Output) -> Option<<Self as Consumer>::Output>,
+        conv: fn(<T as Consumer>::Output) -> Result<E>,
     ) -> Self {
         Self { consumer, conv }
     }
 }
 
-impl<E, T> Consumer for EnumConsumer<E, T>
+impl<T, E> Consumer for EnumConsumer<T, E>
 where
     T: Consumer,
-    E: std::fmt::Debug + 'static,
+    E: 'static,
 {
     type Output = E;
-    type Error = EnumConsumerError<<T as Consumer>::Error>;
 
     fn info(&self) -> String {
         self.consumer.info().to_string()
@@ -44,21 +37,15 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
-        match self.consumer.consume(cursor) {
-            Ok((res, cur)) => match (self.conv)(res) {
-                Some(val) => Ok((val, cur)),
-                None => Err(EnumConsumerError::ConvFailed),
-            },
-            Err(e) => Err(EnumConsumerError::ConsumeFailed(e)),
-        }
+    ) -> Result<(Self::Output, Cursor<'a>)> {
+        let (out, cur) = self.consumer.consume(cursor)?;
+        Ok(((self.conv)(out)?, cur))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::super::MatchConsumer;
-    use super::*;
+    use super::{super::MatchConsumer, *};
 
     #[test]
     fn test_enum_consumer() {
@@ -68,8 +55,7 @@ mod test {
         }
 
         let class_lit = MatchConsumer::new("class");
-        let class_enum =
-            EnumConsumer::new(class_lit, |_| Some(TestEnum::Class));
+        let class_enum = EnumConsumer::new(class_lit, |_| Ok(TestEnum::Class));
 
         let text = "class MyClass;";
         let cur = Cursor::new(text);

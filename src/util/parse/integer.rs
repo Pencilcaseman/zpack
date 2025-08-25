@@ -1,3 +1,5 @@
+use anyhow::{Result, anyhow};
+
 use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Copy, Clone)]
@@ -17,7 +19,6 @@ impl Default for IntegerConsumer {
 
 impl Consumer for IntegerConsumer {
     type Output = i128;
-    type Error = ();
 
     fn info(&self) -> String {
         "integer".into()
@@ -26,23 +27,21 @@ impl Consumer for IntegerConsumer {
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
-    ) -> Result<(Self::Output, Cursor<'b>), Self::Error> {
+    ) -> Result<(Self::Output, Cursor<'b>)> {
         match cursor.take_while(|c| c.is_ascii_digit()) {
             Some((p, c)) if !p.is_empty() => match p.parse::<Self::Output>() {
                 Ok(v) => Ok((v, c)),
-                Err(_) => Err(()),
+                Err(e) => Err(anyhow!("Expected valid integer: {e:?}")),
             },
-            _ => Err(()),
+            _ => Err(anyhow!("Expected integer. Received empty string")),
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::util::parse::ConsumerExt;
-    use crate::util::parse::WhitespaceConsumer;
-
     use super::*;
+    use crate::util::parse::{ConsumerExt, WhitespaceConsumer};
 
     #[test]
     fn test_literal() {

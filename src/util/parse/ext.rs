@@ -1,10 +1,10 @@
 use anyhow::Result;
 
-use super::Consumer;
-use super::OptionalConsumer;
-
-use super::map::Map;
-use super::then::{IgnoreThen, Then, ThenIgnore};
+use super::{
+    Consumer, OptionalConsumer,
+    map::Map,
+    then::{IgnoreThen, Then, ThenIgnore},
+};
 
 pub trait ConsumerExt
 where
@@ -22,9 +22,9 @@ where
     where
         T: Consumer;
 
-    fn map<F, R, E>(self, function: F) -> Map<Self, F, R, E>
+    fn map<F, R>(self, function: F) -> Map<Self, F, R>
     where
-        F: Fn(<Self as Consumer>::Output) -> Result<R, E>;
+        F: Fn(<Self as Consumer>::Output) -> Result<R>;
 
     fn maybe<T>(self, opt: T) -> Then<Self, OptionalConsumer<T>>
     where
@@ -56,9 +56,9 @@ where
         ThenIgnore::new(self, second)
     }
 
-    fn map<F, R, E>(self, function: F) -> Map<Self, F, R, E>
+    fn map<F, R>(self, function: F) -> Map<Self, F, R>
     where
-        F: Fn(<Self as Consumer>::Output) -> Result<R, E>,
+        F: Fn(<Self as Consumer>::Output) -> Result<R>,
     {
         Map::new(self, function)
     }

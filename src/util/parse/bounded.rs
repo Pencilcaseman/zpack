@@ -1,11 +1,6 @@
-use super::{consumer::Consumer, cursor::Cursor};
+use anyhow::{Result, anyhow};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum BoundedConsumerError {
-    ExpectedAtLeast(usize),
-    ExpectedAtMost(usize),
-    ExpectedBetween(usize, usize),
-}
+use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Debug)]
 pub struct BoundedConsumer<T>
@@ -40,16 +35,37 @@ where
     <T as Consumer>::Output: std::fmt::Debug,
 {
     type Output = Vec<T::Output>;
-    type Error = BoundedConsumerError;
 
     fn info(&self) -> String {
-        format!("BoundedConsumerParser")
+        match (self.min, self.max) {
+            (Some(min), Some(max)) => {
+                format!(
+                    "Between {min} and {max} instances of {}",
+                    self.parser.info(),
+                )
+            }
+            (Some(min), None) => {
+                format!(
+                    "Expected at least {min} instances of {}",
+                    self.parser.info(),
+                )
+            }
+            (None, Some(max)) => {
+                format!(
+                    "Expected at most {max} instances of {}",
+                    self.parser.info(),
+                )
+            }
+            (None, None) => {
+                format!("Expected at least one {}", self.parser.info(),)
+            }
+        }
     }
 
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
+    ) -> Result<(Self::Output, Cursor<'a>)> {
         let mut res = Vec::new();
         let mut cur = cursor;
 
@@ -64,24 +80,14 @@ where
         if (min..max).contains(&res.len()) {
             Ok((res, cur))
         } else {
-            Err(match (self.min, self.max) {
-                (Some(min), Some(max)) => {
-                    BoundedConsumerError::ExpectedBetween(min, max)
-                }
-                (Some(min), None) => BoundedConsumerError::ExpectedAtLeast(min),
-                (None, Some(max)) => BoundedConsumerError::ExpectedAtMost(max),
-                (None, None) => {
-                    BoundedConsumerError::ExpectedBetween(0, usize::MAX)
-                }
-            })
+            Err(anyhow!("Expected {}. Received {}", self.info(), res.len()))
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::super::MatchConsumer;
-    use super::*;
+    use super::{super::MatchConsumer, *};
 
     #[test]
     fn test_bounded_single() {

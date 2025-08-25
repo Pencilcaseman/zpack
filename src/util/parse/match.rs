@@ -1,11 +1,6 @@
-use super::{consumer::Consumer, cursor::Cursor};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
-#[derive(Debug)]
-pub struct MatchConsumerError<'a> {
-    expected: &'a str,
-    received: String,
-}
+use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Debug, Copy, Clone)]
 pub struct MatchConsumer<'a> {
@@ -20,7 +15,6 @@ impl<'a> MatchConsumer<'a> {
 
 impl<'a> Consumer for MatchConsumer<'a> {
     type Output = ();
-    type Error = MatchConsumerError<'a>;
 
     fn info(&self) -> String {
         format!("matching '{}'", self.target)
@@ -29,7 +23,7 @@ impl<'a> Consumer for MatchConsumer<'a> {
     fn consume<'b>(
         &self,
         cursor: Cursor<'b>,
-    ) -> Result<(Self::Output, Cursor<'b>), Self::Error> {
+    ) -> Result<(Self::Output, Cursor<'b>)> {
         let target_len = self.target.len();
         let remaining = cursor.remaining();
         if let Some((extract, cursor)) = cursor.step(target_len)
@@ -37,10 +31,7 @@ impl<'a> Consumer for MatchConsumer<'a> {
         {
             Ok(((), cursor))
         } else {
-            Err(MatchConsumerError {
-                expected: self.target,
-                received: remaining.into(),
-            })
+            Err(anyhow!("Failed to match"))
         }
     }
 }

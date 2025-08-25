@@ -1,8 +1,7 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-
-use zpack::package::version::Version;
-
 use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
+use zpack::package::version::Version;
 
 fn parse_short_version() -> Version {
     let test_version = "123.456";
@@ -23,10 +22,10 @@ fn custom_parser() -> (u64, u64) {
 
         // Parses <num>.<num>
         let semver = num
-            .map(u64::try_from)
+            .map(|v| Ok(u64::try_from(v)?))
             .then_ignore(dot)
-            .then(num.map(u64::try_from))
-            .map(|(major, minor)| -> Result<_, ()> { Ok((major, minor)) });
+            .then(num.map(|v| Ok(u64::try_from(v)?)))
+            .map(|(major, minor)| Ok((major, minor)));
 
         let cur = Cursor::new(version);
 

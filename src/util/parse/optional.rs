@@ -1,5 +1,6 @@
-use super::{consumer::Consumer, cursor::Cursor};
 use anyhow::Result;
+
+use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Debug)]
 pub struct OptionalConsumer<T>
@@ -23,7 +24,6 @@ where
     T: Consumer,
 {
     type Output = Option<<T as Consumer>::Output>;
-    type Error = ();
 
     fn info(&self) -> String {
         format!("optional[{}]", self.opt.info())
@@ -32,7 +32,7 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
+    ) -> Result<(Self::Output, Cursor<'a>)> {
         if let Ok((result, c)) = self.opt.consume(cursor) {
             Ok((Some(result), c))
         } else {
@@ -43,8 +43,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::super::MatchConsumer;
-    use super::*;
+    use super::{super::MatchConsumer, *};
 
     #[test]
     fn test_optional_matching() {

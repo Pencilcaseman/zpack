@@ -1,15 +1,16 @@
-use super::{consumer::Consumer, cursor::Cursor};
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
 
-pub struct MultiConsumer<O, E>
+use super::{consumer::Consumer, cursor::Cursor};
+
+pub struct MultiConsumer<O>
 where
     O: 'static,
 {
-    consumers: Vec<Box<dyn Consumer<Output = O, Error = E>>>,
+    consumers: Vec<Box<dyn Consumer<Output = O>>>,
 }
 
-impl<O, E> MultiConsumer<O, E>
+impl<O> MultiConsumer<O>
 where
     O: 'static,
 {
@@ -17,32 +18,29 @@ where
         Self { consumers: Default::default() }
     }
 
-    pub fn new_with(
-        consumers: Vec<Box<dyn Consumer<Output = O, Error = E>>>,
-    ) -> Self {
+    pub fn new_with(consumers: Vec<Box<dyn Consumer<Output = O>>>) -> Self {
         Self { consumers }
     }
 
     pub fn push<C>(&mut self, consumer: C)
     where
-        C: Consumer<Output = O, Error = E> + 'static,
+        C: Consumer<Output = O> + 'static,
     {
         self.consumers.push(Box::new(consumer));
     }
 }
 
-impl<O, E> Default for MultiConsumer<O, E> {
+impl<O> Default for MultiConsumer<O> {
     fn default() -> Self {
         Self { consumers: Vec::new() }
     }
 }
 
-impl<O, E> Consumer for MultiConsumer<O, E>
+impl<O> Consumer for MultiConsumer<O>
 where
     O: 'static + std::fmt::Debug,
 {
     type Output = O;
-    type Error = ();
 
     fn info(&self) -> String {
         "one of: ".to_owned()
@@ -52,7 +50,7 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
+    ) -> Result<(Self::Output, Cursor<'a>)> {
         self.consumers
             .iter()
             .find_map(|consumer| {
@@ -62,14 +60,16 @@ where
                     None
                 }
             })
-            .ok_or(()) // Nothing matched -- no extra information necessary
+            .ok_or(anyhow!("Expected {}; none matched", self.info()))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::super::{EnumConsumer, MatchConsumer};
-    use super::*;
+    use super::{
+        super::{EnumConsumer, MatchConsumer},
+        *,
+    };
 
     #[test]
     fn test_multi_consumer() {
@@ -80,12 +80,11 @@ mod test {
         }
 
         let class_lit = MatchConsumer::new("class");
-        let class_enum =
-            EnumConsumer::new(class_lit, |_| Some(TestEnum::Class));
+        let class_enum = EnumConsumer::new(class_lit, |_| Ok(TestEnum::Class));
 
         let function_lit = MatchConsumer::new("function");
         let function_enum =
-            EnumConsumer::new(function_lit, |_| Some(TestEnum::Function));
+            EnumConsumer::new(function_lit, |_| Ok(TestEnum::Function));
 
         let mut multi_consumer = MultiConsumer::default();
         multi_consumer.push(class_enum);

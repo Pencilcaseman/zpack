@@ -1,5 +1,6 @@
-use super::{consumer::Consumer, cursor::Cursor};
 use anyhow::Result;
+
+use super::{consumer::Consumer, cursor::Cursor};
 
 #[derive(Debug)]
 pub enum ThenError<First, Second> {
@@ -32,7 +33,6 @@ where
     Second: Consumer,
 {
     type Output = (First::Output, Second::Output);
-    type Error = ThenError<First::Error, Second::Error>;
 
     fn info(&self) -> String {
         format!("{} then {}", self.first.info(), self.second.info())
@@ -41,16 +41,9 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
-        let (first, cur) = match self.first.consume(cursor) {
-            Ok((f, c)) => (f, c),
-            Err(e) => return Err(ThenError::First(e)),
-        };
-
-        let (second, cur) = match self.second.consume(cur) {
-            Ok((s, c)) => (s, c),
-            Err(e) => return Err(ThenError::Second(e)),
-        };
+    ) -> Result<(Self::Output, Cursor<'a>)> {
+        let (first, cur) = self.first.consume(cursor)?;
+        let (second, cur) = self.second.consume(cur)?;
 
         Ok(((first, second), cur))
     }
@@ -81,7 +74,6 @@ where
     Second: Consumer,
 {
     type Output = Second::Output;
-    type Error = ThenError<First::Error, Second::Error>;
 
     fn info(&self) -> String {
         format!("{} then {}", self.first.info(), self.second.info())
@@ -90,16 +82,9 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
-        let cur = match self.first.consume(cursor) {
-            Ok((_, c)) => c,
-            Err(e) => return Err(ThenError::First(e)),
-        };
-
-        let (second, cur) = match self.second.consume(cur) {
-            Ok((s, c)) => (s, c),
-            Err(e) => return Err(ThenError::Second(e)),
-        };
+    ) -> Result<(Self::Output, Cursor<'a>)> {
+        let (_, cur) = self.first.consume(cursor)?;
+        let (second, cur) = self.second.consume(cur)?;
 
         Ok((second, cur))
     }
@@ -130,7 +115,6 @@ where
     Second: Consumer,
 {
     type Output = First::Output;
-    type Error = ThenError<First::Error, Second::Error>;
 
     fn info(&self) -> String {
         format!("{} then {}", self.first.info(), self.second.info())
@@ -139,16 +123,9 @@ where
     fn consume<'a>(
         &self,
         cursor: Cursor<'a>,
-    ) -> Result<(Self::Output, Cursor<'a>), Self::Error> {
-        let (first, cur) = match self.first.consume(cursor) {
-            Ok((f, c)) => (f, c),
-            Err(e) => return Err(ThenError::First(e)),
-        };
-
-        let cur = match self.second.consume(cur) {
-            Ok((_, c)) => c,
-            Err(e) => return Err(ThenError::Second(e)),
-        };
+    ) -> Result<(Self::Output, Cursor<'a>)> {
+        let (first, cur) = self.first.consume(cursor)?;
+        let (_, cur) = self.second.consume(cur)?;
 
         Ok((first, cur))
     }
