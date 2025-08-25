@@ -43,7 +43,13 @@ fn custom_parser() -> (u64, u64) {
 fn criterion_benchmark(c: &mut Criterion) {
     assert_eq!(
         parse_short_version(),
-        Version::SemVer { major: 123, minor: Some(456), patch: None, rc: None }
+        Version::SemVer {
+            major: 123,
+            minor: Some(456),
+            patch: None,
+            rc: None,
+            meta: None
+        }
     );
 
     assert_eq!(
@@ -52,7 +58,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             major: 123456789,
             minor: Some(123456789),
             patch: Some(123456789),
-            rc: Some("123456789".into())
+            rc: Some(vec!["123456789".into()]),
+            meta: None
         }
     );
 
@@ -69,6 +76,27 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("custom_parser", |b| {
         b.iter(|| black_box(custom_parser()))
     });
+
+    let bench_suite = [
+        "1.9.0",
+        "v1.10.0",
+        "v1.11.0",
+        "1.0.0-alpha",
+        "v1.0.0-alpha.1",
+        "v1.0.0-0.3.7",
+        "1.0.0-x.7.z.92",
+        "v1.0.0-x-y-z.--",
+        "1.0.0-alpha+001",
+        "v1.0.0+20130313144700",
+        "1.0.0-beta+exp.sha.5114f85",
+        "v1.0.0+21AF26D3----117B344092BD",
+    ];
+
+    for input in bench_suite.into_iter() {
+        c.bench_function(&format!("semver.org '{}'", input), |b| {
+            b.iter(|| black_box(Version::new(input)))
+        });
+    }
 }
 
 criterion_group!(benches, criterion_benchmark);

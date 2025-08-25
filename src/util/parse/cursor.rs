@@ -44,6 +44,14 @@ impl<'a> Cursor<'a> {
         let to_take = self.remaining().chars().take_while(predicate).count();
         self.step(to_take)
     }
+
+    pub fn take_while_non_zero(
+        self,
+        predicate: fn(&char) -> bool,
+    ) -> Option<(&'a str, Self)> {
+        let to_take = self.remaining().chars().take_while(predicate).count();
+        if to_take == 0 { None } else { self.step(to_take) }
+    }
 }
 
 #[cfg(test)]

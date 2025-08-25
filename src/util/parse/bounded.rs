@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 
 use super::{consumer::Consumer, cursor::Cursor};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct BoundedConsumer<T>
 where
     T: Consumer,
@@ -31,8 +31,7 @@ where
 
 impl<T> Consumer for BoundedConsumer<T>
 where
-    T: Consumer + std::fmt::Debug,
-    <T as Consumer>::Output: std::fmt::Debug,
+    T: Consumer,
 {
     type Output = Vec<T::Output>;
 
@@ -77,7 +76,7 @@ where
         let min = self.min.unwrap_or(0);
         let max = self.max.unwrap_or(usize::MAX);
 
-        if (min..max).contains(&res.len()) {
+        if (min..=max).contains(&res.len()) {
             Ok((res, cur))
         } else {
             Err(anyhow!("Expected {}. Received {}", self.info(), res.len()))
@@ -88,6 +87,23 @@ where
 #[cfg(test)]
 mod test {
     use super::{super::MatchConsumer, *};
+
+    #[test]
+    fn test_none() {
+        let a = MatchConsumer::new("A");
+        let aaa = BoundedConsumer::new(Some(0), Some(1), a);
+
+        let sample_text = "Nope";
+        let sample_cursor = Cursor::new(sample_text);
+
+        match aaa.consume(sample_cursor) {
+            Ok((found, cur)) => {
+                assert_eq!(found.len(), 0);
+                assert_eq!(cur.remaining(), "Nope");
+            }
+            Err(e) => panic!("Failed to parse: {e:?}"),
+        }
+    }
 
     #[test]
     fn test_bounded_single() {
@@ -109,7 +125,7 @@ mod test {
     #[test]
     fn test_bounded_multi() {
         let a = MatchConsumer::new("void");
-        let aaa = BoundedConsumer::new(Some(0), None, a);
+        let aaa = BoundedConsumer::new(Some(0), Some(6), a);
 
         let sample_text = "voidvoidvoidvoidvoidvoid123456void";
         let sample_cursor = Cursor::new(sample_text);

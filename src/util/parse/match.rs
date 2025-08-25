@@ -25,13 +25,12 @@ impl<'a> Consumer for MatchConsumer<'a> {
         cursor: Cursor<'b>,
     ) -> Result<(Self::Output, Cursor<'b>)> {
         let target_len = self.target.len();
-        let remaining = cursor.remaining();
         if let Some((extract, cursor)) = cursor.step(target_len)
             && extract == self.target
         {
             Ok(((), cursor))
         } else {
-            Err(anyhow!("Failed to match"))
+            Err(anyhow!("Expected '{}'", self.target,))
         }
     }
 }

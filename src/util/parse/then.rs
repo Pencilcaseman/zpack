@@ -2,12 +2,7 @@ use anyhow::Result;
 
 use super::{consumer::Consumer, cursor::Cursor};
 
-#[derive(Debug)]
-pub enum ThenError<First, Second> {
-    First(First),
-    Second(Second),
-}
-
+#[derive(Debug, Copy, Clone)]
 pub struct Then<First, Second>
 where
     First: Consumer,
@@ -49,6 +44,7 @@ where
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct IgnoreThen<First, Second>
 where
     First: Consumer,
@@ -90,6 +86,7 @@ where
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct ThenIgnore<First, Second>
 where
     First: Consumer,

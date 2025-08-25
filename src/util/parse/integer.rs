@@ -31,7 +31,9 @@ impl Consumer for IntegerConsumer {
         match cursor.take_while(|c| c.is_ascii_digit()) {
             Some((p, c)) if !p.is_empty() => match p.parse::<Self::Output>() {
                 Ok(v) => Ok((v, c)),
-                Err(e) => Err(anyhow!("Expected valid integer: {e:?}")),
+                Err(e) => Err(anyhow!(
+                    "Expected valid integer. Failed because: {e:?}"
+                )),
             },
             _ => Err(anyhow!("Expected integer. Received empty string")),
         }
@@ -48,7 +50,7 @@ mod test {
         let parser = IntegerConsumer::default()
             .then_ignore(WhitespaceConsumer::default());
 
-        let sample_text = "12345Hello";
+        let sample_text = "12345 Hello";
         let sample_cursor = Cursor::new(sample_text);
 
         match parser.consume(sample_cursor) {

@@ -29,6 +29,14 @@ where
     fn maybe<T>(self, opt: T) -> Then<Self, OptionalConsumer<T>>
     where
         T: Consumer;
+
+    fn maybe_ignore<T>(self, opt: T) -> ThenIgnore<Self, OptionalConsumer<T>>
+    where
+        T: Consumer;
+
+    fn ignore_maybe<T>(self, opt: T) -> IgnoreThen<Self, OptionalConsumer<T>>
+    where
+        T: Consumer;
 }
 
 impl<C> ConsumerExt for C
@@ -68,5 +76,19 @@ where
         T: Consumer,
     {
         Then::new(self, OptionalConsumer::new(opt))
+    }
+
+    fn maybe_ignore<T>(self, opt: T) -> ThenIgnore<Self, OptionalConsumer<T>>
+    where
+        T: Consumer,
+    {
+        ThenIgnore::new(self, OptionalConsumer::new(opt))
+    }
+
+    fn ignore_maybe<T>(self, opt: T) -> IgnoreThen<Self, OptionalConsumer<T>>
+    where
+        T: Consumer,
+    {
+        IgnoreThen::new(self, OptionalConsumer::new(opt))
     }
 }

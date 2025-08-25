@@ -184,5 +184,7 @@ fn main() -> Result<()> {
         zpack::spec::parse::consume_spec_option(&tokenized)
     );
 
+    let thing = zpack::package::version::Version::new("v1.2.3-dev");
+
     Ok(())
 }

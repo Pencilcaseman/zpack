@@ -1,3 +1,4 @@
+pub mod alphanumeric;
 pub mod bounded;
 pub mod consumer;
 pub mod cursor;
@@ -12,6 +13,7 @@ pub mod raw;
 pub mod then;
 pub mod whitespace;
 
+pub use alphanumeric::AlphanumericConsumer;
 pub use bounded::BoundedConsumer;
 pub use consumer::Consumer;
 pub use cursor::Cursor;

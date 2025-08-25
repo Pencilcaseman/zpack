@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use super::{consumer::Consumer, cursor::Cursor};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct OptionalConsumer<T>
 where
     T: Consumer,

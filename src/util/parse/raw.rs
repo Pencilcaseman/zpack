@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 
 use super::{consumer::Consumer, cursor::Cursor};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct RawConsumer<P, Out>
 where
     P: for<'a> Fn(Cursor<'a>) -> Result<(Out, Cursor<'a>)>,
