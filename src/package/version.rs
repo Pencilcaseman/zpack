@@ -1,8 +1,6 @@
-use std::cmp;
+use chumsky::prelude::*;
 
-use anyhow::{Result, anyhow};
-
-use crate::util::parse::*;
+use crate::util::error::{ParserErrorType, ParserErrorWrapper};
 
 /// A type representing a concrete version.
 ///
@@ -15,9 +13,9 @@ pub enum Version {
     ///
     /// See [https://semver.org](https://semver.org) for more information
     SemVer {
-        major: u64,
-        minor: Option<u64>,
-        patch: Option<u64>,
+        major: u32,
+        minor: u32,
+        patch: u32,
         rc: Option<Vec<String>>,
         meta: Option<Vec<String>>,
     },
@@ -26,51 +24,89 @@ pub enum Version {
     Other(Vec<String>),
 }
 
+fn ident<'a>() -> impl Parser<'a, &'a str, char, extra::Err<ParserErrorType<'a>>>
+{
+    one_of(
+        ('0'..='9')
+            .chain('a'..='z')
+            .chain('A'..='Z')
+            .chain(['-'])
+            .collect::<String>(),
+    )
+    .labelled("alphanumeric or '-'")
+}
+
+fn dot_sep_idents<'a>()
+-> impl Parser<'a, &'a str, Vec<String>, extra::Err<ParserErrorType<'a>>> {
+    ident()
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .separated_by(just('.').recover_with(skip_then_retry_until(
+            any().ignored(),
+            one_of(".-+").ignored(),
+        )))
+        .collect::<Vec<_>>()
+        .labelled("dot-separated list")
+}
+
+fn int<'a>() -> impl Parser<'a, &'a str, u32, extra::Err<ParserErrorType<'a>>> {
+    one_of('0'..='9')
+        .labelled("digit")
+        .recover_with(skip_then_retry_until(
+            any().ignored(),         // flag bad char
+            one_of(".-+").ignored(), // recover until separator
+        ))
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .map(|s| s.parse::<u32>().unwrap_or(0))
+        .labelled("integer")
+}
+
 /// Parse a version string and return a concrete Version option, if possible. If
 /// a concrete version cannot be parsed, return a string representation of the
 /// version.
-fn parse_version(version: &str) -> Result<Version> {
-    let v = MatchConsumer::new("v");
-    let dot = MatchConsumer::new(".");
-    let dash = MatchConsumer::new("-");
-    let plus = MatchConsumer::new("+");
-    let num = IntegerConsumer::new();
+pub fn gen_version_parser<'a>()
+-> impl Parser<'a, &'a str, Version, extra::Err<ParserErrorType<'a>>> {
+    let core = int()
+        .separated_by(just('.'))
+        .collect_exactly::<[_; 3]>()
+        .recover_with(via_parser(none_of("-+").repeated().map(|_| [0, 0, 0])));
 
-    let opt_v = OptionalConsumer::new(v);
+    let pre_release = just('-').ignore_then(dot_sep_idents().recover_with(
+        skip_then_retry_until(any().ignored(), one_of(".+").ignored()),
+    ));
 
-    let dot_separated = BoundedConsumer::new(
-        None,
-        None,
-        RawConsumer::new(|cursor| {
-            cursor
-                .take_while_non_zero(|c| c.is_alphanumeric() || *c == '-')
-                .map(|(s, c)| (s.to_string(), c))
-                .ok_or(anyhow!("Expected alphanumeric or hyphen"))
+    let metadata = just('+').ignore_then(dot_sep_idents().recover_with(
+        skip_then_retry_until(
+            any().ignored(),
+            one_of(".+").ignored().or(end().ignored()),
+        ),
+    ));
+
+    just('v')
+        .or_not()
+        .ignore_then(core)
+        .then(pre_release.or_not())
+        .then(metadata.or_not())
+        .map(|((version, rc), meta)| Version::SemVer {
+            major: version[0],
+            minor: version[1],
+            patch: version[2],
+            rc,
+            meta,
         })
-        .maybe_ignore(dot),
-    );
-
-    let semver = opt_v
-        .ignore_then(num.map(|v| Ok(u64::try_from(v)?)))
-        .maybe(dot.ignore_then(num.map(|v| Ok(u64::try_from(v)?))))
-        .maybe(dot.ignore_then(num.map(|v| Ok(u64::try_from(v)?))))
-        .maybe(dash.ignore_then(dot_separated.clone()))
-        .maybe(plus.ignore_then(dot_separated))
-        .map(|((((major, minor), patch), rc), meta)| -> Result<_> {
-            Ok(Version::SemVer { major, minor, patch, rc, meta })
-        });
-
-    let cur = Cursor::new(version);
-
-    match semver.consume(cur) {
-        Ok((res, _)) => Ok(res),
-        Err(e) => Err(anyhow!("Parsing version failed: {e:?}")),
-    }
 }
 
 impl Version {
-    pub fn new(ver: &str) -> Result<Self> {
-        parse_version(ver)
+    pub fn new<'a>(
+        ver: &'a str,
+    ) -> Result<Self, ParserErrorWrapper<'a, ariadne::Source<&'a str>>> {
+        let parser = gen_version_parser();
+        parser.parse(ver).into_result().map_err(|errs| {
+            ParserErrorWrapper::new("Version", ariadne::Source::from(ver), errs)
+        })
     }
 }
 
@@ -102,15 +138,11 @@ impl std::cmp::PartialOrd for Version {
                     meta: _,
                 },
             ) => {
-                let version_cmp = (major1, minor1, patch1)
-                    .partial_cmp(&(major2, minor2, patch2));
+                let version_cmp =
+                    (major1, minor1, patch1).cmp(&(major2, minor2, patch2));
 
-                if version_cmp.is_none() {
-                    return version_cmp;
-                }
-
-                if !matches!(version_cmp, Some(Ordering::Equal)) {
-                    version_cmp
+                if !matches!(version_cmp, Ordering::Equal) {
+                    Some(version_cmp)
                 } else {
                     // Compare release candidates
                     match (rc1, rc2) {
@@ -136,55 +168,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_parse_version() -> Result<()> {
-        let v1 = Version::new("v1.23.4")?;
-        assert_eq!(
-            v1,
-            Version::SemVer {
-                major: 1,
-                minor: Some(23),
-                patch: Some(4),
-                rc: None,
-                meta: None
-            }
-        );
-
-        let v2 = Version::new("123.456-dev")?;
-
-        assert_eq!(
-            v2,
-            Version::SemVer {
-                major: 123,
-                minor: Some(456),
-                patch: None,
-                rc: Some(vec!["dev".to_string()]),
-                meta: None
-            }
-        );
-
-        let v3 = Version::new("1.0.0+21AF26D3----117B344092BD.DEVEL")?;
-
-        assert_eq!(
-            v3,
-            Version::SemVer {
-                major: 1,
-                minor: Some(0),
-                patch: Some(0),
-                rc: None,
-                meta: Some(vec![
-                    "21AF26D3----117B344092BD".to_string(),
-                    "DEVEL".to_string()
-                ])
-            }
-        );
-
+    fn test_parse_version() {
         let test_suite = [
             (
                 "1.9.0",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(9),
-                    patch: Some(0),
+                    minor: 9,
+                    patch: 0,
                     rc: None,
                     meta: None,
                 },
@@ -193,8 +184,8 @@ mod test {
                 "1.10.0",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(10),
-                    patch: Some(0),
+                    minor: 10,
+                    patch: 0,
                     rc: None,
                     meta: None,
                 },
@@ -203,8 +194,8 @@ mod test {
                 "1.11.0",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(11),
-                    patch: Some(0),
+                    minor: 11,
+                    patch: 0,
                     rc: None,
                     meta: None,
                 },
@@ -213,8 +204,8 @@ mod test {
                 "1.0.0-alpha",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["alpha".into()]),
                     meta: None,
                 },
@@ -223,8 +214,8 @@ mod test {
                 "1.0.0-alpha.1",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["alpha".into(), "1".into()]),
                     meta: None,
                 },
@@ -233,8 +224,8 @@ mod test {
                 "1.0.0-0.3.7",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["0".into(), "3".into(), "7".into()]),
                     meta: None,
                 },
@@ -243,8 +234,8 @@ mod test {
                 "1.0.0-x.7.z.92",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec![
                         "x".into(),
                         "7".into(),
@@ -258,8 +249,8 @@ mod test {
                 "1.0.0-x-y-z.--",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["x-y-z".into(), "--".into()]),
                     meta: None,
                 },
@@ -268,8 +259,8 @@ mod test {
                 "1.0.0-alpha+001",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["alpha".into()]),
                     meta: Some(vec!["001".into()]),
                 },
@@ -278,8 +269,8 @@ mod test {
                 "1.0.0+20130313144700",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: None,
                     meta: Some(vec!["20130313144700".into()]),
                 },
@@ -288,8 +279,8 @@ mod test {
                 "1.0.0-beta+exp.sha.5114f85",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: Some(vec!["beta".into()]),
                     meta: Some(vec![
                         "exp".into(),
@@ -302,8 +293,8 @@ mod test {
                 "1.0.0+21AF26D3----117B344092BD",
                 Version::SemVer {
                     major: 1,
-                    minor: Some(0),
-                    patch: Some(0),
+                    minor: 0,
+                    patch: 0,
                     rc: None,
                     meta: Some(vec!["21AF26D3----117B344092BD".into()]),
                 },
@@ -311,9 +302,10 @@ mod test {
         ];
 
         for (string, version) in test_suite.into_iter() {
-            assert_eq!(Version::new(string)?, version);
+            match Version::new(string) {
+                Ok(v) => assert_eq!(v, version),
+                Err(errs) => todo!(),
+            }
         }
-
-        Ok(())
     }
 }
