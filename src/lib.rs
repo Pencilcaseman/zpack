@@ -4,10 +4,15 @@ pub mod package;
 pub mod spec;
 pub mod util;
 
-/// Formats the sum of two numbers as string.
-#[pyfunction]
-fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
-    Ok((a + b).to_string())
+fn register_package_module(
+    parent_module: &Bound<'_, PyModule>,
+) -> PyResult<()> {
+    let child_module = PyModule::new(parent_module.py(), "package")?;
+
+    child_module.add_class::<package::Version>()?;
+
+    parent_module.add_submodule(&child_module)?;
+    Ok(())
 }
 
 /// A Python module implemented in Rust.
@@ -15,6 +20,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 fn zpack(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<package::version::Version>()?;
 
-    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    register_package_module(m)?;
+
     Ok(())
 }

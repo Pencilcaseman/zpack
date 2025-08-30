@@ -1,6 +1,8 @@
-// Package definition returned by Rune script
+// Package definition returned by package
 //  - Version
 //  - Compiler (what about python, rust, R, etc.?)
+//      - Just a package everything depends on?
+//      - Conflicts with 'compiler'?
 //
 // Package returns a list of commands to run?
 //
@@ -25,4 +27,7 @@
 
 // pub mod spec;
 
+pub mod outline;
 pub mod version;
+
+pub use version::Version;

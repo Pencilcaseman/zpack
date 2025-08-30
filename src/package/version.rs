@@ -1,4 +1,5 @@
 use chumsky::prelude::*;
+use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
 
 use crate::util::error::{ParserErrorType, ParserErrorWrapper};
@@ -8,7 +9,7 @@ use crate::util::error::{ParserErrorType, ParserErrorWrapper};
 /// Multiple version types are supported, including:
 ///  - Semantic Versioning: [`Version::SemVer`]
 ///  - Other: [`Version::Other`]
-#[pyclass(str)]
+#[pyclass(str, eq)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Version {
     /// Semantic Versioning
@@ -168,6 +169,12 @@ impl Version {
         py_new_helper(ver, Version::new_semver)
     }
 
+    #[pyo3(name = "new_dot_separated")]
+    #[staticmethod]
+    pub fn py_new_dot_separated(ver: &str) -> PyResult<Self> {
+        py_new_helper(ver, Version::new_dot_separated)
+    }
+
     pub fn __repr__(&self) -> String {
         match self {
             Self::SemVer { major, minor, patch, rc, meta } => {
@@ -179,6 +186,76 @@ impl Version {
                 format!("Version.DotSeparated(parts={parts:?})")
             }
             Self::Other { value } => format!("Version.Other(value={value})"),
+        }
+    }
+
+    #[getter]
+    fn major(&self) -> PyResult<u32> {
+        match self {
+            Version::SemVer { major, .. } => Ok(*major),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'major' only valid for SemVer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn minor(&self) -> PyResult<u32> {
+        match self {
+            Version::SemVer { minor, .. } => Ok(*minor),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'minor' only valid for SemVer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn patch(&self) -> PyResult<u32> {
+        match self {
+            Version::SemVer { patch, .. } => Ok(*patch),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'patch' only valid for SemVer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn rc(&self) -> PyResult<Option<Vec<String>>> {
+        match self {
+            Version::SemVer { rc, .. } => Ok(rc.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'rc' only valid for SemVer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn meta(&self) -> PyResult<Option<Vec<String>>> {
+        match self {
+            Version::SemVer { meta, .. } => Ok(meta.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'meta' only valid for SemVer",
+            )),
+        }
+    }
+
+    #[getter]
+    fn parts(&self) -> PyResult<Vec<String>> {
+        match self {
+            Version::DotSeparated { parts } => Ok(parts.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'parts' only valid for DotSeparated",
+            )),
+        }
+    }
+
+    #[getter]
+    fn value(&self) -> PyResult<String> {
+        match self {
+            Version::Other { value } => Ok(value.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "attribute 'value' only valid for Other",
+            )),
         }
     }
 }

@@ -156,11 +156,11 @@ fn main() -> Result<()> {
         print_completions(generator, &mut cmd);
     }
 
-    if let Some(print) = matches.subcommand_matches("print")
-        && let Some(file) = print.get_one::<String>("file")
-    {
-        println!("File path: {file}");
-    }
+    // if let Some(print) = matches.subcommand_matches("print")
+    //     && let Some(file) = print.get_one::<String>("file")
+    // {
+    //     println!("File path: {file}");
+    // }
 
     test_yaml();
 
@@ -177,12 +177,12 @@ fn main() -> Result<()> {
     // let sample = r#"[1, [2, 3], 4, +thingy]"#;
     let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false]"#;
 
-    let tokenized = zpack::spec::parse::tokenize_option(sample)?;
-    println!("Result: {tokenized:?}");
-    println!(
-        "Result: {:?}",
-        zpack::spec::parse::consume_spec_option(&tokenized)
-    );
+    // let tokenized = zpack::spec::parse::tokenize_option(sample)?;
+    // println!("Result: {tokenized:?}");
+    // println!(
+    //     "Result: {:?}",
+    //     zpack::spec::parse::consume_spec_option(&tokenized)
+    // );
 
     match zpack::package::version::Version::new(
         // "v2_4.5_0.3/27-ab*c.def+fdesgde.2025_09-26",
