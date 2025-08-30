@@ -25,3 +25,4 @@ Cargo.lock
 
 python/dist
 */.DS_Store
+zpack_py/uv.lock

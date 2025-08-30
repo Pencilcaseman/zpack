@@ -1,5 +1,9 @@
-use ariadne::{ColorGenerator, Label, Source};
-use chumsky::error::{Cheap, Rich};
+use anyhow::anyhow;
+use ariadne::{ColorGenerator, Label};
+#[cfg(feature = "cheap_errors")]
+use chumsky::error::Cheap;
+#[cfg(not(feature = "cheap_errors"))]
+use chumsky::error::Rich;
 
 #[cfg(not(feature = "cheap_errors"))]
 pub type ParserErrorType<'a> = Rich<'a, char>;
@@ -80,5 +84,14 @@ where
 {
     pub fn eprint(self) -> std::io::Result<()> {
         self.report.eprint((self.name, self.source))
+    }
+
+    pub fn to_string(self) -> anyhow::Result<String, String> {
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        self.report
+            .write((self.name, self.source), &mut cursor)
+            .map_err(|e| format!("Failed to write error to string: {e:?}"))?;
+        String::from_utf8(cursor.into_inner())
+            .map_err(|e| format!("Invalid UTF-8 string: {e:?}"))
     }
 }
