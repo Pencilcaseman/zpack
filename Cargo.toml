@@ -8,7 +8,7 @@ readme = "./README.md"
 homepage = "https://github.com/Pencilcaseman/zpack"
 repository = "https://github.com/Pencilcaseman/zpack"
 license-file = "./LICENSE"
-keywords = ["package manager", "build tool", "hpc", "tooling"]
+keywords = ["package-manager", "build-tool", "hpc", "tooling"]
 categories = ["command-line-utilities", "configuration"]
 rust-version = "1.85.1"
 
