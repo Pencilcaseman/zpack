@@ -1,8 +1,21 @@
 [package]
 name = "zpack"
 description = "A fast, configurable package manager which builds programs from source"
-version = "0.1.0"
+version = "0.1.1"
+authors = ["Toby Davis"]
 edition = "2024"
+readme = "./README.md"
+homepage = "https://github.com/Pencilcaseman/zpack"
+repository = "https://github.com/Pencilcaseman/zpack"
+license-file = "./LICENSE"
+keywords = ["package manager", "build tool", "hpc", "tooling"]
+categories = ["command-line-utilities", "configuration"]
+rust-version = "1.85.1"
+
+include = []
+exclude = []
+
+publish = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
