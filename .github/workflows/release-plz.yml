@@ -33,7 +33,12 @@ jobs:
         if: steps.release-plz.outputs.releases_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run CI.yml --ref ${{ steps.release-plz.outputs.tag_name }}
+          RELEASES_JSON: ${{ steps.release-plz.outputs.releases }}
+        run: |
+          echo "$RELEASES_JSON" | jq -r '.releases[].tag' | while read tag; do
+            echo "Triggering CI.yml for $tag"
+            gh workflow run CI.yml --ref "$tag"
+          done
 
   release-plz-pr:
     name: Release-plz PR
