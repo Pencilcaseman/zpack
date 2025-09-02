@@ -34,7 +34,6 @@ jobs:
 
   release-plz-pr:
     name: Release-plz PR
-    if: ${{ github.repository_owner == 'Pencilcaseman' }}
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'Pencilcaseman' }}
     permissions:
