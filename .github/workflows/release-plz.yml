@@ -12,6 +12,7 @@ jobs:
     if: ${{ github.repository_owner == 'Pencilcaseman' }}
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,12 +21,19 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
+        id: release-plz
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Trigger Python Wheels Build
+        if: steps.release-plz.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run CI.yml --ref ${{ steps.release-plz.outputs.tag_name }}
 
   release-plz-pr:
     name: Release-plz PR
@@ -51,9 +59,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      - name: Trigger Python Wheels Build
-        if: steps.release-plz.outputs.releases_created == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run CI.yml --ref ${{ steps.release-plz.outputs.tag_name }}
