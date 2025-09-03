@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.7](https://github.com/Pencilcaseman/zpack/compare/v0.1.1...v0.1.7) - 2025-09-02
+## [0.1.8](https://github.com/Pencilcaseman/zpack/compare/v0.1.1...v0.1.8) - 2025-09-02
 
 ### Other
 

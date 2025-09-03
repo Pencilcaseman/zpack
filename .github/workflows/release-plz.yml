@@ -1,4 +1,4 @@
-name: Release-plz
+name: Release-Plz
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
         run: |
           echo "$RELEASES" | jq -r '.[].tag' | while read tag; do
             echo "Triggering CI.yml for $tag"
-            gh workflow run CI.yml --ref "$tag"
+            gh workflow run python_ci.yml --ref "$tag"
           done
 
   release-plz-pr:
