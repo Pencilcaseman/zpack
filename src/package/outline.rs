@@ -7,15 +7,23 @@
 //! a concrete, satisfiable set of dependencies and options which can then be
 //! built and installed.
 
-use super::Version;
+use pyo3::prelude::*;
+
+use super::version;
 
 #[derive(Debug)]
 struct SpecOption;
 
 #[derive(Debug)]
+struct Constraint;
+
+#[pyclass]
+#[derive(Debug)]
 pub struct Outline {
     name: String,
-    versions: Vec<Version>,
+    category: Option<String>,
+    versions: Vec<version::Version>,
     options: Vec<SpecOption>,
     dependencies: Vec<Outline>,
+    constraints: Vec<Constraint>,
 }

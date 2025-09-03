@@ -36,8 +36,8 @@ jobs:
           RELEASES: ${{ steps.release-plz.outputs.releases }}
         run: |
           echo "$RELEASES" | jq -r '.[].tag' | while read tag; do
-            echo "Triggering CI.yml for $tag"
-            gh workflow run python_ci.yml --ref "$tag"
+            echo "Triggering python_ci.yaml for $tag"
+            gh workflow run python_ci.yaml --ref "$tag"
           done
 
   release-plz-pr:

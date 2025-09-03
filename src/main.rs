@@ -184,16 +184,7 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    match zpack::package::version::Version::new(
-        // "v2_4.5_0.3/27-ab*c.def+fdesgde.2025_09-26",
-        // "v24.5.327-abc.def+fdesgde.2025-09-26",
-        "1.2.3.4.5-4 321",
-    ) {
-        Ok(v) => println!("Parsed version: {v:?}"),
-        Err(e) => {
-            e.build().map(zpack::util::error::FinalizedParserError::eprint);
-        }
-    }
+    println!("{:?}", zpack::package::version::Version::new("1.2.3-4321",)?);
 
     Ok(())
 }

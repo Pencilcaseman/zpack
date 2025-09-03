@@ -1,261 +1,269 @@
+use anyhow::{Result, anyhow};
 use chumsky::prelude::*;
-use pyo3::exceptions::PyAttributeError;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::util::error::{ParserErrorType, ParserErrorWrapper};
 
-/// A type representing a concrete version.
+/// Semantic Versioning
 ///
-/// Multiple version types are supported, including:
-///  - Semantic Versioning: [`Version::SemVer`]
-///  - Other: [`Version::Other`]
+/// For example: 8.4.7-alpha+5d41402a
+///
+/// See [https://semver.org](https://semver.org) for more information
 #[pyclass(str, eq)]
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Version {
-    /// Semantic Versioning
-    ///
-    /// For example: 8.4.7-alpha+5d41402a
-    ///
-    /// See [https://semver.org](https://semver.org) for more information
-    SemVer {
-        /// Major version
-        major: u32,
+pub struct SemVer {
+    /// Major version
+    #[pyo3(get, set)]
+    major: u32,
 
-        /// Minor version
-        minor: u32,
+    /// Minor version
+    #[pyo3(get, set)]
+    minor: u32,
 
-        /// Patch version
-        patch: u32,
+    /// Patch version
+    #[pyo3(get, set)]
+    patch: u32,
 
-        // Pre-release
-        rc: Option<Vec<String>>,
+    // Pre-release
+    #[pyo3(get, set)]
+    rc: Option<Vec<String>>,
 
-        /// Metadata
-        meta: Option<Vec<String>>,
-    },
-
-    /// Arbitrary dot-separated version
-    ///
-    /// For example: 2025.06.alpha.3
-    DotSeparated { parts: Vec<String> },
-
-    /// Any other arbitrary version specifier
-    Other { value: String },
+    /// Metadata
+    #[pyo3(get, set)]
+    meta: Option<Vec<String>>,
 }
 
-impl Version {
-    /// Create a new [`Version`] instance from a string. See [`Version`] for
-    /// more information regarding valid version types
-    ///
-    /// * `ver`: Version string
-    pub fn new<'a>(
-        ver: &'a str,
-    ) -> Result<Self, ParserErrorWrapper<'a, ariadne::Source<&'a str>>> {
-        let parser = Self::parser();
-        parser.parse(ver).into_result().map_err(|errs| {
-            ParserErrorWrapper::new("Version", ariadne::Source::from(ver), errs)
+/// Arbitrary dot-separated version
+///
+/// For example: 2025.06.alpha.3
+#[pyclass(str, eq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct DotSeparated {
+    #[pyo3(get, set)]
+    parts: Vec<String>,
+}
+
+/// Any other arbitrary version specifier
+///
+/// For example: beta+3.4/abc
+#[pyclass(str, eq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Other {
+    #[pyo3(get, set)]
+    value: String,
+}
+
+impl SemVer {
+    pub fn new(version: &str) -> Result<Self> {
+        Self::parser().parse(version).into_result().map_err(|errs| {
+            anyhow!(
+                ParserErrorWrapper::new(
+                    std::any::type_name::<Self>(),
+                    ariadne::Source::from(version),
+                    errs,
+                )
+                .build()
+                .unwrap()
+                .to_string()
+                .unwrap_or_else(|v| v)
+            )
         })
     }
 
-    /// Create a new [`Version`] from a string and a version parser. See
-    /// [`Version::new()`] also.
-    ///
-    /// * `ver`:
-    /// * `parser`:
-    pub fn new_with_parser<'a>(
-        ver: &'a str,
-        parser: impl Parser<'a, &'a str, Version, extra::Err<ParserErrorType<'a>>>,
-    ) -> Result<Self, ParserErrorWrapper<'a, ariadne::Source<&'a str>>> {
-        parser.parse(ver).into_result().map_err(|errs| {
-            ParserErrorWrapper::new("Version", ariadne::Source::from(ver), errs)
-        })
-    }
-
-    pub fn new_semver<'a>(
-        ver: &'a str,
-    ) -> Result<Self, ParserErrorWrapper<'a, ariadne::Source<&'a str>>> {
-        Self::new_with_parser(ver, Self::semver_parser())
-    }
-
-    pub fn new_dot_separated<'a>(
-        ver: &'a str,
-    ) -> Result<Self, ParserErrorWrapper<'a, ariadne::Source<&'a str>>> {
-        Self::new_with_parser(ver, Self::dot_separated_parser())
-    }
-
-    pub fn parser<'a>()
+    fn parser<'a>()
     -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
-        choice((
-            Self::semver_parser().then_ignore(end()),
-            Self::dot_separated_parser().then_ignore(end()),
-        ))
-    }
-
-    /// Parse a version string and return a concrete Version option, if
-    /// possible. If a concrete version cannot be parsed, return a string
-    /// representation of the version.
-    pub fn semver_parser<'a>()
-    -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
-        let core = int()
-            .separated_by(just('.'))
-            .collect_exactly::<[_; 3]>()
-            .recover_with(via_parser(
-                none_of("-+").repeated().map(|_| [0, 0, 0]),
-            ));
-
-        let pre_release = just('-').ignore_then(dot_sep_idents().recover_with(
-            skip_then_retry_until(any().ignored(), one_of(".+").ignored()),
-        ));
-
-        let metadata = just('+').ignore_then(dot_sep_idents().recover_with(
-            skip_then_retry_until(
-                any().ignored(),
-                one_of(".+").ignored().or(end().ignored()),
-            ),
-        ));
+        let core = int().separated_by(just('.')).collect_exactly::<[_; 3]>();
+        let pre_release = just('-').ignore_then(dot_sep_idents());
+        let metadata = just('+').ignore_then(dot_sep_idents());
 
         just('v')
             .or_not()
             .ignore_then(core)
             .then(pre_release.or_not())
             .then(metadata.or_not())
-            .map(|((version, rc), meta)| Version::SemVer {
+            .map(|((version, rc), meta)| Self {
                 major: version[0],
                 minor: version[1],
                 patch: version[2],
                 rc,
                 meta,
             })
-    }
-
-    pub fn dot_separated_parser<'a>()
-    -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
-        dot_sep_idents()
-            .recover_with(skip_then_retry_until(
-                any().ignored(),
-                just('.').ignored(),
-            ))
-            .map(|parts| Self::DotSeparated { parts })
+            .then_ignore(end())
     }
 }
 
-fn py_new_helper<'a, F>(ver: &'a str, constructor: F) -> PyResult<Version>
-where
-    F: Fn(
-        &'a str,
-    )
-        -> Result<Version, ParserErrorWrapper<'a, ariadne::Source<&'a str>>>,
-{
-    use pyo3::exceptions::PyValueError;
+impl std::fmt::Display for SemVer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
 
-    (constructor)(ver).map_err(|err| match err.build() {
-        Some(built) => {
-            PyValueError::new_err(built.to_string().unwrap_or_else(|e| e))
+        if let Some(rc) = &self.rc {
+            write!(f, "-{}", rc.join("."))?;
         }
-        None => PyValueError::new_err(""),
-    })
+
+        if let Some(meta) = &self.meta {
+            write!(f, "+{}", meta.join("."))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl std::cmp::PartialOrd for SemVer {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering;
+
+        let version_cmp = (self.major, self.minor, self.patch).cmp(&(
+            other.major,
+            other.minor,
+            other.patch,
+        ));
+
+        if !matches!(version_cmp, Ordering::Equal) {
+            Some(version_cmp)
+        } else {
+            // Compare pre-releases.
+            // 1.2.3-alpha is considered a lower version than 1.2.3
+            //
+            // If both pre-releases exist, compare lexicographically
+            match (&self.rc, &other.rc) {
+                (None, None) => Some(Ordering::Equal),
+                (None, Some(_)) => Some(Ordering::Greater),
+                (Some(_), None) => Some(Ordering::Less),
+                (Some(s1), Some(s2)) => s1.partial_cmp(s2),
+            }
+        }
+    }
 }
 
 #[pymethods]
-impl Version {
+impl SemVer {
     #[new]
     pub fn py_new(ver: &str) -> PyResult<Self> {
-        py_new_helper(ver, Version::new)
+        Ok(Self::new(ver)?)
     }
 
-    #[pyo3(name = "new_semver")]
     #[staticmethod]
-    pub fn py_new_semver(ver: &str) -> PyResult<Self> {
-        py_new_helper(ver, Version::new_semver)
-    }
-
-    #[pyo3(name = "new_dot_separated")]
-    #[staticmethod]
-    pub fn py_new_dot_separated(ver: &str) -> PyResult<Self> {
-        py_new_helper(ver, Version::new_dot_separated)
+    pub fn from_version(ver: Version) -> PyResult<Self> {
+        Self::try_from(ver).map_err(PyTypeError::new_err)
     }
 
     pub fn __repr__(&self) -> String {
-        match self {
-            Self::SemVer { major, minor, patch, rc, meta } => {
-                format!(
-                    "Version.SemVer(major={major}, minor={minor}, patch={patch}, rc={rc:?}, meta={meta:?})"
+        format!("{self:?}")
+    }
+}
+
+impl DotSeparated {
+    fn new(version: &str) -> Result<Self> {
+        Self::parser().parse(version).into_result().map_err(|errs| {
+            anyhow!(
+                ParserErrorWrapper::new(
+                    std::any::type_name::<Self>(),
+                    ariadne::Source::from(version),
+                    errs,
                 )
-            }
-            Self::DotSeparated { parts } => {
-                format!("Version.DotSeparated(parts={parts:?})")
-            }
-            Self::Other { value } => format!("Version.Other(value={value})"),
-        }
+                .build()
+                .unwrap()
+                .to_string()
+                .unwrap_or_else(|v| v)
+            )
+        })
     }
 
-    #[getter]
-    fn major(&self) -> PyResult<u32> {
-        match self {
-            Version::SemVer { major, .. } => Ok(*major),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'major' only valid for SemVer",
-            )),
-        }
+    fn parser<'a>()
+    -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
+        dot_sep_idents().map(|parts| Self { parts }).then_ignore(end())
+    }
+}
+
+impl std::fmt::Display for DotSeparated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.parts.join("."))
+    }
+}
+
+impl std::cmp::PartialOrd for DotSeparated {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // Compare lexicographically
+        self.parts.partial_cmp(&other.parts)
+    }
+}
+
+#[pymethods]
+impl DotSeparated {
+    #[new]
+    fn py_new(ver: &str) -> PyResult<Self> {
+        Ok(Self::new(ver)?)
     }
 
-    #[getter]
-    fn minor(&self) -> PyResult<u32> {
-        match self {
-            Version::SemVer { minor, .. } => Ok(*minor),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'minor' only valid for SemVer",
-            )),
-        }
+    pub fn __repr__(&self) -> String {
+        format!("{self:?}")
+    }
+}
+
+impl Other {
+    fn new(version: &str) -> Result<Self> {
+        Self::parser().parse(version).into_result().map_err(|errs| {
+            anyhow!(
+                ParserErrorWrapper::new(
+                    std::any::type_name::<Self>(),
+                    ariadne::Source::from(version),
+                    errs,
+                )
+                .build()
+                .unwrap()
+                .to_string()
+                .unwrap_or_else(|v| v)
+            )
+        })
     }
 
-    #[getter]
-    fn patch(&self) -> PyResult<u32> {
-        match self {
-            Version::SemVer { patch, .. } => Ok(*patch),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'patch' only valid for SemVer",
-            )),
-        }
+    fn parser<'a>()
+    -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
+        text::ident()
+            .map(|value: &str| Self { value: value.to_string() })
+            .then_ignore(end())
+    }
+}
+
+impl std::fmt::Display for Other {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+impl std::cmp::PartialOrd for Other {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // Compare lexicographically
+        self.value.partial_cmp(&other.value)
+    }
+}
+
+#[pymethods]
+impl Other {
+    #[new]
+    fn py_new(ver: &str) -> PyResult<Self> {
+        Ok(Self::new(ver)?)
     }
 
-    #[getter]
-    fn rc(&self) -> PyResult<Option<Vec<String>>> {
-        match self {
-            Version::SemVer { rc, .. } => Ok(rc.clone()),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'rc' only valid for SemVer",
-            )),
-        }
+    pub fn __repr__(&self) -> String {
+        format!("{self:?}")
     }
+}
 
-    #[getter]
-    fn meta(&self) -> PyResult<Option<Vec<String>>> {
-        match self {
-            Version::SemVer { meta, .. } => Ok(meta.clone()),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'meta' only valid for SemVer",
-            )),
-        }
-    }
+#[pyclass(str, eq)]
+#[derive(Clone, Eq, PartialEq)]
+pub enum Version {
+    SemVer(SemVer),
+    DotSeparated(DotSeparated),
+    Other(Other),
+}
 
-    #[getter]
-    fn parts(&self) -> PyResult<Vec<String>> {
+impl std::fmt::Debug for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Version::DotSeparated { parts } => Ok(parts.clone()),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'parts' only valid for DotSeparated",
-            )),
-        }
-    }
-
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        match self {
-            Version::Other { value } => Ok(value.clone()),
-            _ => Err(PyAttributeError::new_err(
-                "attribute 'value' only valid for Other",
-            )),
+            Self::SemVer(v) => write!(f, "Version::{v:?}"),
+            Self::DotSeparated(v) => write!(f, "Version::{v:?}"),
+            Self::Other(v) => write!(f, "Version::{v:?}"),
         }
     }
 }
@@ -263,78 +271,102 @@ impl Version {
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::SemVer { major, minor, patch, rc, meta } => {
-                write!(f, "v")?;
-                write!(f, "{}.", major)?;
-                write!(f, "{}.", minor)?;
-                write!(f, "{}", patch)?;
-
-                if let Some(rc) = rc {
-                    write!(f, "-{}", rc.join("."))?;
-                }
-
-                if let Some(meta) = meta {
-                    write!(f, "+{}", meta.join("."))?;
-                }
-
-                Ok(())
-            }
-            _ => write!(f, "todo"),
+            Self::SemVer(v) => write!(f, "{v}"),
+            Self::DotSeparated(v) => write!(f, "{v}"),
+            Self::Other(v) => write!(f, "{v}"),
         }
     }
 }
 
-impl std::cmp::PartialOrd for Version {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // Versions can only be compared with another version of the same type
-        if std::mem::discriminant(self) != std::mem::discriminant(other) {
-            return None;
+impl Version {
+    pub fn new(version: &str) -> Result<Self> {
+        Self::parser().parse(version).into_result().map_err(|errs| {
+            anyhow!(
+                ParserErrorWrapper::new(
+                    std::any::type_name::<Self>(),
+                    ariadne::Source::from(version),
+                    errs,
+                )
+                .build()
+                .unwrap()
+                .to_string()
+                .unwrap_or_else(|v| v)
+            )
+        })
+    }
+
+    fn parser<'a>()
+    -> impl Parser<'a, &'a str, Self, extra::Err<ParserErrorType<'a>>> {
+        {
+            choice((
+                SemVer::parser().map(Self::SemVer),
+                DotSeparated::parser().map(Self::DotSeparated),
+                Other::parser().map(Self::Other),
+            ))
         }
+    }
+}
 
-        use std::cmp::Ordering;
+impl From<SemVer> for Version {
+    fn from(semver: SemVer) -> Self {
+        Self::SemVer(semver)
+    }
+}
 
-        use Version::*;
+impl From<DotSeparated> for Version {
+    fn from(dotsep: DotSeparated) -> Self {
+        Self::DotSeparated(dotsep)
+    }
+}
 
-        match (self, other) {
-            (
-                SemVer {
-                    major: major1,
-                    minor: minor1,
-                    patch: patch1,
-                    rc: rc1,
-                    meta: _,
-                },
-                SemVer {
-                    major: major2,
-                    minor: minor2,
-                    patch: patch2,
-                    rc: rc2,
-                    meta: _,
-                },
-            ) => {
-                let version_cmp =
-                    (major1, minor1, patch1).cmp(&(major2, minor2, patch2));
+impl From<Other> for Version {
+    fn from(other: Other) -> Self {
+        Self::Other(other)
+    }
+}
 
-                if !matches!(version_cmp, Ordering::Equal) {
-                    Some(version_cmp)
-                } else {
-                    // Compare pre-releases.
-                    // 1.2.3-alpha is considered a lower version than 1.2.3
-                    //
-                    // If both pre-releases exist, compare lexicographically
-                    match (rc1, rc2) {
-                        (None, None) => None,
-                        (None, Some(_)) => Some(Ordering::Greater),
-                        (Some(_), None) => Some(Ordering::Less),
-                        (Some(s1), Some(s2)) => s1.partial_cmp(s2),
-                    }
-                }
-            }
-            (Other { value: value1 }, Other { value: value2 }) => {
-                value1.partial_cmp(value2)
-            }
-            _ => None,
+impl TryFrom<Version> for SemVer {
+    type Error = &'static str;
+
+    fn try_from(value: Version) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Version::SemVer(v) => Ok(v),
+            _ => Err("Cannot convert non-SemVer type to SemVer"),
         }
+    }
+}
+
+impl TryFrom<Version> for DotSeparated {
+    type Error = &'static str;
+
+    fn try_from(value: Version) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Version::DotSeparated(v) => Ok(v),
+            _ => Err("Cannot convert non-DotSeparated type to DotSeparated"),
+        }
+    }
+}
+
+impl TryFrom<Version> for Other {
+    type Error = &'static str;
+
+    fn try_from(value: Version) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Version::Other(v) => Ok(v),
+            _ => Err("Cannot convert non-Other type to Other"),
+        }
+    }
+}
+
+#[pymethods]
+impl Version {
+    #[new]
+    pub fn py_new(version: &str) -> PyResult<Self> {
+        Ok(Self::new(version)?)
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("{self:?}")
     }
 }
 
@@ -356,10 +388,7 @@ fn dot_sep_idents<'a>()
         .repeated()
         .at_least(1)
         .collect::<String>()
-        .separated_by(just('.').recover_with(skip_then_retry_until(
-            any().ignored(),
-            one_of(".-+").ignored(),
-        )))
+        .separated_by(just('.'))
         .collect::<Vec<_>>()
         .labelled("dot-separated list")
 }
@@ -367,10 +396,6 @@ fn dot_sep_idents<'a>()
 fn int<'a>() -> impl Parser<'a, &'a str, u32, extra::Err<ParserErrorType<'a>>> {
     one_of('0'..='9')
         .labelled("digit")
-        .recover_with(skip_then_retry_until(
-            any().ignored(),
-            one_of(".-+").ignored(),
-        ))
         .repeated()
         .at_least(1)
         .collect::<String>()
@@ -387,37 +412,19 @@ mod test {
         let test_suite = [
             (
                 "1.9.0",
-                Version::SemVer {
-                    major: 1,
-                    minor: 9,
-                    patch: 0,
-                    rc: None,
-                    meta: None,
-                },
+                SemVer { major: 1, minor: 9, patch: 0, rc: None, meta: None },
             ),
             (
                 "1.10.0",
-                Version::SemVer {
-                    major: 1,
-                    minor: 10,
-                    patch: 0,
-                    rc: None,
-                    meta: None,
-                },
+                SemVer { major: 1, minor: 10, patch: 0, rc: None, meta: None },
             ),
             (
                 "1.11.0",
-                Version::SemVer {
-                    major: 1,
-                    minor: 11,
-                    patch: 0,
-                    rc: None,
-                    meta: None,
-                },
+                SemVer { major: 1, minor: 11, patch: 0, rc: None, meta: None },
             ),
             (
                 "1.0.0-alpha",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -427,7 +434,7 @@ mod test {
             ),
             (
                 "1.0.0-alpha.1",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -437,7 +444,7 @@ mod test {
             ),
             (
                 "1.0.0-0.3.7",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -447,7 +454,7 @@ mod test {
             ),
             (
                 "1.0.0-x.7.z.92",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -462,7 +469,7 @@ mod test {
             ),
             (
                 "1.0.0-x-y-z.--",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -472,7 +479,7 @@ mod test {
             ),
             (
                 "1.0.0-alpha+001",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -482,7 +489,7 @@ mod test {
             ),
             (
                 "1.0.0+20130313144700",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -492,7 +499,7 @@ mod test {
             ),
             (
                 "1.0.0-beta+exp.sha.5114f85",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -506,7 +513,7 @@ mod test {
             ),
             (
                 "1.0.0+21AF26D3----117B344092BD",
-                Version::SemVer {
+                SemVer {
                     major: 1,
                     minor: 0,
                     patch: 0,
@@ -518,8 +525,8 @@ mod test {
 
         for (string, version) in test_suite.into_iter() {
             match Version::new(string) {
-                Ok(v) => assert_eq!(v, version),
-                Err(errs) => todo!(),
+                Ok(v) => assert_eq!(v, version.into()),
+                Err(_) => todo!(),
             }
         }
     }

@@ -20,14 +20,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         "v123456789.123456789.123456789-123456789+0123456789",
     ];
 
-    let parser = Version::parser();
     for input in bench_suite.into_iter() {
         c.bench_function(&format!("semver.org '{}'", input), |b| {
             b.iter(|| black_box(Version::new(input)))
-        });
-
-        c.bench_function(&format!("semver.org with parser '{}'", input), |b| {
-            b.iter(|| black_box(Version::new_with_parser(input, &parser)))
         });
     }
 }
