@@ -14,7 +14,7 @@ use crate::{
 /// Any other arbitrary version specifier
 ///
 /// For example: beta+3.4/abc
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Other {
     /// The version string
     pub value: String,
@@ -57,16 +57,9 @@ impl std::fmt::Display for Other {
     }
 }
 
-impl std::cmp::PartialOrd for Other {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // Compare lexicographically
-        self.value.partial_cmp(&other.value)
-    }
-}
-
 /// Python wrapper around the [`Other`] version type
-#[pyclass(name = "Other")]
-#[derive(Clone)]
+#[pyclass(name = "Other", eq, ord)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub struct PyOther {
     pub inner: Other,
 }

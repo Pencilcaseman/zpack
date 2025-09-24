@@ -19,7 +19,7 @@ use crate::util::error::{ParserErrorType, ParserErrorWrapper};
 /// Wrapper around many version types to support arbitrary version usage.
 ///
 /// See [`SemVer`], [`DotSeparated`] and [`Other`] for more information.
-#[derive(Clone, Eq, PartialEq, PartialOrd)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub enum Version {
     SemVer(SemVer),
     DotSeparated(DotSeparated),
@@ -133,8 +133,8 @@ impl TryFrom<Version> for Other {
 }
 
 /// Python wrapper around a [`Version`]
-#[pyclass(name = "Version")]
-#[derive(Clone)]
+#[pyclass(name = "Version", eq, ord)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub struct PyVersion {
     pub inner: Version,
 }

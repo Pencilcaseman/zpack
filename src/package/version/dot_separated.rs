@@ -15,7 +15,7 @@ use crate::{
 /// Arbitrary dot-separated version
 ///
 /// For example: 2025.06.alpha.3
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct DotSeparated {
     /// Components of the version separated by '.'
     pub parts: Vec<String>,
@@ -56,16 +56,9 @@ impl std::fmt::Display for DotSeparated {
     }
 }
 
-impl std::cmp::PartialOrd for DotSeparated {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // Compare lexicographically
-        self.parts.partial_cmp(&other.parts)
-    }
-}
-
 /// Python wrapper around [`DotSeparated`]
-#[pyclass(name = "DotSeparated")]
-#[derive(Clone)]
+#[pyclass(name = "DotSeparated", eq, ord)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub struct PyDotSeparated {
     pub inner: DotSeparated,
 }

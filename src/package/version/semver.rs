@@ -19,7 +19,7 @@ use crate::{
 /// For example: 8.4.7-alpha+5d41402a
 ///
 /// See [https://semver.org](https://semver.org) for more information
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct SemVer {
     /// Major version
     pub major: u32,
@@ -94,6 +94,15 @@ impl std::fmt::Display for SemVer {
     }
 }
 
+impl std::cmp::PartialEq for SemVer {
+    fn eq(&self, other: &Self) -> bool {
+        self.major == other.major
+            && self.minor == other.minor
+            && self.patch == other.patch
+            && self.rc == other.rc
+    }
+}
+
 impl std::cmp::PartialOrd for SemVer {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
@@ -122,8 +131,8 @@ impl std::cmp::PartialOrd for SemVer {
 }
 
 /// Python wrapper type for [`SemVer`]
-#[pyclass(name = "SemVer")]
-#[derive(Clone)]
+#[pyclass(name = "SemVer", eq, ord)]
+#[derive(Clone, PartialEq, PartialOrd)]
 pub struct PySemVer {
     pub inner: SemVer,
 }
