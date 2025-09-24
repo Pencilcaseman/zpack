@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10](https://github.com/Pencilcaseman/zpack/compare/v0.1.9...v0.1.10) - 2025-09-24
+
+### Fixed
+
+- *(Version)* Complete rewrite of Python Version API
+
+### Other
+
+- I actually give up... I'm too tired for this
+
 ## [0.1.9](https://github.com/Pencilcaseman/zpack/compare/v0.1.1...v0.1.9) - 2025-09-02
 
 ### Other
