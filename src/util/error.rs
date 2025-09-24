@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use ariadne::{ColorGenerator, Label};
 #[cfg(feature = "cheap_errors")]
 use chumsky::error::Cheap;
@@ -7,7 +6,6 @@ use chumsky::error::Rich;
 
 #[cfg(not(feature = "cheap_errors"))]
 pub type ParserErrorType<'a> = Rich<'a, char>;
-
 #[cfg(feature = "cheap_errors")]
 pub type ParserErrorType<'a> = Cheap;
 
