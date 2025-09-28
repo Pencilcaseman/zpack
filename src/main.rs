@@ -130,15 +130,148 @@ zpack:
     }
 }
 
+fn test_outline() {
+    use std::collections::HashMap;
+
+    use zpack::package::outline::*;
+
+    let hpl_outline = PackageOutline {
+        name: "hpl".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["openblas".into(), "openmpi".into(), "gcc".into()],
+    };
+
+    let openblas_outline = PackageOutline {
+        name: "openblas".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let openmpi_outline = PackageOutline {
+        name: "openmpi".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec![
+            "openpmix".into(),
+            "openprrte".into(),
+            "hwloc".into(),
+            "gcc".into(),
+        ],
+    };
+
+    let openpmix_outline = PackageOutline {
+        name: "openpmix".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let openprrte_outline = PackageOutline {
+        name: "openprrte".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let hwloc_outline = PackageOutline {
+        name: "hwloc".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let gcc_outline = PackageOutline {
+        name: "gcc".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: Vec::new(),
+    };
+
+    let hpl_outline_2 = PackageOutline {
+        name: "v2hpl".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec![
+            "v2openblas".into(),
+            "v2openmpi".into(),
+            "gcc".into(),
+        ],
+    };
+
+    let openblas_outline_2 = PackageOutline {
+        name: "v2openblas".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let openmpi_outline_2 = PackageOutline {
+        name: "v2openmpi".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec![
+            "v2openpmix".into(),
+            "v2openprrte".into(),
+            "v2hwloc".into(),
+            "gcc".into(),
+        ],
+    };
+
+    let openpmix_outline_2 = PackageOutline {
+        name: "v2openpmix".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let openprrte_outline_2 = PackageOutline {
+        name: "v2openprrte".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let hwloc_outline_2 = PackageOutline {
+        name: "v2hwloc".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["gcc".into()],
+    };
+
+    let outlines = vec![
+        hpl_outline,
+        openblas_outline,
+        gcc_outline,
+        openpmix_outline,
+        openprrte_outline,
+        hwloc_outline,
+        openmpi_outline,
+        //
+        hpl_outline_2,
+        openblas_outline_2,
+        openpmix_outline_2,
+        openprrte_outline_2,
+        hwloc_outline_2,
+        openmpi_outline_2,
+    ];
+
+    let outline = SpecOutline::new(outlines);
+
+    println!(
+        "{:?}",
+        petgraph::dot::Dot::with_config(
+            &outline.graph,
+            &[petgraph::dot::Config::EdgeNoLabel]
+        )
+    );
+}
+
 fn main() -> Result<()> {
-    let subscriber = tracing_subscriber::fmt()
-        .pretty()
-        .with_file(true)
-        .with_line_number(true)
-        .with_thread_ids(true)
-        .with_target(true)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
+    tracing::subscriber::set_global_default(
+        zpack::util::subscriber::subscriber(),
+    )?;
 
     tracing::info!("Debug Information");
     tracing::warn!("Warning Information");
@@ -184,7 +317,23 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    println!("{:?}", zpack::package::version::Version::new("1.2.3-4321",)?);
+    println!(
+        "{:?}",
+        zpack::package::version::semver::SemVer::new("1.2.3-4321")?
+    );
+
+    let test_graph = petgraph::graph::DiGraph::<i32, ()>::from_edges([
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+    ]);
+
+    println!("Test Graph: {test_graph:?}");
+    println!("Cycle: {}", petgraph::algo::is_cyclic_directed(&test_graph));
+    println!("{:?}", petgraph::dot::Dot::new(&test_graph));
+
+    test_outline();
 
     Ok(())
 }

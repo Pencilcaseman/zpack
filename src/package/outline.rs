@@ -7,23 +7,59 @@
 //! a concrete, satisfiable set of dependencies and options which can then be
 //! built and installed.
 
-use pyo3::prelude::*;
+use std::{cell::Cell, collections::HashMap, rc::Rc};
 
-use super::version;
+use petgraph::{Graph, graph::DiGraph};
 
-#[derive(Debug)]
-struct SpecOption;
+pub struct SpecOption;
 
-#[derive(Debug)]
-struct Constraint;
+pub struct Constraint;
 
-#[pyclass]
-#[derive(Debug)]
-pub struct Outline {
-    name: String,
-    category: Option<String>,
-    versions: Vec<version::Version>,
-    options: Vec<SpecOption>,
-    dependencies: Vec<Outline>,
-    constraints: Vec<Constraint>,
+#[derive(Default)]
+pub struct PackageOutline {
+    pub name: String,
+    pub options: HashMap<String, SpecOption>,
+    pub constraints: Vec<Constraint>,
+    pub dependencies: Vec<String>,
+}
+
+impl std::fmt::Debug for PackageOutline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
+    }
+}
+
+pub struct SpecOutline {
+    pub graph: DiGraph<PackageOutline, ()>,
+    pub lookup: HashMap<String, petgraph::graph::NodeIndex>,
+}
+
+impl SpecOutline {
+    pub fn new(outlines: Vec<PackageOutline>) -> Self {
+        let mut lookup = HashMap::new();
+        let mut graph = DiGraph::<PackageOutline, ()>::new();
+
+        for outline in outlines {
+            let name = outline.name.clone();
+            let idx = graph.add_node(outline);
+            lookup.insert(name, idx);
+        }
+
+        let mut edges = Vec::new();
+
+        for idx in graph.node_indices() {
+            let src = idx;
+
+            for dep in &graph[idx].dependencies {
+                tracing::info!(dep);
+
+                let dst = lookup[dep];
+                edges.push((src, dst));
+            }
+        }
+
+        graph.extend_with_edges(edges);
+
+        Self { graph, lookup }
+    }
 }
