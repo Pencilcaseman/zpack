@@ -9,13 +9,21 @@
 
 use std::{cell::Cell, collections::HashMap, rc::Rc};
 
-use petgraph::{Graph, graph::DiGraph};
+use petgraph::{
+    Graph,
+    graph::{DiGraph, NodeIndex},
+    visit::EdgeRef,
+};
 
+#[derive(Debug)]
 pub struct SpecOption;
 
+#[derive(Debug)]
 pub struct Constraint;
 
-#[derive(Default)]
+pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
+
+#[derive(Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
     pub options: HashMap<String, SpecOption>,
@@ -23,21 +31,21 @@ pub struct PackageOutline {
     pub dependencies: Vec<String>,
 }
 
-impl std::fmt::Debug for PackageOutline {
+impl std::fmt::Display for PackageOutline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.name)
     }
 }
 
 pub struct SpecOutline {
-    pub graph: DiGraph<PackageOutline, ()>,
+    pub graph: PackageDiGraph,
     pub lookup: HashMap<String, petgraph::graph::NodeIndex>,
 }
 
 impl SpecOutline {
     pub fn new(outlines: Vec<PackageOutline>) -> Self {
         let mut lookup = HashMap::new();
-        let mut graph = DiGraph::<PackageOutline, ()>::new();
+        let mut graph = PackageDiGraph::new();
 
         for outline in outlines {
             let name = outline.name.clone();
@@ -47,11 +55,9 @@ impl SpecOutline {
 
         let mut edges = Vec::new();
 
-        for idx in graph.node_indices() {
-            let src = idx;
-
-            for dep in &graph[idx].dependencies {
-                tracing::info!(dep);
+        for src in graph.node_indices() {
+            for dep in &graph[src].dependencies {
+                tracing::info!(source.name = ?graph[src].name, dep);
 
                 let dst = lookup[dep];
                 edges.push((src, dst));
@@ -61,5 +67,38 @@ impl SpecOutline {
         graph.extend_with_edges(edges);
 
         Self { graph, lookup }
+    }
+
+    pub fn source_nodes(&self) -> Option<Vec<NodeIndex>> {
+        if petgraph::algo::is_cyclic_directed(&self.graph) {
+            tracing::error!(
+                "Graph contains a cycle. Cannot extract source nodes",
+            );
+            return None;
+        }
+
+        fn helper(
+            graph: &PackageDiGraph,
+            node: NodeIndex,
+            out: &mut Vec<NodeIndex>,
+        ) {
+            let mut count = 0;
+
+            for edge in
+                graph.edges_directed(node, petgraph::Direction::Incoming)
+            {
+                helper(graph, edge.target(), out);
+                count += 1;
+            }
+
+            // No incoming edges
+            if count == 0 {
+                out.push(node);
+            }
+        }
+
+        let mut res = Vec::new();
+        helper(&self.graph, NodeIndex::new(0), &mut res);
+        Some(res)
     }
 }

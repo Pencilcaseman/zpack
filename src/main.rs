@@ -16,6 +16,7 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use tracing::instrument;
+use z3::Params;
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -260,12 +261,117 @@ fn test_outline() {
     let outline = SpecOutline::new(outlines);
 
     println!(
-        "{:?}",
+        "{}",
         petgraph::dot::Dot::with_config(
             &outline.graph,
             &[petgraph::dot::Config::EdgeNoLabel]
         )
     );
+
+    println!("TopoSort: {:?}", petgraph::algo::toposort(&outline.graph, None));
+
+    for idx in petgraph::algo::toposort(&outline.graph, None).unwrap() {
+        println!("{}", outline.graph[idx]);
+    }
+}
+
+fn test_z3() {
+    use z3::{
+        Config, Context, SatResult, Solver,
+        ast::{Ast, Bool, Int},
+    };
+
+    let mut config = Config::new();
+    config.set_bool_param_value("proof", true);
+    config.set_bool_param_value("unsat_core", true);
+
+    z3::with_z3_config(&config, || {
+        // Create a solver instance.
+        let solver = Solver::new();
+
+        // Create integer variables for each letter.
+        let s = Int::new_const("S");
+        let e = Int::new_const("E");
+        let n = Int::new_const("N");
+        let d = Int::new_const("D");
+        let m = Int::new_const("M");
+        let o = Int::new_const("O");
+        let r = Int::new_const("R");
+        let y = Int::new_const("Y");
+
+        let letters = [&s, &e, &n, &d, &m, &o, &r, &y];
+
+        // Add constraints:
+        // 1. Each letter must be a digit between 0 and 9.
+        for letter in &letters {
+            solver.assert_and_track(
+                letter.ge(Int::from_i64(0)),
+                &Bool::new_const(format!("{letter} >= 0")),
+            );
+
+            solver.assert_and_track(
+                letter.le(Int::from_i64(9)),
+                &Bool::new_const(format!("{letter} <= 9")),
+            );
+        }
+
+        // 2. All letters must have distinct values &letters;
+
+        // 3. The leading letters S and M cannot be zero.
+        solver.assert_and_track(
+            s.ne(Int::from_i64(0)),
+            &Bool::new_const("S != 0"),
+        );
+
+        solver.assert_and_track(
+            m.ne(Int::from_i64(0)),
+            &Bool::new_const("M != 0"),
+        );
+
+        // 4. The equation SEND + MORE = MONEY must hold.
+        // This is expressed in terms of the numerical value of the words.
+        let send = &s * 1000 + &e * 100 + &n * 10 + &d;
+        let more = &m * 1000 + &o * 100 + &r * 10 + &e;
+        let money = &m * 10000 + &o * 1000 + &n * 100 + &e * 10 + &y;
+
+        solver.assert_and_track(
+            (send + more).eq(&money),
+            &Bool::new_const("SEND + MORE = MONEY"),
+        );
+
+        // Check for a solution.
+        tracing::info!("Check");
+        match solver.check() {
+            SatResult::Sat => {
+                tracing::info!("SAT");
+                // If a solution is found, get the model.
+                let model = solver.get_model().unwrap();
+                println!("Solution found:");
+                for letter in &letters {
+                    println!(
+                        "{}: {}",
+                        letter,
+                        model.eval(*letter, true).unwrap()
+                    );
+                }
+            }
+            SatResult::Unsat => {
+                tracing::info!("UNSAT");
+
+                println!("No solution found.");
+                println!("Proof: {:?}", solver.get_proof());
+                println!("UnsatCore: {:?}", solver.get_unsat_core());
+
+                println!("Conflicting Constraints:");
+                for lit in solver.get_unsat_core() {
+                    println!("- {lit:?}");
+                }
+            }
+            SatResult::Unknown => {
+                println!("Unknown");
+            }
+        }
+    });
 }
 
 fn main() -> Result<()> {
@@ -334,6 +440,7 @@ fn main() -> Result<()> {
     println!("{:?}", petgraph::dot::Dot::new(&test_graph));
 
     test_outline();
+    test_z3();
 
     Ok(())
 }
