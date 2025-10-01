@@ -25,12 +25,12 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
-          - runner: ubuntu-22.04
-            target: x86
+          # - runner: ubuntu-22.04
+          #   target: x86
           - runner: ubuntu-22.04
             target: aarch64
-          - runner: ubuntu-22.04
-            target: armv7
+          # - runner: ubuntu-22.04
+          #   target: armv7
           - runner: ubuntu-22.04
             target: s390x
           - runner: ubuntu-22.04
@@ -47,7 +47,8 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
-          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev libclang-dev
+          before-script-linux: |
+            yum install -y clang-devel z3-devel
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -63,12 +64,12 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
-          - runner: ubuntu-22.04
-            target: x86
+          # - runner: ubuntu-22.04
+          #   target: x86
           - runner: ubuntu-22.04
             target: aarch64
-          - runner: ubuntu-22.04
-            target: armv7
+          # - runner: ubuntu-22.04
+          #   target: armv7
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,7 +82,8 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev libclang-dev
+          before-script-linux: |
+            yum install -y clang-devel z3-devel
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
