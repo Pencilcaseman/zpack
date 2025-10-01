@@ -23,12 +23,13 @@ name = "zpack"
 crate-type = ["rlib", "cdylib"]
 
 [features]
-default = ["z3_gh_release", "tracing_max_level_trace", "tracing_release_max_level_off"]
+default = ["tracing_release_max_level_off"]
 
 cheap_errors = []
 
 z3_static_link = ["z3/static-link-z3"]
 z3_gh_release = ["z3/gh-release"]
+z3_bundled = ["z3/bundled"]
 
 tracing_max_level_error = ["tracing/max_level_error"]
 tracing_max_level_warn = ["tracing/max_level_warn"]
@@ -62,7 +63,7 @@ syntect = { version = "5.3.0", features = ["default-fancy"] }
 tempfile = "3.23.0"
 tracing = {version = "0.1.41", features = [] }
 tracing-subscriber = "0.3.20"
-z3 = "0.19.1"
+z3 = { git = "https://github.com/prove-rs/z3.rs.git" }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports", "real_blackbox"] }
