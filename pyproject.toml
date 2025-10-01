@@ -18,4 +18,3 @@ dependencies = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-locked = true

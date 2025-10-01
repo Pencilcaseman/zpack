@@ -40,8 +40,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-      - name: Patch
-        run: ./scripts/ci_patch.sh
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -49,7 +47,6 @@ jobs:
           args: --release --out dist --find-interpreter --features z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
-          before-script-linux: ./scripts/ci_patch.sh
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -76,8 +73,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-      - name: Install Libraries
-        run: ./scripts/ci_patch.sh
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -85,7 +80,6 @@ jobs:
           args: --release --out dist --find-interpreter --feature z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          before-script-linux: ./scripts/ci_patch.sh
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
