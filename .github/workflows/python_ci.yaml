@@ -47,6 +47,7 @@ jobs:
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
+          docker-options: -e CMAKE_C_COMPILER=clang -e CMAKE_CXX_COMPILER=clang++
           before-script-linux: |
             if command -v apk >/dev/null; then
               apk update && apk add clang-dev z3-dev musl-dev g++
@@ -106,6 +107,7 @@ jobs:
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
+          docker-options: -e CMAKE_C_COMPILER=clang -e CMAKE_CXX_COMPILER=clang++
           before-script-linux: |
             if command -v apk >/dev/null; then
               apk update && apk add clang-dev z3-dev musl-dev g++
