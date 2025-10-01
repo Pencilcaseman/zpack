@@ -107,7 +107,6 @@ jobs:
           architecture: ${{ matrix.platform.target }}
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2
-        if: matrix.os == 'windows-latest'
         with:
           version: "11.0"
           directory: ${{ runner.temp }}/llvm
