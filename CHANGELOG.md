@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13](https://github.com/Pencilcaseman/zpack/compare/v0.1.12...v0.1.13) - 2025-10-01
+
+### Added
+
+- *(Outline)* Package universe to graph
+
+### Other
+
+- *(ci)* fix
+- *(ci)* action version
+- *(ci)* vcpkg attempt 3
+- *(ci)* vcpkg attempt 2
+- *(ci)* vcpkg
+- *(ci)* Final attempt before vcpkg
+- *(ci)* linux compile z3 from source
+- *(ci)* not yummy
+- *(ci)* yummy
+- *(ci)* Change install command
+- *(ci)* yum instead of apt?
+- *(ci)* libclang-dev
+- *(ci)* clang
+- *(ci)* apt install z3
+- *(ci)* we try again
+- *(ci)* python + powerpc
+- *(ci)* windows
+- *(ci)* x64 only
+- *(ci)* macos-latest
+- *(ci)* containers be containing
+- *(ci)* cross-rs container
+- *(ci)* Spelling error
+- *(ci)* Remove update
+- *(ci)* Remove patch script
+- *(ci)* CI
+- *(ci)* CI
+- *(ci)* sudo apt
+- *(ci)* CI......
+- *(ci)* CI...
+- *(solver)* Python CI?
+- *(solver)* Experimenting with z3
+
 ## [0.1.12](https://github.com/Pencilcaseman/zpack/compare/v0.1.11...v0.1.12) - 2025-09-24
 
 ### Fixed
