@@ -47,7 +47,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
-          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev clang
+          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev libclang-dev
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -81,7 +81,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev clang
+          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev libclang-dev
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
