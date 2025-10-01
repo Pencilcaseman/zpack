@@ -49,16 +49,17 @@ jobs:
           manylinux: auto
           before-script-linux: |
             if command -v apk >/dev/null; then
-              apk update && apk add clang-dev z3-dev musl-dev
+              apk update && apk add clang-dev z3-dev musl-dev g++
             elif command -v yum >/dev/null; then
               yum install -y epel-release
               yum clean all
               yum makecache
               yum install -y clang-devel
+              yum groupinstall -y "Development Tools"
             elif command -v apt >/dev/null; then
               apt update -y
               apt upgrade -y
-              apt install -y clang llvm-dev libclang-dev musl musl-dev
+              apt install -y clang llvm-dev libclang-dev musl musl-dev build-essential
             fi
 
             export CC=clang
@@ -101,16 +102,17 @@ jobs:
           manylinux: musllinux_1_2
           before-script-linux: |
             if command -v apk >/dev/null; then
-              apk update && apk add clang-dev z3-dev musl-dev
+              apk update && apk add clang-dev z3-dev musl-dev g++
             elif command -v yum >/dev/null; then
               yum install -y epel-release
               yum clean all
               yum makecache
-              yum install -y clang-devel z3-devel
+              yum install -y clang-devel
+              yum groupinstall -y "Development Tools"
             elif command -v apt >/dev/null; then
               apt update -y
               apt upgrade -y
-              apt install -y clang llvm-dev libclang-dev musl musl-dev
+              apt install -y clang llvm-dev libclang-dev musl musl-dev build-essential
             fi
 
             export CC=clang
