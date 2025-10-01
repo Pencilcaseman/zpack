@@ -47,7 +47,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
-          before-script-linux: sudo apt install z3
+          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -81,7 +81,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          before-script-linux: sudo apt install z3
+          before-script-linux: sudo apt-get update && sudo apt-get install -y z3 libz3-dev
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -149,8 +149,8 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
         env:
-          Z3_LIBRARY_PATH_OVERRIDE: "/opt/homebrew/lib"
-          Z3_SYS_Z3_HEADER: "/opt/homebrew/include/z3.h"
+          Z3_LIBRARY_PATH_OVERRIDE: "/usr/local/lib"
+          Z3_SYS_Z3_HEADER: "/usr/local/include/z3.h"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
