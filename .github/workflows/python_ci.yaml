@@ -3,7 +3,7 @@ name: Python CI
 on:
   push:
     branches:
-      - main
+      - edge
       - master
     tags:
       - '*'
@@ -30,8 +30,8 @@ jobs:
           - runner: ubuntu-22.04
             target: aarch64
           - runner: ubuntu-22.04
-            target: armv7
-          - runner: ubuntu-22.04
+          #   target: armv7
+          # - runner: ubuntu-22.04
             target: s390x
           - runner: ubuntu-22.04
             target: ppc64le
@@ -47,7 +47,7 @@ jobs:
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
-          container: "ghcr.io/cross-rs/${{ matrix.platform.target }}-unknown-linux-gnu:main"
+          container: ghcr.io/cross-rs/${{ matrix.platform.target }}-unknown-linux-gnu:edge
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -67,8 +67,8 @@ jobs:
             target: x86
           - runner: ubuntu-22.04
             target: aarch64
-          - runner: ubuntu-22.04
-            target: armv7
+          # - runner: ubuntu-22.04
+          #   target: armv7
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,7 +81,7 @@ jobs:
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          container: "ghcr.io/cross-rs/${{ matrix.platform.target }}-unknown-linux-musl:main"
+          container: ghcr.io/cross-rs/${{ matrix.platform.target }}-unknown-linux-musl:edge
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
