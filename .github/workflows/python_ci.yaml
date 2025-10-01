@@ -51,7 +51,7 @@ jobs:
           repo: microsoft/vcpkg
 
       - name: Install VcPkg
-        uses: lukka/run-vcpkg@vlatest
+        uses: lukka/run-vcpkg@latest
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -111,7 +111,7 @@ jobs:
           repo: microsoft/vcpkg
 
       - name: Install VcPkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@latest
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -174,7 +174,7 @@ jobs:
           repo: microsoft/vcpkg
 
       - name: Install VcPkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@latest
 
       - name: Set LIBCLANG_PATH
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> $env:GITHUB_ENV
