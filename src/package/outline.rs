@@ -11,6 +11,7 @@ use std::{cell::Cell, collections::HashMap, rc::Rc};
 
 use petgraph::{
     Graph,
+    algo::Cycle,
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
 };
@@ -22,13 +23,15 @@ pub struct SpecOption;
 pub struct Constraint;
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
+pub type SpecMap = HashMap<String, Option<SpecOption>>;
 
 #[derive(Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
-    pub options: HashMap<String, SpecOption>,
+    pub options: SpecMap,
     pub constraints: Vec<Constraint>,
     pub dependencies: Vec<String>,
+    pub defaults: SpecMap,
 }
 
 impl std::fmt::Display for PackageOutline {
@@ -67,6 +70,22 @@ impl SpecOutline {
         graph.extend_with_edges(edges);
 
         Self { graph, lookup }
+    }
+
+    pub fn propagate_defaults(
+        &mut self,
+    ) -> Result<(), Cycle<<PackageDiGraph as petgraph::visit::GraphBase>::NodeId>>
+    {
+        use petgraph::algo::toposort;
+
+        let sorted = toposort(&self.graph, None)?;
+
+        for idx in sorted {
+            // Propagate default values from node to dependencies
+            todo!();
+        }
+
+        todo!()
     }
 
     pub fn source_nodes(&self) -> Option<Vec<NodeIndex>> {

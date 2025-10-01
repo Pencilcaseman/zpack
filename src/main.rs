@@ -141,6 +141,15 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["openblas".into(), "openmpi".into(), "gcc".into()],
+        defaults: HashMap::default(),
+    };
+
+    let blas_outline = PackageOutline {
+        name: "blas".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["".into()],
+        defaults: HashMap::default(),
     };
 
     let openblas_outline = PackageOutline {
@@ -148,6 +157,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openmpi_outline = PackageOutline {
@@ -160,6 +170,7 @@ fn test_outline() {
             "hwloc".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::default(),
     };
 
     let openpmix_outline = PackageOutline {
@@ -167,6 +178,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openprrte_outline = PackageOutline {
@@ -174,6 +186,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let hwloc_outline = PackageOutline {
@@ -181,6 +194,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let gcc_outline = PackageOutline {
@@ -188,6 +202,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: Vec::new(),
+        defaults: HashMap::default(),
     };
 
     let hpl_outline_2 = PackageOutline {
@@ -199,6 +214,7 @@ fn test_outline() {
             "v2openmpi".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::default(),
     };
 
     let openblas_outline_2 = PackageOutline {
@@ -206,6 +222,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openmpi_outline_2 = PackageOutline {
@@ -218,6 +235,7 @@ fn test_outline() {
             "v2hwloc".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::default(),
     };
 
     let openpmix_outline_2 = PackageOutline {
@@ -225,6 +243,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openprrte_outline_2 = PackageOutline {
@@ -232,6 +251,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let hwloc_outline_2 = PackageOutline {
@@ -239,6 +259,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let outlines = vec![
