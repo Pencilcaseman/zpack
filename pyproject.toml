@@ -18,3 +18,9 @@ dependencies = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+# See https://cibuildwheel.pypa.io/en/stable/faq/#building-rust-wheels
+[tool.cibuildwheel.macos.environment]
+MACOSX_DEPLOYMENT_TARGET = "10.12"
+[tool.cibuildwheel]
+skip = ["*-musllinux_i686"]

@@ -11,24 +11,26 @@ use std::{cell::Cell, collections::HashMap, rc::Rc};
 
 use petgraph::{
     Graph,
+    algo::Cycle,
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
 };
 
-#[derive(Debug)]
-pub struct SpecOption;
+use crate::spec::spec_option::SpecOption;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Constraint;
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
+pub type SpecMap = HashMap<String, Option<SpecOption>>;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
-    pub options: HashMap<String, SpecOption>,
+    pub options: SpecMap,
     pub constraints: Vec<Constraint>,
     pub dependencies: Vec<String>,
+    pub defaults: SpecMap,
 }
 
 impl std::fmt::Display for PackageOutline {
@@ -57,8 +59,6 @@ impl SpecOutline {
 
         for src in graph.node_indices() {
             for dep in &graph[src].dependencies {
-                tracing::info!(source.name = ?graph[src].name, dep);
-
                 let dst = lookup[dep];
                 edges.push((src, dst));
             }
@@ -67,6 +67,39 @@ impl SpecOutline {
         graph.extend_with_edges(edges);
 
         Self { graph, lookup }
+    }
+
+    pub fn propagate_defaults(
+        &mut self,
+    ) -> Result<(), Cycle<<PackageDiGraph as petgraph::visit::GraphBase>::NodeId>>
+    {
+        use petgraph::algo::toposort;
+
+        let sorted = toposort(&self.graph, None)?;
+
+        for idx in sorted {
+            let src = self.graph[idx].clone();
+
+            let deps: Vec<_> = self
+                .graph
+                .edges_directed(idx, petgraph::Direction::Outgoing)
+                .map(|e| e.target())
+                .collect();
+
+            for dep in deps {
+                let dep = &mut self.graph[dep];
+
+                for (key, val) in src.defaults.iter() {
+                    if !dep.defaults.contains_key(key) {
+                        dep.defaults.insert(key.clone(), val.clone());
+                    } else if dep.defaults[key].is_none() {
+                        dep.defaults.remove(key);
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn source_nodes(&self) -> Option<Vec<NodeIndex>> {

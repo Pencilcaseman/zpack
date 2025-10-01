@@ -131,16 +131,29 @@ zpack:
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn test_outline() {
     use std::collections::HashMap;
 
-    use zpack::package::outline::*;
+    use zpack::{package::outline::*, spec::spec_option::SpecOption};
 
     let hpl_outline = PackageOutline {
         name: "hpl".into(),
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["openblas".into(), "openmpi".into(), "gcc".into()],
+        defaults: HashMap::from([(
+            "static".into(),
+            Some(SpecOption::Bool(true)),
+        )]),
+    };
+
+    let blas_outline = PackageOutline {
+        name: "blas".into(),
+        options: HashMap::default(),
+        constraints: Vec::new(),
+        dependencies: vec!["".into()],
+        defaults: HashMap::default(),
     };
 
     let openblas_outline = PackageOutline {
@@ -148,6 +161,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openmpi_outline = PackageOutline {
@@ -160,6 +174,10 @@ fn test_outline() {
             "hwloc".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::from([
+            ("static".into(), None),
+            ("fabrics".into(), Some(SpecOption::Str("auto".into()))),
+        ]),
     };
 
     let openpmix_outline = PackageOutline {
@@ -167,6 +185,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openprrte_outline = PackageOutline {
@@ -174,6 +193,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let hwloc_outline = PackageOutline {
@@ -181,6 +201,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let gcc_outline = PackageOutline {
@@ -188,6 +209,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: Vec::new(),
+        defaults: HashMap::default(),
     };
 
     let hpl_outline_2 = PackageOutline {
@@ -199,6 +221,7 @@ fn test_outline() {
             "v2openmpi".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::default(),
     };
 
     let openblas_outline_2 = PackageOutline {
@@ -206,6 +229,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openmpi_outline_2 = PackageOutline {
@@ -218,6 +242,7 @@ fn test_outline() {
             "v2hwloc".into(),
             "gcc".into(),
         ],
+        defaults: HashMap::default(),
     };
 
     let openpmix_outline_2 = PackageOutline {
@@ -225,6 +250,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let openprrte_outline_2 = PackageOutline {
@@ -232,6 +258,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let hwloc_outline_2 = PackageOutline {
@@ -239,6 +266,7 @@ fn test_outline() {
         options: HashMap::default(),
         constraints: Vec::new(),
         dependencies: vec!["gcc".into()],
+        defaults: HashMap::default(),
     };
 
     let outlines = vec![
@@ -258,7 +286,8 @@ fn test_outline() {
         openmpi_outline_2,
     ];
 
-    let outline = SpecOutline::new(outlines);
+    let mut outline = SpecOutline::new(outlines);
+    outline.propagate_defaults().unwrap();
 
     println!(
         "{}",
@@ -271,7 +300,10 @@ fn test_outline() {
     println!("TopoSort: {:?}", petgraph::algo::toposort(&outline.graph, None));
 
     for idx in petgraph::algo::toposort(&outline.graph, None).unwrap() {
-        println!("{}", outline.graph[idx]);
+        println!(
+            "{}: {:?}",
+            outline.graph[idx].name, outline.graph[idx].defaults
+        );
     }
 }
 
@@ -341,7 +373,10 @@ fn test_z3() {
 
         // Check for a solution.
         tracing::info!("Check");
-        match solver.check() {
+        let start = std::time::Instant::now();
+        let c = solver.check();
+        println!("SAT/UNSAT in {:?}", start.elapsed());
+        match c {
             SatResult::Sat => {
                 tracing::info!("SAT");
                 // If a solution is found, get the model.
