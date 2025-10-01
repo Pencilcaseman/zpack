@@ -56,9 +56,9 @@ jobs:
               yum makecache
               yum install -y clang-devel
             elif command -v apt >/dev/null; then
-              apt update
-              apt upgrade
-              apt install clang llvm-dev libclang-dev
+              apt update -y
+              apt upgrade -y
+              apt install -y clang llvm-dev libclang-dev musl musl-dev
             fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -102,9 +102,9 @@ jobs:
               yum makecache
               yum install -y clang-devel z3-devel
             elif command -v apt >/dev/null; then
-              apt update
-              apt upgrade
-              apt install clang llvm-dev libclang-dev musl musl-dev
+              apt update -y
+              apt upgrade -y
+              apt install -y clang llvm-dev libclang-dev musl musl-dev
             fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4

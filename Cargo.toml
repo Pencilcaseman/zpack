@@ -30,6 +30,7 @@ cheap_errors = []
 z3_static_link = ["z3/static-link-z3"]
 z3_gh_release = ["z3/gh-release"]
 z3_bundled = ["z3/bundled"]
+z3_vcpkg = ["z3/vcpkg"]
 
 tracing_max_level_error = ["tracing/max_level_error"]
 tracing_max_level_warn = ["tracing/max_level_warn"]
