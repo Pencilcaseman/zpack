@@ -46,7 +46,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          manylinux: 2_34
+          manylinux: manylinux_2_28
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
