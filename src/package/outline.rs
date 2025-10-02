@@ -16,16 +16,15 @@ use petgraph::{
     visit::EdgeRef,
 };
 
-#[derive(Debug)]
-pub struct SpecOption;
+use crate::spec::spec_option::SpecOption;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Constraint;
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
 pub type SpecMap = HashMap<String, Option<SpecOption>>;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
     pub options: SpecMap,
@@ -60,8 +59,6 @@ impl SpecOutline {
 
         for src in graph.node_indices() {
             for dep in &graph[src].dependencies {
-                tracing::info!(source.name = ?graph[src].name, dep);
-
                 let dst = lookup[dep];
                 edges.push((src, dst));
             }
@@ -81,11 +78,28 @@ impl SpecOutline {
         let sorted = toposort(&self.graph, None)?;
 
         for idx in sorted {
-            // Propagate default values from node to dependencies
-            todo!();
+            let src = self.graph[idx].clone();
+
+            let deps: Vec<_> = self
+                .graph
+                .edges_directed(idx, petgraph::Direction::Outgoing)
+                .map(|e| e.target())
+                .collect();
+
+            for dep in deps {
+                let dep = &mut self.graph[dep];
+
+                for (key, val) in src.defaults.iter() {
+                    if !dep.defaults.contains_key(key) {
+                        dep.defaults.insert(key.clone(), val.clone());
+                    } else if dep.defaults[key].is_none() {
+                        dep.defaults.remove(key);
+                    }
+                }
+            }
         }
 
-        todo!()
+        Ok(())
     }
 
     pub fn source_nodes(&self) -> Option<Vec<NodeIndex>> {
