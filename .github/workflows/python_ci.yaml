@@ -21,7 +21,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
-      fast-fail: off
+      fail-fast: off
       matrix:
         platform:
           - runner: ubuntu-22.04
@@ -59,7 +59,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
-      fast-fail: off
+      fail-fast: off
       matrix:
         platform:
           - runner: ubuntu-22.04
@@ -93,7 +93,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
-      fast-fail: off
+      fail-fast: off
       matrix:
         platform:
           - runner: windows-latest
@@ -130,7 +130,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
-      fast-fail: off
+      fail-fast: off
       matrix:
         platform:
           - runner: macos-13
