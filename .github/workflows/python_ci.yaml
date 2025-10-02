@@ -21,6 +21,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
+      fast-fail: off
       matrix:
         platform:
           - runner: ubuntu-22.04
@@ -46,7 +47,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --features default,pyo3/extension-module,z3_bundled
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          manylinux: manylinux_2_28
+          manylinux: 2_28
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -58,6 +59,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
+      fast-fail: off
       matrix:
         platform:
           - runner: ubuntu-22.04
@@ -91,6 +93,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
+      fast-fail: off
       matrix:
         platform:
           - runner: windows-latest
@@ -127,6 +130,7 @@ jobs:
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
     strategy:
+      fast-fail: off
       matrix:
         platform:
           - runner: macos-13
