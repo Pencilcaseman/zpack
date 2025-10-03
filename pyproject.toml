@@ -18,3 +18,9 @@ dependencies = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+[tool.cibuildwheel]
+skip = ["*-musllinux_i686"]
+
+[tool.cibuildwheel.macos.environment]
+MACOSX_DEPLOYMENT_TARGET = "10.12"
