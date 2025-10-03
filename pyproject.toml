@@ -24,3 +24,6 @@ skip = ["*-musllinux_i686"]
 
 [tool.cibuildwheel.macos.environment]
 MACOSX_DEPLOYMENT_TARGET = "10.12"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y llvm-devel clang-devel"

@@ -15,11 +15,6 @@ on:
 permissions:
   contents: read
 
-env:
-  CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
-  CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
-  CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
-
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
@@ -164,6 +159,11 @@ jobs:
   build_wheels:
     name: (CIBW) Build Wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      MATURIN_PEP517_ARGS: "--features=default,pyo3/extension-module,z3_bundled"
+      CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
+      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+      CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
     strategy:
       fail-fast: false
       matrix:
