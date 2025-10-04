@@ -165,11 +165,12 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
 
     env:
-      CIBW_BEFORE_ALL_LINUX: yum install -y llvm-devel clang-devel
-      CIBW_BEFORE_BUILD_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
+      # CIBW_BEFORE_ALL_LINUX: yum install -y llvm-devel clang-devel
+      CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y"
       CIBW_ENVIRONMENT_LINUX: "PATH='$HOME/.cargo/bin:$PATH'"
       CIBW_ENVIRONMENT: "MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'"
-      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+      CIBW_BEFORE_ALL_WINDOWS: "rustup target add i686-pc-windows-msvc"
+      MACOSX_DEPLOYMENT_TARGET: 10.12
 
     steps:
       - uses: actions/checkout@v5
@@ -180,7 +181,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==3.2.0
+        run: python -m pip install cibuildwheel==3.1.4
 
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
