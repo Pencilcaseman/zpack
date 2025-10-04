@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14](https://github.com/Pencilcaseman/zpack/compare/v0.1.13...v0.1.14) - 2025-10-04
+
+### Other
+
+- *(ci)* Why does windows always have to be different
+- *(ci)* Replace \ with /
+- *(ci)* separate env vars
+- *(ci)* docs
+- *(ci)* different directory
+- *(ci)* oops
+- *(ci)* workspace?
+- *(ci)* use /tmp
+- *(ci)* absolute directory?
+- *(ci)* Cleanup script
+- *(ci)* chatgpt lied to me
+
 ## [0.1.13](https://github.com/Pencilcaseman/zpack/compare/v0.1.12...v0.1.13) - 2025-10-04
 
 ### Added
