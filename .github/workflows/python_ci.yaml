@@ -159,11 +159,6 @@ jobs:
   build_wheels:
     name: Build Wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-      MATURIN_PEP517_ARGS: "--features=default,pyo3/extension-module,z3_bundled"
-      CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y
-      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
-      CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
     strategy:
       fail-fast: false
       matrix:
@@ -173,12 +168,18 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==3.2.0
+        run: python3 -m pip install cibuildwheel==3.2.0
 
       - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
+        run: python3 -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_SOME_OPTION: value
+          CIBW_BEFORE_ALL_LINUX: |
+            sudo yum groupinstall -y 'Development Tools' \
+            sudo yum install -y llvm-devel clang-devel && \
+            curl -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_ENVIRONMENT_LINUX: "PATH='$HOME/.cargo/bin:$PATH'"
+          CIBW_ENVIRONMENT: "MATURIN_PEP517_ARGS='--featurescdefault,pyo3/extension-module,z3_brndled'"
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
 
       - uses: actions/upload-artifact@v4
         with:
