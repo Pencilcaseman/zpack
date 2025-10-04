@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13](https://github.com/Pencilcaseman/zpack/compare/v0.1.12...v0.1.13) - 2025-10-04
+
+### Added
+
+- *(Outline)* Package universe to graph
+
+### Other
+
+- *(ci)* It might actually work
+- *(ci)* Progress was actually made -- fingers crossed this also works
+- *(ci)* presumably those don't get merged
+- *(ci)* i.. i said.... i said drumrollll pleaseee
+- *(ci)* I said... drumroll please
+- *(ci)* drumroll please
+- *(ci)* we try some things
+- *(ci)* why does this not work
+- *(ci)* cheeky bit of both?
+- *(ci)* before_build?
+- *(ci)* does this fix it?
+- *(ci)* typo + python install
+- *(ci)* idk
+- *(ci)* Fix some things hopefully
+- *(ci)* Move things to CI script
+- *(ci)* remove outdated build steps
+- *(ci)* Specify flags in cibw pip install
+- *(ci)* follow docs
+- *(ci)* idk
+- *(ci)* testing
+- *(ci)* giving up
+- *(ci)* fix
+- *(ci)* fix
+- *(wip)* no fast fail
+- *(ci)* What does this do?
+- *(ci)* 2_34???
+- *(ci)* newer manylinux?
+- *(ci)* docker options
+- *(ci)* cmake_c_compiler
+- *(ci)* build-essential
+- *(ci)* CXX=clang++
+- *(ci)* Final attempt before vcpkg
+- *(ci)* linux compile z3 from source
+- *(ci)* not yummy
+- *(ci)* yummy
+- *(ci)* Change install command
+- *(ci)* yum instead of apt?
+- *(ci)* libclang-dev
+- *(ci)* clang
+- *(ci)* apt install z3
+- *(ci)* we try again
+- *(ci)* python + powerpc
+- *(ci)* windows
+- *(ci)* x64 only
+- *(ci)* macos-latest
+- *(ci)* containers be containing
+- *(ci)* cross-rs container
+- *(ci)* Spelling error
+- *(ci)* Remove update
+- *(ci)* Remove patch script
+- *(ci)* CI
+- *(ci)* CI
+- *(ci)* sudo apt
+- *(ci)* CI......
+- *(ci)* CI...
+- *(solver)* Python CI?
+- *(solver)* Experimenting with z3
+
 ## [0.1.12](https://github.com/Pencilcaseman/zpack/compare/v0.1.11...v0.1.12) - 2025-09-24
 
 ### Fixed
