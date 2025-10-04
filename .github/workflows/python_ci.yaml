@@ -54,7 +54,7 @@ jobs:
         MACOSX_DEPLOYMENT_TARGET=10.12
 
       CIBW_ENVIRONMENT_WINDOWS: >-
-        Z3_SYS_BUNDLED_DIR_OVERRIDE=${{ replace(github.workspace, '\', '/') }}/z3_git_source
+        Z3_SYS_BUNDLED_DIR_OVERRIDE='${{ github.workspace }}/z3_git_source'
         MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
 
     steps:
