@@ -135,8 +135,7 @@ zpack:
 fn test_outline() {
     use std::collections::HashMap;
 
-    use zpack::package::outline::*;
-    use zpack::spec::spec_option::SpecOption;
+    use zpack::{package::outline::*, spec::spec_option::SpecOption};
 
     let hpl_outline = PackageOutline {
         name: "hpl".into(),
@@ -374,7 +373,10 @@ fn test_z3() {
 
         // Check for a solution.
         tracing::info!("Check");
-        match solver.check() {
+        let start = std::time::Instant::now();
+        let c = solver.check();
+        println!("SAT/UNSAT in {:?}", start.elapsed());
+        match c {
             SatResult::Sat => {
                 tracing::info!("SAT");
                 // If a solution is found, get the model.
