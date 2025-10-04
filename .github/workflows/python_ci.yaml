@@ -41,21 +41,21 @@ jobs:
 
         curl -sSf https://sh.rustup.rs | sh -s -- -y
 
-        cargo update
-
-      CIBW_BEFORE_ALL_WINDOWS: "rustup target add i686-pc-windows-msvc && cargo update"
-
-      CIBW_BEFORE_ALL_MACOS: "cargo update"
+      CIBW_BEFORE_ALL_WINDOWS: "rustup target add i686-pc-windows-msvc"
 
       CIBW_ENVIRONMENT_LINUX: >-
         Z3_SYS_BUNDLED_DIR_OVERRIDE=/project/z3_git_source
         MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
         PATH=$HOME/.cargo/bin:$PATH
 
-      CIBW_ENVIRONMENT: >-
-        Z3_SYS_BUNDLED_DIR_OVERRIDE=/project/z3_git_source
+      CIBW_ENVIRONMENT_MACOS: >-
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=${{ github.workspace }}/z3_git_source
         MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
         MACOSX_DEPLOYMENT_TARGET=10.12
+
+      CIBW_ENVIRONMENT_WINDOWS: >-
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=${{ github.workspace }}/z3_git_source
+        MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
 
     steps:
       - uses: actions/checkout@v5
