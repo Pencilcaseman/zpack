@@ -24,11 +24,33 @@ jobs:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
 
-    env:
-      MATURIN_PEP517_ARGS: "--features=default,pyo3/extension-module,z3_bundled -vvv"
-      MACOSX_DEPLOYMENT_TARGET: "10.12"
-      Z3_SYS_BUNDLED_DIR_OVERRIDE: "./z3_git_source"
+    # env:
+    #   MATURIN_PEP517_ARGS: "--features=default,pyo3/extension-module,z3_bundled -vvv"
+    #   MACOSX_DEPLOYMENT_TARGET: "10.12"
+    #   Z3_SYS_BUNDLED_DIR_OVERRIDE: "./z3_git_source"
+    #
+    #   CIBW_BEFORE_ALL_LINUX: |
+    #     if command -v apk &> /dev/null; then
+    #       apk add --no-cache build-base clang llvm-dev clang-dev curl bash
+    #     elif command -v apt-get &> /dev/null; then
+    #       apt-get update && apt-get install -y build-essential clang llvm-dev libclang-dev curl
+    #     elif command -v yum &> /dev/null; then
+    #       yum groupinstall -y 'Development Tools' && yum install -y clang llvm-devel clang-devel curl
+    #     elif command -v dnf &> /dev/null; then
+    #       dnf groupinstall -y 'Development Tools' && dnf install -y clang llvm-devel clang-devel curl
+    #     else
+    #       echo "Error: No supported package manager found" >&2
+    #       exit 1
+    #     fi
+    #
+    #     curl -sSf https://sh.rustup.rs | sh -s -- -y
+    #
+    #   CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+    #
+    #   CIBW_BEFORE_ALL_WINDOWS: "rustup target add i686-pc-windows-msvc"
 
+    env:
+      # Linux: Install build dependencies and Rust
       CIBW_BEFORE_ALL_LINUX: |
         if command -v apk &> /dev/null; then
           apk add --no-cache build-base clang llvm-dev clang-dev curl bash
@@ -42,11 +64,21 @@ jobs:
           echo "Error: No supported package manager found" >&2
           exit 1
         fi
-
         curl -sSf https://sh.rustup.rs | sh -s -- -y
 
-      CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+      # Linux environment variables (inside build container)
+      CIBW_ENVIRONMENT_LINUX: >-
+        PATH=$HOME/.cargo/bin:$PATH
+        MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled -vvv'
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=./z3_git_source
 
+      # macOS/Windows environment variables (inside build environment)
+      CIBW_ENVIRONMENT: >-
+        MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled -vvv'
+        MACOSX_DEPLOYMENT_TARGET=10.12
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=./z3_git_source
+
+      # Windows: Add 32-bit target
       CIBW_BEFORE_ALL_WINDOWS: "rustup target add i686-pc-windows-msvc"
 
     steps:
