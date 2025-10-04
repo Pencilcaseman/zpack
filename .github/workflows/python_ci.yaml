@@ -179,7 +179,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           # CIBW_BEFORE_ALL_LINUX: "yum groupinstall -y 'Development Tools' && yum install -y llvm-devel clang-devel && curl -sSf https://sh.rustup.rs | sh -s -- -y"
-          CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y && yum install -y llvm-devel clang-devel
+          CIBW_BEFORE_BUILD_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y && yum install -y llvm-devel clang-devel
           CIBW_ENVIRONMENT_LINUX: "PATH='$HOME/.cargo/bin:$PATH'"
           CIBW_ENVIRONMENT: "MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'"
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
