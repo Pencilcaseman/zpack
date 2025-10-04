@@ -167,6 +167,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.2.0
 
@@ -175,7 +180,7 @@ jobs:
         env:
           CIBW_BEFORE_ALL_LINUX: "yum groupinstall -y 'Development Tools' && yum install -y llvm-devel clang-devel && curl -sSf https://sh.rustup.rs | sh -s -- -y"
           CIBW_ENVIRONMENT_LINUX: "PATH='$HOME/.cargo/bin:$PATH'"
-          CIBW_ENVIRONMENT: "MATURIN_PEP517_ARGS='--featurescdefault,pyo3/extension-module,z3_bundled'"
+          CIBW_ENVIRONMENT: "MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'"
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
 
       - uses: actions/upload-artifact@v4
