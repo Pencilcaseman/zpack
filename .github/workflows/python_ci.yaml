@@ -48,12 +48,12 @@ jobs:
       CIBW_BEFORE_ALL_MACOS: "cargo update"
 
       CIBW_ENVIRONMENT_LINUX: >-
-        Z3_SYS_BUNDLED_DIR_OVERRIDE={project}/z3_git_source
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=/project/z3_git_source
         MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
         PATH=$HOME/.cargo/bin:$PATH
 
       CIBW_ENVIRONMENT: >-
-        Z3_SYS_BUNDLED_DIR_OVERRIDE={project}/z3_git_source
+        Z3_SYS_BUNDLED_DIR_OVERRIDE=/project/z3_git_source
         MATURIN_PEP517_ARGS='--features=default,pyo3/extension-module,z3_bundled'
         MACOSX_DEPLOYMENT_TARGET=10.12
 
