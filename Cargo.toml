@@ -1,7 +1,7 @@
 [package]
 name = "zpack"
 description = "A fast, configurable package manager which builds programs from source"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["Toby Davis"]
 edition = "2024"
 readme = "./README.md"

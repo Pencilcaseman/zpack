@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14](https://github.com/Pencilcaseman/zpack/compare/v0.1.13...v0.1.14) - 2025-10-04
+
+### Other
+
+- *(ci)* Use crates.io z3.rs not git
+
 ## [0.1.13](https://github.com/Pencilcaseman/zpack/compare/v0.1.12...v0.1.13) - 2025-10-04
 
 ### Added
