@@ -14,7 +14,7 @@ use z3::{Optimize, Solver};
 
 use super::constraint::{Constraint, ZPACK_ACTIVE_STR};
 use crate::{
-    package::constraint::SOFT_PACKAGE_WEIGHT,
+    package::constraint::{SOFT_PACKAGE_WEIGHT, spec_option::SpecOptionEqual},
     spec::spec_option::{SpecOption, SpecOptionValue},
 };
 
@@ -26,9 +26,9 @@ pub type PackageOptionAstMap<'a> =
 #[derive(Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
-    pub options: HashMap<String, SpecOption>,
     pub constraints: Vec<Box<dyn Constraint>>,
-    pub defaults: HashMap<String, Option<SpecOptionValue>>,
+    pub set_options: HashMap<String, SpecOptionValue>,
+    pub set_defaults: HashMap<String, Option<SpecOptionValue>>,
 }
 
 impl std::fmt::Display for PackageOutline {
@@ -128,7 +128,7 @@ impl SpecOutline {
 
         for idx in sorted {
             let src_name = self.graph[idx].name.clone();
-            let src_defaults = self.graph[idx].defaults.clone();
+            let src_defaults = self.graph[idx].set_defaults.clone();
 
             tracing::info!("propagating default values for {src_name}");
 
@@ -155,8 +155,8 @@ impl SpecOutline {
                         continue;
                     };
 
-                    if dep.defaults.contains_key(opt_name) {
-                        match &dep.defaults[opt_name] {
+                    if dep.set_defaults.contains_key(opt_name) {
+                        match &dep.set_defaults[opt_name] {
                             Some(old_val) => {
                                 if let Some(reason) = reason_tracker
                                     .get(&(dep.name.clone(), opt_name.clone()))
@@ -190,13 +190,13 @@ impl SpecOutline {
                                 }
                             }
                             None => {
-                                dep.defaults.remove(opt_name);
+                                dep.set_defaults.remove(opt_name);
                             }
                         }
                     } else {
                         // Insert and track default
 
-                        dep.defaults
+                        dep.set_defaults
                             .insert(opt_name.clone(), Some(src_val.clone()));
 
                         let reason = match reason_tracker
@@ -219,13 +219,15 @@ impl SpecOutline {
     }
 
     pub fn gen_spec_solver(
-        &self,
+        &mut self,
     ) -> Result<(Optimize, PackageOptionAstMap<'_>), GenSpecSolverError> {
         tracing::info!("generating spec solver");
 
         let mut option_asts = HashMap::<(&str, &str), z3::ast::Dynamic>::new();
 
         let optimizer = Optimize::new();
+
+        let mut additional_constraints = Vec::new();
 
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
@@ -253,26 +255,51 @@ impl SpecOutline {
             );
 
             // Create variables for each package option
-            for (name, value) in package.options.iter() {
+            for (name, value) in package
+                .constraints
+                .iter()
+                .flat_map(|c| c.extract_spec_options(&package.name))
+            {
                 tracing::info!(
                     "creating variable for {}:{}",
                     package.name,
                     name
                 );
 
-                let exists = option_asts
-                    .insert(
-                        (&package.name, name),
-                        value.to_z3_dynamic(&package.name, name),
-                    )
-                    .is_some();
-
-                if exists {
-                    return Err(GenSpecSolverError::DuplicateOption(
-                        name.clone(),
-                    ));
-                }
+                option_asts.insert(
+                    (&package.name, name),
+                    value.to_z3_dynamic(&package.name, name),
+                );
             }
+
+            for (name, value) in &package.set_options {
+                additional_constraints.push((
+                    idx,
+                    Box::new(SpecOptionEqual {
+                        package_name: None,
+                        option_name: name.clone(),
+                        equal_to: value.clone(),
+                    }),
+                ));
+            }
+        }
+
+        for (idx, value) in additional_constraints {
+            let package = &self.graph[idx];
+
+            optimizer.assert_and_track(
+                &option_asts[&(package.name.as_ref(), ZPACK_ACTIVE_STR)]
+                    .as_bool()
+                    .unwrap()
+                    .implies(
+                        value
+                            .to_z3_clause(&package.name, &option_asts)
+                            .unwrap()
+                            .as_bool()
+                            .unwrap(),
+                    ),
+                &z3::ast::Bool::new_const(format!("{value:?}")),
+            );
         }
 
         for required in &self.required {
@@ -291,7 +318,7 @@ impl SpecOutline {
 
             for constraint in &package.constraints {
                 tracing::info!(
-                    "adding constraint {}:{:?}",
+                    "adding constraint {} -> {:?}",
                     package.name,
                     constraint
                 );

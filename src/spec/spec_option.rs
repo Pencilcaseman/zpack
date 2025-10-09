@@ -1,6 +1,6 @@
-use std::str::FromStr;
+use std::{hash::Hash, str::FromStr};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
     Bool,
     Int,
@@ -17,7 +17,7 @@ pub enum SpecOptionValue {
     Str(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SpecOption {
     pub dtype: SpecOptionType,
     pub value: Option<SpecOptionValue>,
@@ -60,6 +60,14 @@ impl SpecOptionValue {
         }
     }
 }
+
+impl Hash for SpecOptionValue {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+    }
+}
+
+impl std::cmp::Eq for SpecOptionValue {}
 
 impl SpecOption {
     /// Construct a type descriptor instance of a [`SpecOption`]

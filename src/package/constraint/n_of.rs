@@ -1,4 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
+use z3::ast::Bool;
+
 use super::Constraint;
+use crate::spec::spec_option::SpecOption;
 
 #[derive(Debug)]
 pub struct NOf {
@@ -7,7 +12,11 @@ pub struct NOf {
 }
 
 impl Constraint for NOf {
-    fn extract_dependencies(&self) -> Vec<String> {
+    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
+        self.of.iter().flat_map(|c| c.extract_spec_options(package)).collect()
+    }
+
+    fn extract_dependencies(&self) -> HashSet<String> {
         self.of.iter().flat_map(|b| b.extract_dependencies()).collect()
     }
 
@@ -26,15 +35,22 @@ impl Constraint for NOf {
             self.of.len()
         );
 
-        let mut bool_clauses = Vec::new();
+        // Ensure exactly n of the conditions are met and separately ensure the
+        // implications of each condition are met
+
+        let mut clauses = Vec::new();
+        let mut implications = Vec::new();
 
         for constraint in &self.of {
-            // let clause = constraint.to_z3_clause(package, option_ast)?;
-            bool_clauses.push((constraint.to_z3_bool(package, option_ast)?, 1));
+            clauses.push((constraint.as_cond(package, option_ast)?, 1));
+            implications
+                .push(constraint.to_z3_clause(package, option_ast)?.as_bool()?);
         }
 
-        let refs =
-            bool_clauses.iter().map(|(b, m)| (b, *m)).collect::<Vec<_>>();
-        Some(z3::ast::Bool::pb_eq(&refs, self.n).into())
+        let refs = clauses.iter().map(|(b, m)| (b, *m)).collect::<Vec<_>>();
+        let mut constraints = vec![Bool::pb_eq(&refs, self.n)];
+        constraints.extend(implications);
+
+        Some(Bool::and(&constraints).into())
     }
 }

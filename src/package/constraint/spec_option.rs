@@ -1,5 +1,8 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::{
-    package::constraint::Constraint, spec::spec_option::SpecOptionValue,
+    package::constraint::Constraint,
+    spec::spec_option::{SpecOption, SpecOptionValue},
 };
 
 #[derive(Clone, Debug)]
@@ -10,8 +13,24 @@ pub struct SpecOptionEqual {
 }
 
 impl Constraint for SpecOptionEqual {
-    fn extract_dependencies(&self) -> Vec<String> {
-        vec![]
+    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
+        if self.package_name.as_ref().is_none_or(|p| package == p) {
+            HashMap::from([(
+                self.option_name.as_ref(),
+                SpecOption {
+                    dtype: self.equal_to.to_type(),
+                    value: Some(self.equal_to.clone()),
+                    default: None,
+                    valid: None,
+                },
+            )])
+        } else {
+            HashMap::default()
+        }
+    }
+
+    fn extract_dependencies(&self) -> HashSet<String> {
+        HashSet::default()
     }
 
     fn to_z3_clause<'a>(

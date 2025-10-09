@@ -1,4 +1,7 @@
+use std::collections::{HashMap, HashSet};
+
 use super::Constraint;
+use crate::spec::spec_option::SpecOption;
 
 #[derive(Debug)]
 pub struct IfThen {
@@ -7,14 +10,21 @@ pub struct IfThen {
 }
 
 impl Constraint for IfThen {
-    fn extract_dependencies(&self) -> Vec<String> {
-        let mut res = Vec::new();
-        res.extend(self.cond.extract_dependencies());
-        res.extend(self.then.extract_dependencies());
-        res
+    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
+        [&self.cond, &self.then]
+            .iter()
+            .flat_map(|c| c.extract_spec_options(package))
+            .collect()
     }
 
-    fn to_z3_bool<'a>(
+    fn extract_dependencies(&self) -> HashSet<String> {
+        [&self.cond, &self.then]
+            .iter()
+            .flat_map(|c| c.extract_dependencies())
+            .collect()
+    }
+
+    fn as_cond<'a>(
         &self,
         package: &str,
         option_ast: &std::collections::HashMap<
@@ -40,12 +50,12 @@ impl Constraint for IfThen {
             self.then
         );
 
-        let Some(cond) = self.cond.to_z3_bool(package, option_ast) else {
+        let Some(cond) = self.cond.as_cond(package, option_ast) else {
             tracing::error!("invalid `cond` in IfThen");
             return None;
         };
 
-        let Some(then) = self.then.to_z3_bool(package, option_ast) else {
+        let Some(then) = self.then.as_cond(package, option_ast) else {
             tracing::error!("invalid `then` in IfThen");
             return None;
         };
