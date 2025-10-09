@@ -1,6 +1,9 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::io;
+use std::{
+    io::{self, Write},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use clap::{
@@ -16,7 +19,11 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use tracing::instrument;
-use z3::Params;
+use z3::{Optimize, PrepareSynchronized};
+use zpack::{
+    package::constraint::n_of::NOf,
+    spec::spec_option::{SpecOption, SpecOptionType},
+};
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -135,72 +142,225 @@ zpack:
 fn test_outline() {
     use std::collections::HashMap;
 
-    use zpack::{package::outline::*, spec::spec_option::SpecOption};
+    use zpack::{
+        package::{
+            constraint::{
+                Constraint, depends::Depends, if_then::IfThen,
+                spec_option::SpecOptionEqual,
+            },
+            outline::*,
+        },
+        spec::spec_option::SpecOptionValue,
+    };
 
     let hpl_outline = PackageOutline {
         name: "hpl".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["openblas".into(), "openmpi".into(), "gcc".into()],
-        defaults: HashMap::from([(
-            "static".into(),
-            Some(SpecOption::Bool(true)),
-        )]),
+        constraints: vec![
+            Box::new(Depends("blas".into())),
+            Box::new(Depends("mpi".into())),
+            Box::new(Depends("gcc".into())),
+        ],
+        defaults: HashMap::from([
+            ("static".into(), Some(SpecOptionValue::Bool(true))),
+            ("something".into(), None),
+        ]),
+    };
+
+    let blas_openblas_constraint = IfThen {
+        cond: Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "openblas".into(),
+            equal_to: SpecOptionValue::Bool(true),
+        }),
+        then: Box::new(Depends("openblas".into())),
+    };
+
+    let blas_mkl_constraint = IfThen {
+        cond: Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "mkl".into(),
+            equal_to: SpecOptionValue::Bool(true),
+        }),
+        then: Box::new(Depends("mkl".into())),
     };
 
     let blas_outline = PackageOutline {
         name: "blas".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["".into()],
+        options: HashMap::from([
+            (
+                "openblas".into(),
+                SpecOption::new_from_type(SpecOptionType::Bool),
+            ),
+            ("mkl".into(), SpecOption::new_from_type(SpecOptionType::Bool)),
+        ]),
+        constraints: vec![
+            Box::new(blas_openblas_constraint),
+            Box::new(blas_mkl_constraint),
+        ],
+        defaults: HashMap::default(),
+    };
+
+    let mpi_openmpi_constraint = IfThen {
+        cond: Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "openmpi".into(),
+            equal_to: SpecOptionValue::Bool(true),
+        }),
+        then: Box::new(Depends("openmpi".into())),
+    };
+
+    let mpi_mpich_constraint = IfThen {
+        cond: Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "mpich".into(),
+            equal_to: SpecOptionValue::Bool(true),
+        }),
+        then: Box::new(Depends("mpich".into())),
+    };
+
+    let mpi_intelmpi_constraint = IfThen {
+        cond: Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "intelmpi".into(),
+            equal_to: SpecOptionValue::Bool(true),
+        }),
+        then: Box::new(Depends("intelmpi".into())),
+    };
+
+    let mpi_outline = PackageOutline {
+        name: "mpi".into(),
+        options: HashMap::from([
+            ("openmpi".into(), SpecOption::new_from_type(SpecOptionType::Bool)),
+            ("mpich".into(), SpecOption::new_from_type(SpecOptionType::Bool)),
+            (
+                "intelmpi".into(),
+                SpecOption::new_from_type(SpecOptionType::Bool),
+            ),
+        ]),
+        constraints: vec![
+            // Box::new(mpi_openmpi_constraint),
+            // Box::new(mpi_mpich_constraint),
+            // Box::new(mpi_intelmpi_constraint),
+            // Box::new(IfThen {
+            //     cond: Box::new(Depends("gcc".into())),
+            //     then: Box::new(Depends("openpmix".into())),
+            // }),
+            // Box::new(NOf {
+            //     n: 1,
+            //     of: vec![
+            //         Box::new(SpecOptionEqual {
+            //             package_name: None,
+            //             option_name: "openmpi".into(),
+            //             equal_to: SpecOptionValue::Bool(true),
+            //         }),
+            //         Box::new(SpecOptionEqual {
+            //             package_name: None,
+            //             option_name: "mpich".into(),
+            //             equal_to: SpecOptionValue::Bool(true),
+            //         }),
+            //         Box::new(specoptionequal {
+            //             package_name: none,
+            //             option_name: "intelmpi".into(),
+            //             equal_to: specoptionvalue::bool(true),
+            //         }),
+            //     ],
+            // }),
+            Box::new(NOf {
+                n: 1,
+                of: vec![
+                    Box::new(IfThen {
+                        cond: Box::new(SpecOptionEqual {
+                            package_name: None,
+                            option_name: "openmpi".into(),
+                            equal_to: SpecOptionValue::Bool(true),
+                        }),
+                        then: Box::new(Depends("openmpi".into())),
+                    }),
+                    Box::new(IfThen {
+                        cond: Box::new(SpecOptionEqual {
+                            package_name: None,
+                            option_name: "mpich".into(),
+                            equal_to: SpecOptionValue::Bool(true),
+                        }),
+                        then: Box::new(Depends("mpich".into())),
+                    }),
+                    Box::new(IfThen {
+                        cond: Box::new(SpecOptionEqual {
+                            package_name: None,
+                            option_name: "intelmpi".into(),
+                            equal_to: SpecOptionValue::Bool(true),
+                        }),
+                        then: Box::new(Depends("intelmpi".into())),
+                    }),
+                ],
+            }),
+        ],
         defaults: HashMap::default(),
     };
 
     let openblas_outline = PackageOutline {
         name: "openblas".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
+        constraints: vec![Box::new(Depends("gcc".into()))],
+        defaults: HashMap::default(),
+    };
+
+    let mkl_outline = PackageOutline {
+        name: "mkl".into(),
+        options: HashMap::default(),
+        constraints: vec![Box::new(Depends("gcc".into()))],
         defaults: HashMap::default(),
     };
 
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec![
-            "openpmix".into(),
-            "openprrte".into(),
-            "hwloc".into(),
-            "gcc".into(),
+        constraints: vec![
+            Box::new(Depends("openpmix".into())),
+            Box::new(Depends("openprrte".into())),
+            Box::new(Depends("hwloc".into())),
+            Box::new(Depends("gcc".into())),
         ],
         defaults: HashMap::from([
-            ("static".into(), None),
-            ("fabrics".into(), Some(SpecOption::Str("auto".into()))),
+            // ("static".into(), None),
+            // ("static".into(), Some(SpecOptionValue::Bool(false))),
+            ("fabrics".into(), Some(SpecOptionValue::Str("auto".into()))),
         ]),
+    };
+
+    let mpich_outline = PackageOutline {
+        name: "mpich".into(),
+        options: HashMap::default(),
+        constraints: vec![Box::new(Depends("gcc".into()))],
+        defaults: HashMap::new(),
+    };
+
+    let intelmpi_outline = PackageOutline {
+        name: "intelmpi".into(),
+        options: HashMap::default(),
+        constraints: vec![Box::new(Depends("gcc".into()))],
+        defaults: HashMap::new(),
     };
 
     let openpmix_outline = PackageOutline {
         name: "openpmix".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
+        constraints: vec![Box::new(Depends("gcc".into()))],
         defaults: HashMap::default(),
     };
 
     let openprrte_outline = PackageOutline {
         name: "openprrte".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
+        constraints: vec![Box::new(Depends("gcc".into()))],
         defaults: HashMap::default(),
     };
 
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
         options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
+        constraints: vec![Box::new(Depends("gcc".into()))],
         defaults: HashMap::default(),
     };
 
@@ -208,94 +368,83 @@ fn test_outline() {
         name: "gcc".into(),
         options: HashMap::default(),
         constraints: Vec::new(),
-        dependencies: Vec::new(),
-        defaults: HashMap::default(),
-    };
-
-    let hpl_outline_2 = PackageOutline {
-        name: "v2hpl".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec![
-            "v2openblas".into(),
-            "v2openmpi".into(),
-            "gcc".into(),
-        ],
-        defaults: HashMap::default(),
-    };
-
-    let openblas_outline_2 = PackageOutline {
-        name: "v2openblas".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
-        defaults: HashMap::default(),
-    };
-
-    let openmpi_outline_2 = PackageOutline {
-        name: "v2openmpi".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec![
-            "v2openpmix".into(),
-            "v2openprrte".into(),
-            "v2hwloc".into(),
-            "gcc".into(),
-        ],
-        defaults: HashMap::default(),
-    };
-
-    let openpmix_outline_2 = PackageOutline {
-        name: "v2openpmix".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
-        defaults: HashMap::default(),
-    };
-
-    let openprrte_outline_2 = PackageOutline {
-        name: "v2openprrte".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
-        defaults: HashMap::default(),
-    };
-
-    let hwloc_outline_2 = PackageOutline {
-        name: "v2hwloc".into(),
-        options: HashMap::default(),
-        constraints: Vec::new(),
-        dependencies: vec!["gcc".into()],
-        defaults: HashMap::default(),
+        // constraints: vec![Box::new(Depends("hpl".into()))],
+        defaults: HashMap::from([(
+            "static".into(),
+            Some(SpecOptionValue::Bool(true)),
+        )]),
     };
 
     let outlines = vec![
-        hpl_outline,
-        openblas_outline,
+        blas_outline,
         gcc_outline,
+        hpl_outline,
+        hwloc_outline,
+        intelmpi_outline,
+        mkl_outline,
+        mpi_outline,
+        mpich_outline,
+        openblas_outline,
+        openmpi_outline,
         openpmix_outline,
         openprrte_outline,
-        hwloc_outline,
-        openmpi_outline,
-        //
-        hpl_outline_2,
-        openblas_outline_2,
-        openpmix_outline_2,
-        openprrte_outline_2,
-        hwloc_outline_2,
-        openmpi_outline_2,
     ];
 
     let mut outline = SpecOutline::new(outlines);
+    outline.required.push("hpl".to_string());
+
     outline.propagate_defaults().unwrap();
 
-    println!(
-        "{}",
-        petgraph::dot::Dot::with_config(
-            &outline.graph,
-            &[petgraph::dot::Config::EdgeNoLabel]
-        )
-    );
+    let mut config = z3::Config::new();
+    config.set_bool_param_value("unsat_core", true);
+
+    let (optimizer, vars) = outline.gen_spec_solver().unwrap();
+
+    println!("\n\n");
+
+    match optimizer.check(&[]) {
+        z3::SatResult::Unsat => {
+            tracing::info!("unsat");
+            todo!();
+        }
+        z3::SatResult::Unknown => {
+            tracing::info!("unknown");
+            todo!();
+        }
+        z3::SatResult::Sat => {
+            tracing::info!("sat");
+
+            let model = optimizer.get_model().unwrap();
+
+            for (k, v) in vars {
+                println!("{k:?} -> {:?}", model.eval(&v, true));
+            }
+        }
+    }
+
+    println!("\n\n");
+
+    // let mut child = std::process::Command::new("dot")
+    //     .arg("-Tsvg")
+    //     .arg("-o")
+    //     .arg("output.svg")
+    //     .stdin(std::process::Stdio::piped())
+    //     .spawn()
+    //     .expect("Failed to spawn dot process");
+    //
+    // if let Some(mut stdin) = child.stdin.take() {
+    //     write!(
+    //         stdin,
+    //         "{}",
+    //         petgraph::dot::Dot::with_config(
+    //             &outline.graph,
+    //             &[petgraph::dot::Config::EdgeNoLabel]
+    //         )
+    //     )
+    //     .expect("Failed to write to stdin");
+    // }
+    //
+    // child.wait().expect("dot command failed");
 
     println!("TopoSort: {:?}", petgraph::algo::toposort(&outline.graph, None));
 
