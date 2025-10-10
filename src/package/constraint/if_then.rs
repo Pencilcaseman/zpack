@@ -1,7 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+use z3::SortKind;
+
 use super::Constraint;
-use crate::spec::spec_option::SpecOption;
+use crate::{
+    package::outline::SolverError,
+    spec::spec_option::{PackageOptionAstMap, SpecOption},
+};
 
 #[derive(Debug)]
 pub struct IfThen {
@@ -27,39 +32,46 @@ impl Constraint for IfThen {
     fn as_cond<'a>(
         &self,
         package: &str,
-        option_ast: &std::collections::HashMap<
-            (&'a str, &'a str),
-            z3::ast::Dynamic,
-        >,
-    ) -> Option<z3::ast::Bool> {
-        self.cond.to_z3_clause(package, option_ast).map(|v| v.as_bool())?
+        option_ast: &PackageOptionAstMap<'a>,
+    ) -> Result<z3::ast::Bool, SolverError> {
+        let var = self.cond.to_z3_clause(package, option_ast)?;
+
+        match var.sort_kind() {
+            SortKind::Bool => Ok(var.as_bool().unwrap()),
+            kind => Err(SolverError::IncorrectType {
+                expected: SortKind::Bool,
+                received: kind,
+            }),
+        }
     }
 
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &std::collections::HashMap<
-            (&'a str, &'a str),
-            z3::ast::Dynamic,
-        >,
-    ) -> Option<z3::ast::Dynamic> {
+        option_ast: &PackageOptionAstMap<'a>,
+    ) -> Result<z3::ast::Dynamic, SolverError> {
         tracing::info!(
-            "{}->(if '{:?}' then '{:?}')",
+            "{} -> (if '{:?}' then '{:?}')",
             package,
             self.cond,
             self.then
         );
 
-        let Some(cond) = self.cond.as_cond(package, option_ast) else {
-            tracing::error!("invalid `cond` in IfThen");
-            return None;
-        };
+        let cond = self.cond.as_cond(package, option_ast)?;
 
-        let Some(then) = self.then.as_cond(package, option_ast) else {
-            tracing::error!("invalid `then` in IfThen");
-            return None;
-        };
+        let var = self.then.to_z3_clause(package, option_ast)?;
+        let then = match var.sort_kind() {
+            SortKind::Bool => Ok(var.as_bool().unwrap()),
 
-        Some(cond.implies(then).into())
+            kind => {
+                tracing::error!("`then` must be Bool");
+                Err(SolverError::IncorrectType {
+                    expected: SortKind::Bool,
+                    received: kind,
+                })
+            }
+        }?;
+
+        Ok(cond.implies(then).into())
     }
 }

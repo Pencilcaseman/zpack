@@ -10,18 +10,16 @@
 use std::collections::HashMap;
 
 use petgraph::{algo::Cycle, graph::DiGraph, visit::EdgeRef};
-use z3::{Optimize, Solver};
+use z3::{Optimize, SortKind};
 
-use super::constraint::{Constraint, ZPACK_ACTIVE_STR};
+use super::constraint::Constraint;
 use crate::{
     package::constraint::{SOFT_PACKAGE_WEIGHT, spec_option::SpecOptionEqual},
-    spec::spec_option::{SpecOption, SpecOptionValue},
+    spec::spec_option::{PackageOptionAstMap, SpecOption, SpecOptionValue},
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
 pub type SpecMap = HashMap<String, Option<SpecOptionValue>>;
-pub type PackageOptionAstMap<'a> =
-    HashMap<(&'a str, &'a str), z3::ast::Dynamic>;
 
 #[derive(Debug, Default)]
 pub struct PackageOutline {
@@ -74,8 +72,17 @@ pub enum GenSpecSolverError {
     InvalidConstraint(String),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SolverError {
+    DuplicateOption(String),
+    MissingDependency { package: String, dep: String },
+    MissingVariable { package: String, name: String },
+    IncorrectType { expected: SortKind, received: SortKind },
+    InvalidConstraint(String),
+}
+
 impl SpecOutline {
-    pub fn new(outlines: Vec<PackageOutline>) -> Self {
+    pub fn new(outlines: Vec<PackageOutline>) -> Result<Self, SolverError> {
         let mut lookup = HashMap::new();
         let mut graph = PackageDiGraph::new();
 
@@ -88,9 +95,23 @@ impl SpecOutline {
         let mut edges = Vec::new();
 
         for src in graph.node_indices() {
+            let src_name = &graph[src].name;
+
             for dep in &graph[src].dependencies() {
-                let dst = lookup[dep];
-                edges.push((src, dst));
+                edges.push((
+                    src,
+                    *lookup.get(dep).ok_or_else(|| {
+                        tracing::error!(
+                            "missing dependency '{dep}'; required by '{}'",
+                            src_name
+                        );
+
+                        SolverError::MissingDependency {
+                            package: src_name.clone(),
+                            dep: dep.clone(),
+                        }
+                    })?,
+                ))
             }
         }
 
@@ -98,7 +119,7 @@ impl SpecOutline {
 
         let required = Vec::new();
 
-        Self { graph, lookup, required }
+        Ok(Self { graph, lookup, required })
     }
 
     /// Propagate default values throughout the DAG.
@@ -164,6 +185,10 @@ impl SpecOutline {
                                     if old_val != src_val {
                                         // Conflict
 
+                                        tracing::error!(
+                                            "conflicting default values detected"
+                                        );
+
                                         let e =
                                             PropagateDefaultError::Conflict {
                                                 package_name: dep.name.clone(),
@@ -220,10 +245,10 @@ impl SpecOutline {
 
     pub fn gen_spec_solver(
         &mut self,
-    ) -> Result<(Optimize, PackageOptionAstMap<'_>), GenSpecSolverError> {
+    ) -> Result<(Optimize, PackageOptionAstMap<'_>), SolverError> {
         tracing::info!("generating spec solver");
 
-        let mut option_asts = HashMap::<(&str, &str), z3::ast::Dynamic>::new();
+        let mut option_asts = PackageOptionAstMap::new();
 
         let optimizer = Optimize::new();
 
@@ -238,10 +263,8 @@ impl SpecOutline {
             // This variable implies all the package's constraints are true,
             // allowing us to effectively toggle the package on and off.
 
-            let package_toggle = z3::ast::Bool::new_const(format!(
-                "{}:__zpack_active",
-                package.name
-            ));
+            let package_toggle =
+                z3::ast::Bool::new_const(format!("{}", package.name));
 
             optimizer.assert_soft(
                 &package_toggle.not(),
@@ -249,10 +272,7 @@ impl SpecOutline {
                 None,
             );
 
-            option_asts.insert(
-                (&package.name, ZPACK_ACTIVE_STR),
-                package_toggle.into(),
-            );
+            option_asts.insert((&package.name, None), package_toggle.into());
 
             // Create variables for each package option
             for (name, value) in package
@@ -267,12 +287,17 @@ impl SpecOutline {
                 );
 
                 option_asts.insert(
-                    (&package.name, name),
+                    (&package.name, Some(name)),
                     value.to_z3_dynamic(&package.name, name),
                 );
             }
 
             for (name, value) in &package.set_options {
+                tracing::info!(
+                    "adding explicit value {}:{name} -> {value:?}",
+                    package.name
+                );
+
                 additional_constraints.push((
                     idx,
                     Box::new(SpecOptionEqual {
@@ -288,9 +313,9 @@ impl SpecOutline {
             let package = &self.graph[idx];
 
             optimizer.assert_and_track(
-                &option_asts[&(package.name.as_ref(), ZPACK_ACTIVE_STR)]
+                &option_asts[&(package.name.as_ref(), None)]
                     .as_bool()
-                    .unwrap()
+                    .unwrap() // Safe because package toggle guaranteed to exist
                     .implies(
                         value
                             .to_z3_clause(&package.name, &option_asts)
@@ -302,11 +327,21 @@ impl SpecOutline {
             );
         }
 
-        for required in &self.required {
-            optimizer.assert(
-                &option_asts[&(required.as_str(), ZPACK_ACTIVE_STR)]
-                    .as_bool()
-                    .unwrap(),
+        for r in &self.required {
+            let Some(d) = option_asts.get(&(r.as_str(), None)) else {
+                tracing::error!("missing explicitly required dependency '{r}'");
+
+                return Err(SolverError::MissingDependency {
+                    package: "REQUIRED".to_string(),
+                    dep: r.clone(),
+                });
+            };
+
+            optimizer.assert_and_track(
+                &d.as_bool().unwrap(),
+                &z3::ast::Bool::new_const(format!(
+                    "'{r}' reqauired explicitly"
+                )),
             );
         }
 
@@ -324,19 +359,29 @@ impl SpecOutline {
                 );
 
                 let package_toggle = option_asts
-                    [&(package.name.as_str(), ZPACK_ACTIVE_STR)]
+                    [&(package.name.as_str(), None)]
                     .as_bool()
                     .unwrap();
 
-                match constraint.to_z3_clause(&package.name, &option_asts) {
-                    Some(c) => optimizer.assert_and_track(
-                        &package_toggle.implies(c.as_bool().unwrap()),
-                        &z3::ast::Bool::new_const(format!("{constraint:?}")),
-                    ),
-                    None => {
-                        return Err(GenSpecSolverError::InvalidConstraint(
-                            package.name.clone(),
-                        ));
+                let clause =
+                    constraint.to_z3_clause(&package.name, &option_asts)?;
+
+                match clause.sort_kind() {
+                    SortKind::Bool => {
+                        optimizer.assert_and_track(
+                            &package_toggle.implies(clause.as_bool().unwrap()),
+                            &z3::ast::Bool::new_const(format!(
+                                "{constraint:?}"
+                            )),
+                        );
+                    }
+                    kind => {
+                        tracing::error!("clause must be Bool");
+
+                        return Err(SolverError::IncorrectType {
+                            expected: SortKind::Bool,
+                            received: kind,
+                        });
                     }
                 }
             }

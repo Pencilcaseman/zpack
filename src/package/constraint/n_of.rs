@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use z3::ast::Bool;
+use z3::{SortKind, ast::Bool};
 
 use super::Constraint;
-use crate::spec::spec_option::SpecOption;
+use crate::{
+    package::outline::SolverError,
+    spec::spec_option::{PackageOptionAstMap, SpecOption},
+};
 
 #[derive(Debug)]
 pub struct NOf {
@@ -23,13 +26,10 @@ impl Constraint for NOf {
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &std::collections::HashMap<
-            (&'a str, &'a str),
-            z3::ast::Dynamic,
-        >,
-    ) -> Option<z3::ast::Dynamic> {
+        option_ast: &PackageOptionAstMap,
+    ) -> Result<z3::ast::Dynamic, SolverError> {
         tracing::info!(
-            "{}->(exactly {} of {} constraints)",
+            "{} -> (exactly {} of {} constraints)",
             package,
             self.n,
             self.of.len()
@@ -42,15 +42,27 @@ impl Constraint for NOf {
         let mut implications = Vec::new();
 
         for constraint in &self.of {
-            clauses.push((constraint.as_cond(package, option_ast)?, 1));
-            implications
-                .push(constraint.to_z3_clause(package, option_ast)?.as_bool()?);
+            let cond = constraint.as_cond(package, option_ast)?;
+            let imp = constraint.to_z3_clause(package, option_ast)?;
+
+            match imp.sort_kind() {
+                SortKind::Bool => {
+                    clauses.push((cond, 1));
+                    implications.push(imp.as_bool().unwrap());
+                }
+                kind => {
+                    return Err(SolverError::IncorrectType {
+                        expected: SortKind::Bool,
+                        received: kind,
+                    });
+                }
+            }
         }
 
         let refs = clauses.iter().map(|(b, m)| (b, *m)).collect::<Vec<_>>();
         let mut constraints = vec![Bool::pb_eq(&refs, self.n)];
         constraints.extend(implications);
 
-        Some(Bool::and(&constraints).into())
+        Ok(Bool::and(&constraints).into())
     }
 }

@@ -159,6 +159,11 @@ fn test_outline() {
             Box::new(Depends("blas".into())),
             Box::new(Depends("mpi".into())),
             Box::new(Depends("gcc".into())),
+            Box::new(SpecOptionEqual {
+                package_name: Some("mpi".into()),
+                option_name: "openmpi_off".into(),
+                equal_to: SpecOptionValue::Bool(false),
+            }),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
@@ -329,7 +334,7 @@ fn test_outline() {
         openprrte_outline,
     ];
 
-    let mut outline = SpecOutline::new(outlines);
+    let mut outline = SpecOutline::new(outlines).unwrap();
     outline.required.push("hpl".to_string());
 
     outline.propagate_defaults().unwrap();
@@ -344,7 +349,15 @@ fn test_outline() {
     match optimizer.check(&[]) {
         z3::SatResult::Unsat => {
             tracing::info!("unsat");
-            todo!();
+
+            println!("No solution found.");
+            // println!("Proof: {:?}", optimizer.get_proof());
+            println!("UnsatCore: {:?}", optimizer.get_unsat_core());
+
+            println!("Conflicting Constraints:");
+            for lit in optimizer.get_unsat_core() {
+                println!("- {lit:?}");
+            }
         }
         z3::SatResult::Unknown => {
             tracing::info!("unknown");
@@ -501,9 +514,6 @@ fn main() -> Result<()> {
     tracing::subscriber::set_global_default(
         zpack::util::subscriber::subscriber(),
     )?;
-
-    tracing::info!("Debug Information");
-    tracing::warn!("Warning Information");
 
     let thing = "Hello, World!";
     let things: Vec<usize> = thing.char_indices().map(|(idx, _)| idx).collect();

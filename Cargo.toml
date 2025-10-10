@@ -23,8 +23,7 @@ name = "zpack"
 crate-type = ["rlib", "cdylib"]
 
 [features]
-# default = ["tracing_release_max_level_off"]
-default = []
+default = ["tracing_release_max_level_warn"]
 
 cheap_errors = []
 
@@ -33,19 +32,19 @@ z3_gh_release = ["z3/gh-release"]
 z3_bundled = ["z3/bundled"]
 z3_vcpkg = ["z3/vcpkg"]
 
+tracing_max_level_off = ["tracing/max_level_off"]
 tracing_max_level_error = ["tracing/max_level_error"]
 tracing_max_level_warn = ["tracing/max_level_warn"]
 tracing_max_level_info = ["tracing/max_level_info"]
 tracing_max_level_debug = ["tracing/max_level_debug"]
 tracing_max_level_trace = ["tracing/max_level_trace"]
-tracing_max_level_off = ["tracing/max_level_off"]
 
+tracing_release_max_level_off = ["tracing/release_max_level_off"]
 tracing_release_max_level_error = ["tracing/release_max_level_error"]
 tracing_release_max_level_warn = ["tracing/release_max_level_warn"]
 tracing_release_max_level_info = ["tracing/release_max_level_info"]
 tracing_release_max_level_debug = ["tracing/release_max_level_debug"]
 tracing_release_max_level_trace = ["tracing/release_max_level_trace"]
-tracing_release_max_level_off = ["tracing/release_max_level_off"]
 
 mpi = ["dep:mpi"]
 

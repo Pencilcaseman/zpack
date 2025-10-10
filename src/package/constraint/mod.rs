@@ -1,9 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::spec::spec_option::SpecOption;
+use z3::SortKind;
 
-pub const ZPACK_ACTIVE_STR: &str = "__zpack_active";
-pub const SOFT_PACKAGE_WEIGHT: usize = 100;
+use crate::{
+    package::outline::SolverError,
+    spec::spec_option::{PackageOptionAstMap, SpecOption},
+};
+
+pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 
 pub trait Constraint: std::fmt::Debug {
     fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption>;
@@ -12,16 +16,20 @@ pub trait Constraint: std::fmt::Debug {
     fn as_cond<'a>(
         &self,
         package: &str,
-        option_ast: &HashMap<(&'a str, &'a str), z3::ast::Dynamic>,
-    ) -> Option<z3::ast::Bool> {
-        self.to_z3_clause(package, option_ast)?.as_bool()
+        option_ast: &PackageOptionAstMap<'a>,
+    ) -> Result<z3::ast::Bool, SolverError> {
+        let val = self.to_z3_clause(package, option_ast)?;
+        val.as_bool().ok_or(SolverError::IncorrectType {
+            expected: SortKind::Bool,
+            received: val.sort_kind(),
+        })
     }
 
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &HashMap<(&'a str, &'a str), z3::ast::Dynamic>,
-    ) -> Option<z3::ast::Dynamic>;
+        option_ast: &PackageOptionAstMap<'a>,
+    ) -> Result<z3::ast::Dynamic, SolverError>;
 }
 
 pub mod depends;

@@ -1,4 +1,7 @@
-use std::{hash::Hash, str::FromStr};
+use std::{collections::HashMap, hash::Hash, str::FromStr};
+
+pub type PackageOptionAstMap<'a> =
+    HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
