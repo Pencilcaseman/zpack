@@ -1,5 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
+use dyn_clone::DynClone;
+use pyo3::{
+    conversion::FromPyObjectBound, exceptions::PyTypeError, prelude::*,
+};
 use z3::SortKind;
 
 use crate::{
@@ -9,7 +13,7 @@ use crate::{
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 
-pub trait Constraint: std::fmt::Debug {
+pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone {
     fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption>;
     fn extract_dependencies(&self) -> HashSet<String>;
 
@@ -30,9 +34,59 @@ pub trait Constraint: std::fmt::Debug {
         package: &str,
         option_ast: &PackageOptionAstMap<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError>;
+
+    fn to_python_any<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>>;
 }
 
-pub mod depends;
-pub mod if_then;
-pub mod n_of;
-pub mod spec_option;
+dyn_clone::clone_trait_object!(Constraint);
+
+mod depends;
+mod if_then;
+mod num_of;
+mod spec_option;
+
+pub use depends::Depends;
+pub use if_then::IfThen;
+pub use num_of::NumOf;
+pub use spec_option::SpecOptionEqual;
+
+impl<'py> FromPyObject<'py> for Box<dyn Constraint> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        fn try_extract<'py2, T>(
+            ob: &Bound<'py2, PyAny>,
+        ) -> PyResult<Box<dyn Constraint>>
+        where
+            T: Constraint + FromPyObject<'py2> + 'static,
+        {
+            Ok(Box::new(ob.extract::<T>()?))
+        }
+
+        try_extract::<Depends>(ob)
+            .or_else(|_| try_extract::<IfThen>(ob))
+            .or_else(|_| try_extract::<NumOf>(ob))
+            .or_else(|_| try_extract::<SpecOptionEqual>(ob))
+            .map_err(|_| {
+                let msg =
+                    format!("cannot convert '{}' to Constraint", ob.get_type());
+
+                tracing::error!("{msg}");
+                PyTypeError::new_err(msg)
+            })
+    }
+}
+
+impl<'py> IntoPyObject<'py> for Box<dyn Constraint> {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(
+        self,
+        py: Python<'py>,
+    ) -> Result<Self::Output, Self::Error> {
+        self.to_python_any(py)
+    }
+}

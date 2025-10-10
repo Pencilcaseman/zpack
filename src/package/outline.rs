@@ -7,25 +7,37 @@
 //! a concrete, satisfiable set of dependencies and options which can then be
 //! built and installed.
 
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, hash_map},
+    sync::{Arc, Mutex},
+};
 
 use petgraph::{algo::Cycle, graph::DiGraph, visit::EdgeRef};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use z3::{Optimize, SortKind};
 
 use super::constraint::Constraint;
 use crate::{
-    package::constraint::{SOFT_PACKAGE_WEIGHT, spec_option::SpecOptionEqual},
+    package::constraint::{SOFT_PACKAGE_WEIGHT, SpecOptionEqual},
     spec::spec_option::{PackageOptionAstMap, SpecOptionValue},
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
 pub type SpecMap = HashMap<String, Option<SpecOptionValue>>;
 
-#[derive(Debug, Default)]
+#[pyclass]
+#[derive(Clone, Debug, Default)]
 pub struct PackageOutline {
+    #[pyo3(get, set)]
     pub name: String,
+
+    #[pyo3(get, set)]
     pub constraints: Vec<Box<dyn Constraint>>,
+
+    #[pyo3(get, set)]
     pub set_options: HashMap<String, SpecOptionValue>,
+
+    #[pyo3(get, set)]
     pub set_defaults: HashMap<String, Option<SpecOptionValue>>,
 }
 
@@ -388,5 +400,64 @@ impl SpecOutline {
         }
 
         Ok((optimizer, option_asts))
+    }
+}
+
+// #[pyclass(name = "PackageOutline")]
+// #[derive(Debug, Clone)]
+// pub struct PyPackageOutline {
+//     #[pyo3(get, set)]
+//     pub name: String,
+//
+//     #[pyo3(get, set)]
+//     pub constraints: Vec<Py<PyAny>>,
+//
+//     #[pyo3(get, set)]
+//     pub set_options: HashMap<String, SpecOptionValue>,
+//
+//     #[pyo3(get, set)]
+//     pub set_defaults: HashMap<String, Option<SpecOptionValue>>,
+// }
+
+#[pymethods]
+impl PackageOutline {
+    #[new]
+    #[pyo3(signature = (name, constraints=None, set_options=None, set_defaults=None, **kwargs))]
+    pub fn py_new(
+        name: &str,
+        constraints: Option<Vec<Box<dyn Constraint>>>,
+        set_options: Option<HashMap<String, SpecOptionValue>>,
+        set_defaults: Option<HashMap<String, Option<SpecOptionValue>>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut instance = Self {
+            name: name.to_string(),
+            constraints: constraints.unwrap_or_default(),
+            set_options: set_options.unwrap_or_default(),
+            set_defaults: set_defaults.unwrap_or_default(),
+        };
+
+        if let Some(kwargs) = kwargs {
+            for (key, value) in kwargs {
+                match key.extract::<&str>()? {
+                    "constraints" => instance.constraints = value.extract()?,
+                    "set_options" => instance.set_options = value.extract()?,
+                    "set_defaults" => {
+                        instance.set_defaults = value.extract()?
+                    }
+                    _ => {
+                        tracing::error!(
+                            "PyPackageOutline unexpected keyword argument '{key}'"
+                        );
+
+                        return Err(PyValueError::new_err(format!(
+                            "PyPackageOutline unexpected keyword argument '{key}'"
+                        )));
+                    }
+                }
+            }
+        }
+
+        Ok(instance)
     }
 }

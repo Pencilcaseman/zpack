@@ -16,7 +16,7 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use tracing::instrument;
-use zpack::package::constraint::n_of::NOf;
+use zpack::package::constraint::NumOf;
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -137,9 +137,7 @@ fn test_outline() {
 
     use zpack::{
         package::{
-            constraint::{
-                depends::Depends, if_then::IfThen, spec_option::SpecOptionEqual,
-            },
+            constraint::{Depends, IfThen, SpecOptionEqual},
             outline::{PackageOutline, SpecOutline},
         },
         spec::spec_option::SpecOptionValue,
@@ -148,12 +146,12 @@ fn test_outline() {
     let hpl_outline = PackageOutline {
         name: "hpl".into(),
         constraints: vec![
-            Box::new(Depends("blas".into())),
-            Box::new(Depends("mpi".into())),
-            Box::new(Depends("gcc".into())),
+            Box::new(Depends::new("blas".into())),
+            Box::new(Depends::new("mpi".into())),
+            Box::new(Depends::new("gcc".into())),
             Box::new(SpecOptionEqual {
                 package_name: Some("mpi".into()),
-                option_name: "openmpi_off".into(),
+                option_name: "openmpi".into(),
                 equal_to: SpecOptionValue::Bool(false),
             }),
         ],
@@ -167,7 +165,7 @@ fn test_outline() {
     let blas_outline = PackageOutline {
         name: "blas".into(),
 
-        constraints: vec![Box::new(NOf {
+        constraints: vec![Box::new(NumOf {
             n: 1,
             of: vec![
                 Box::new(IfThen {
@@ -176,7 +174,7 @@ fn test_outline() {
                         option_name: "openblas".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends("openblas".into())),
+                    then: Box::new(Depends::new("openblas".into())),
                 }),
                 Box::new(IfThen {
                     cond: Box::new(SpecOptionEqual {
@@ -184,7 +182,7 @@ fn test_outline() {
                         option_name: "mkl".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends("mkl".into())),
+                    then: Box::new(Depends::new("mkl".into())),
                 }),
             ],
         })],
@@ -199,7 +197,7 @@ fn test_outline() {
     let mpi_outline = PackageOutline {
         name: "mpi".into(),
 
-        constraints: vec![Box::new(NOf {
+        constraints: vec![Box::new(NumOf {
             n: 1,
             of: vec![
                 Box::new(IfThen {
@@ -208,7 +206,7 @@ fn test_outline() {
                         option_name: "openmpi".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends("openmpi".into())),
+                    then: Box::new(Depends::new("openmpi".into())),
                 }),
                 Box::new(IfThen {
                     cond: Box::new(SpecOptionEqual {
@@ -216,7 +214,7 @@ fn test_outline() {
                         option_name: "mpich".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends("mpich".into())),
+                    then: Box::new(Depends::new("mpich".into())),
                 }),
                 Box::new(IfThen {
                     cond: Box::new(SpecOptionEqual {
@@ -224,7 +222,7 @@ fn test_outline() {
                         option_name: "intelmpi".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends("intelmpi".into())),
+                    then: Box::new(Depends::new("intelmpi".into())),
                 }),
             ],
         })],
@@ -238,14 +236,14 @@ fn test_outline() {
 
     let openblas_outline = PackageOutline {
         name: "openblas".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
 
     let mkl_outline = PackageOutline {
         name: "mkl".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
@@ -253,10 +251,10 @@ fn test_outline() {
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         constraints: vec![
-            Box::new(Depends("openpmix".into())),
-            Box::new(Depends("openprrte".into())),
-            Box::new(Depends("hwloc".into())),
-            Box::new(Depends("gcc".into())),
+            Box::new(Depends::new("openpmix".into())),
+            Box::new(Depends::new("openprrte".into())),
+            Box::new(Depends::new("hwloc".into())),
+            Box::new(Depends::new("gcc".into())),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
@@ -268,35 +266,35 @@ fn test_outline() {
 
     let mpich_outline = PackageOutline {
         name: "mpich".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::new(),
     };
 
     let intelmpi_outline = PackageOutline {
         name: "intelmpi".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::new(),
     };
 
     let openpmix_outline = PackageOutline {
         name: "openpmix".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
 
     let openprrte_outline = PackageOutline {
         name: "openprrte".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
 
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
-        constraints: vec![Box::new(Depends("gcc".into()))],
+        constraints: vec![Box::new(Depends::new("gcc".into()))],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };

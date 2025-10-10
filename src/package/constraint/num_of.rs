@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::{SortKind, ast::Bool};
 
 use super::Constraint;
@@ -8,13 +9,17 @@ use crate::{
     spec::spec_option::{PackageOptionAstMap, SpecOption},
 };
 
-#[derive(Debug)]
-pub struct NOf {
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct NumOf {
+    #[pyo3(get, set)]
     pub n: i32,
+
+    #[pyo3(get, set)]
     pub of: Vec<Box<dyn Constraint>>,
 }
 
-impl Constraint for NOf {
+impl Constraint for NumOf {
     fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
         self.of.iter().flat_map(|c| c.extract_spec_options(package)).collect()
     }
@@ -64,5 +69,12 @@ impl Constraint for NOf {
         constraints.extend(implications);
 
         Ok(Bool::and(&constraints).into())
+    }
+
+    fn to_python_any<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.clone().into_bound_py_any(py)
     }
 }

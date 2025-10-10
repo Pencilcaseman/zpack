@@ -1,5 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
+use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::SortKind;
 
 use super::Constraint;
@@ -8,9 +12,13 @@ use crate::{
     spec::spec_option::{PackageOptionAstMap, SpecOption},
 };
 
-#[derive(Debug)]
+#[pyclass(unsendable)]
+#[derive(Clone, Debug)]
 pub struct IfThen {
+    #[pyo3(get, set)]
     pub cond: Box<dyn Constraint>,
+
+    #[pyo3(get, set)]
     pub then: Box<dyn Constraint>,
 }
 
@@ -73,5 +81,12 @@ impl Constraint for IfThen {
         }?;
 
         Ok(cond.implies(then).into())
+    }
+
+    fn to_python_any<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, pyo3::PyAny>> {
+        self.clone().into_bound_py_any(py)
     }
 }

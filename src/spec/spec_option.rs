@@ -1,5 +1,12 @@
 use std::{collections::HashMap, hash::Hash, str::FromStr};
 
+use pyo3::{
+    BoundObject, IntoPyObjectExt,
+    exceptions::PyTypeError,
+    prelude::*,
+    types::{PyBool, PyFloat, PyInt, PyString},
+};
+
 pub type PackageOptionAstMap<'a> =
     HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>;
 
@@ -94,6 +101,46 @@ impl SpecOption {
             SpecOptionType::Int => Int::new_const(n).into(),
             SpecOptionType::Float => Float::new_const_double(n).into(),
             SpecOptionType::Str => String::new_const(n).into(),
+        }
+    }
+}
+
+impl<'py> FromPyObject<'py> for SpecOptionValue {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(b) = ob.extract::<bool>() {
+            Ok(Self::Bool(b))
+        } else if let Ok(i) = ob.extract::<i64>() {
+            Ok(Self::Int(i))
+        } else if let Ok(f) = ob.extract::<f64>() {
+            Ok(Self::Float(f))
+        } else if let Ok(s) = ob.extract::<&str>() {
+            Ok(Self::Str(s.to_string()))
+        } else {
+            let msg = format!(
+                "cannot cast Python type '{}' to SpecOptionValue",
+                ob.get_type()
+            );
+
+            tracing::error!("{msg}");
+            Err(PyTypeError::new_err(msg))
+        }
+    }
+}
+
+impl<'py> IntoPyObject<'py> for SpecOptionValue {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(
+        self,
+        py: Python<'py>,
+    ) -> Result<Self::Output, Self::Error> {
+        match self {
+            Self::Bool(b) => Ok(PyBool::new(py, b).into_bound_py_any(py)?),
+            Self::Int(i) => Ok(PyInt::new(py, i).into_bound_py_any(py)?),
+            Self::Float(f) => Ok(PyFloat::new(py, f).into_bound_py_any(py)?),
+            Self::Str(s) => Ok(PyString::new(py, &s).into_bound_py_any(py)?),
         }
     }
 }

@@ -1,14 +1,22 @@
 use std::collections::{HashMap, HashSet};
 
+use pyo3::{IntoPyObjectExt, prelude::*};
+
 use crate::{
     package::{constraint::Constraint, outline::SolverError},
     spec::spec_option::{PackageOptionAstMap, SpecOption, SpecOptionValue},
 };
 
+#[pyclass]
 #[derive(Clone, Debug)]
 pub struct SpecOptionEqual {
+    #[pyo3(get, set)]
     pub package_name: Option<String>,
+
+    #[pyo3(get, set)]
     pub option_name: String,
+
+    #[pyo3(get, set)]
     pub equal_to: SpecOptionValue,
 }
 
@@ -72,5 +80,12 @@ impl Constraint for SpecOptionEqual {
                 }
             }
         }
+    }
+
+    fn to_python_any<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+    ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
+        self.clone().into_bound_py_any(py)
     }
 }
