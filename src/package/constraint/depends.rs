@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use z3::{Sort, SortKind, ast::Ast};
+use z3::SortKind;
 
 use super::Constraint;
 use crate::{

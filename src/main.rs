@@ -1,9 +1,6 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
-use std::{
-    io::{self, Write},
-    sync::{Arc, Mutex},
-};
+use std::io;
 
 use anyhow::Result;
 use clap::{
@@ -19,11 +16,7 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use tracing::instrument;
-use z3::{Optimize, PrepareSynchronized};
-use zpack::{
-    package::constraint::n_of::NOf,
-    spec::spec_option::{SpecOption, SpecOptionType},
-};
+use zpack::package::constraint::n_of::NOf;
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -145,10 +138,9 @@ fn test_outline() {
     use zpack::{
         package::{
             constraint::{
-                Constraint, depends::Depends, if_then::IfThen,
-                spec_option::SpecOptionEqual,
+                depends::Depends, if_then::IfThen, spec_option::SpecOptionEqual,
             },
-            outline::*,
+            outline::{PackageOutline, SpecOutline},
         },
         spec::spec_option::SpecOptionValue,
     };
@@ -410,8 +402,8 @@ fn test_outline() {
 
 fn test_z3() {
     use z3::{
-        Config, Context, SatResult, Solver,
-        ast::{Ast, Bool, Int},
+        Config, SatResult, Solver,
+        ast::{Bool, Int},
     };
 
     let mut config = Config::new();
@@ -538,7 +530,7 @@ fn main() -> Result<()> {
 
     let package_option =
         &Yaml::load_from_str(r#"txt="Hello, \"Quoted\" World!""#).unwrap()[0];
-    let s = package_option.clone().into_string().unwrap();
+    let _s = package_option.clone().into_string().unwrap();
 
     println!();
 
@@ -547,7 +539,7 @@ fn main() -> Result<()> {
     // '"#;
     // let sample = r#"[1, 2, 3, "hello, world", true, [123, 456], +hello]"#;
     // let sample = r#"[1, [2, 3], 4, +thingy]"#;
-    let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false]"#;
+    // let sample = r#"thing = [1, [2, 3], 4, 5e5, "hello", true, false]"#;
 
     // let tokenized = zpack::spec::parse::tokenize_option(sample)?;
     // println!("Result: {tokenized:?}");

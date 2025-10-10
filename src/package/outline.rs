@@ -15,7 +15,7 @@ use z3::{Optimize, SortKind};
 use super::constraint::Constraint;
 use crate::{
     package::constraint::{SOFT_PACKAGE_WEIGHT, spec_option::SpecOptionEqual},
-    spec::spec_option::{PackageOptionAstMap, SpecOption, SpecOptionValue},
+    spec::spec_option::{PackageOptionAstMap, SpecOptionValue},
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;

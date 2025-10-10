@@ -17,7 +17,6 @@ exclude = []
 
 publish = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "zpack"
 crate-type = ["rlib", "cdylib"]
@@ -75,7 +74,6 @@ name = "version_parser"
 harness = false
 
 [profile.release]
-panic = "abort"
 codegen-units = 1
 lto = true
 opt-level = 3

@@ -1,4 +1,4 @@
-use pyo3::{exceptions::PyRuntimeError, prelude::*};
+use pyo3::prelude::*;
 
 pub mod package;
 pub mod spec;
