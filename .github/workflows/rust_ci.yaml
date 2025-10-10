@@ -68,7 +68,7 @@ jobs:
         run: cargo test --release --doc --features z3_bundled
 
       - name: Run Benchmarks
-        run: cargo bench --all-features
+        run: cargo bench --features z3_bundled
 
       - name: Build Documentation
         if: matrix.os == 'ubuntu-latest'
