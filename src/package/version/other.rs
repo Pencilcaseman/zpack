@@ -7,16 +7,18 @@ use pyo3::{
 };
 
 use crate::{
-    package::version::{PyVersion, Version},
+    package::version::Version,
     util::error::{ParserErrorType, ParserErrorWrapper},
 };
 
 /// Any other arbitrary version specifier
 ///
 /// For example: beta+3.4/abc
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Other {
     /// The version string
+    #[pyo3(get, set)]
     pub value: String,
 }
 
@@ -57,15 +59,15 @@ impl std::fmt::Display for Other {
     }
 }
 
-/// Python wrapper around the [`Other`] version type
-#[pyclass(name = "Other", eq, ord)]
-#[derive(Clone, PartialEq, PartialOrd)]
-pub struct PyOther {
-    pub inner: Other,
-}
+// /// Python wrapper around the [`Other`] version type
+// #[pyclass(name = "Other", eq, ord)]
+// #[derive(Clone, PartialEq, PartialOrd)]
+// pub struct PyOther {
+//     pub inner: Other,
+// }
 
 #[pymethods]
-impl PyOther {
+impl Other {
     /// Construct a new [`PyOther`] wrapper
     ///
     /// Valid inputs are:
@@ -94,16 +96,15 @@ impl PyOther {
 
                     if let Ok(s) = arg0.downcast::<PyString>() {
                         // String
-                        return Ok(Self { inner: Other::new(s.to_str()?)? });
+                        return Ok(Self::new(s.to_str()?)?);
                     } else if let Ok(other) = arg0.extract::<PyRef<Self>>() {
-                        // PyOther copy
-                        return Ok(Self { inner: (*other).inner.clone() });
-                    } else if let Ok(version) =
-                        arg0.extract::<PyRef<PyVersion>>()
+                        // Other copy
+                        return Ok((*other).clone());
+                    } else if let Ok(version) = arg0.extract::<PyRef<Version>>()
                     {
-                        // PyVersion
-                        if let Version::Other(other) = &(*version).inner {
-                            return Ok(Self { inner: other.clone() });
+                        // Version
+                        if let Version::Other(other) = &(*version) {
+                            return Ok(other.clone());
                         }
 
                         return Err(PyTypeError::new_err(format!(
@@ -143,7 +144,7 @@ impl PyOther {
                 }
             }
 
-            return Ok(Self { inner: Other { value } });
+            return Ok(Self { value });
         }
 
         Err(PyValueError::new_err("Other() requires arguments"))
@@ -151,19 +152,19 @@ impl PyOther {
 
     #[getter]
     pub fn get_value(&self) -> &str {
-        &self.inner.value
+        &self.value
     }
 
     #[setter]
     pub fn set_parts(&mut self, new_value: String) {
-        self.inner.value = new_value;
+        self.value = new_value;
     }
 
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self.inner)
+        format!("{self:?}")
     }
 
     pub fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{self}")
     }
 }

@@ -1,24 +1,26 @@
-pub mod dot_separated;
-pub mod other;
-pub mod parsers;
-pub mod semver;
-
 use anyhow::{Result, anyhow};
 use chumsky::prelude::*;
-use dot_separated::*;
-use other::*;
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
     types::{PyString, PyTuple},
 };
-use semver::*;
 
 use crate::util::error::{ParserErrorType, ParserErrorWrapper};
+
+mod dot_separated;
+mod other;
+mod parsers;
+mod semver;
+
+pub use dot_separated::DotSeparated;
+pub use other::Other;
+pub use semver::SemVer;
 
 /// Wrapper around many version types to support arbitrary version usage.
 ///
 /// See [`SemVer`], [`DotSeparated`] and [`Other`] for more information.
+#[pyclass]
 #[derive(Clone, PartialEq, PartialOrd)]
 pub enum Version {
     SemVer(SemVer),
@@ -132,15 +134,15 @@ impl TryFrom<Version> for Other {
     }
 }
 
-/// Python wrapper around a [`Version`]
-#[pyclass(name = "Version", eq, ord)]
-#[derive(Clone, PartialEq, PartialOrd)]
-pub struct PyVersion {
-    pub inner: Version,
-}
+// /// Python wrapper around a [`Version`]
+// #[pyclass(name = "Version", eq, ord)]
+// #[derive(Clone, PartialEq, PartialOrd)]
+// pub struct PyVersion {
+//     pub inner: Version,
+// }
 
 #[pymethods]
-impl PyVersion {
+impl Version {
     /// Construct a new [`PyVersion`] wrapper
     ///
     /// Valid inputs are:
@@ -161,15 +163,15 @@ impl PyVersion {
         let arg0 = args.get_item(0)?;
 
         if let Ok(s) = arg0.downcast::<PyString>() {
-            Ok(Self { inner: Version::new(s.to_str()?)? })
-        } else if let Ok(semver) = arg0.extract::<PyRef<PySemVer>>() {
-            Ok(Self { inner: Version::SemVer((*semver).inner.clone()) })
-        } else if let Ok(dotsep) = arg0.extract::<PyRef<PyDotSeparated>>() {
-            Ok(Self { inner: Version::DotSeparated((*dotsep).inner.clone()) })
-        } else if let Ok(other) = arg0.extract::<PyRef<PyOther>>() {
-            Ok(Self { inner: Version::Other((*other).inner.clone()) })
-        } else if let Ok(version) = arg0.extract::<PyRef<PyVersion>>() {
-            Ok(Self { inner: (*version).inner.clone() })
+            Ok(Version::new(s.to_str()?)?)
+        } else if let Ok(semver) = arg0.extract::<PyRef<SemVer>>() {
+            Ok(Version::SemVer((*semver).clone()))
+        } else if let Ok(dotsep) = arg0.extract::<PyRef<DotSeparated>>() {
+            Ok(Version::DotSeparated((*dotsep).clone()))
+        } else if let Ok(other) = arg0.extract::<PyRef<Other>>() {
+            Ok(Version::Other((*other).clone()))
+        } else if let Ok(version) = arg0.extract::<PyRef<Version>>() {
+            Ok((*version).clone())
         } else {
             Err(PyTypeError::new_err(format!(
                 "Cannot construct Other from type '{}'",
@@ -179,11 +181,11 @@ impl PyVersion {
     }
 
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self.inner)
+        format!("{self:?}")
     }
 
     pub fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{self}")
     }
 }
 

@@ -10,7 +10,7 @@ use pyo3::{
 
 use super::parsers::*;
 use crate::{
-    package::version::{PyVersion, Version},
+    package::version::Version,
     util::error::{ParserErrorType, ParserErrorWrapper},
 };
 
@@ -19,21 +19,27 @@ use crate::{
 /// For example: 8.4.7-alpha+5d41402a
 ///
 /// See [https://semver.org](https://semver.org) for more information
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct SemVer {
     /// Major version
+    #[pyo3(get, set)]
     pub major: u32,
 
     /// Minor version
+    #[pyo3(get, set)]
     pub minor: u32,
 
     /// Patch version
+    #[pyo3(get, set)]
     pub patch: u32,
 
     // Pre-release
+    #[pyo3(get, set)]
     pub rc: Option<Vec<String>>,
 
     /// Metadata
+    #[pyo3(get, set)]
     pub meta: Option<Vec<String>>,
 }
 
@@ -130,15 +136,15 @@ impl std::cmp::PartialOrd for SemVer {
     }
 }
 
-/// Python wrapper type for [`SemVer`]
-#[pyclass(name = "SemVer", eq, ord)]
-#[derive(Clone, PartialEq, PartialOrd)]
-pub struct PySemVer {
-    pub inner: SemVer,
-}
+// /// Python wrapper type for [`SemVer`]
+// #[pyclass(name = "SemVer", eq, ord)]
+// #[derive(Clone, PartialEq, PartialOrd)]
+// pub struct PySemVer {
+//     pub inner: SemVer,
+// }
 
 #[pymethods]
-impl PySemVer {
+impl SemVer {
     /// Construct a new [`PySemVer`] wrapper
     ///
     /// Valid inputs are:
@@ -167,16 +173,15 @@ impl PySemVer {
 
                     if let Ok(s) = arg0.downcast::<PyString>() {
                         // String
-                        return Ok(Self { inner: SemVer::new(s.to_str()?)? });
+                        return Ok(SemVer::new(s.to_str()?)?);
                     } else if let Ok(other) = arg0.extract::<PyRef<Self>>() {
-                        // PySemVer copy
-                        return Ok(Self { inner: (*other).inner.clone() });
-                    } else if let Ok(version) =
-                        arg0.extract::<PyRef<PyVersion>>()
+                        // SemVer copy
+                        return Ok((*other).clone());
+                    } else if let Ok(version) = arg0.extract::<PyRef<Version>>()
                     {
                         // PyVersion
-                        if let Version::SemVer(semver) = &(*version).inner {
-                            return Ok(Self { inner: semver.clone() });
+                        if let Version::SemVer(semver) = &(*version) {
+                            return Ok(semver.clone());
                         }
 
                         return Err(PyTypeError::new_err(format!(
@@ -251,9 +256,7 @@ impl PySemVer {
                 }
             }
 
-            return Ok(Self {
-                inner: SemVer { major, minor, patch, rc, meta },
-            });
+            return Ok(Self { major, minor, patch, rc, meta });
         }
 
         Err(PyValueError::new_err("SemVer() requires arguments"))
@@ -261,59 +264,59 @@ impl PySemVer {
 
     #[getter]
     pub fn get_major(&self) -> u32 {
-        self.inner.major
+        self.major
     }
 
     #[setter]
     pub fn set_major(&mut self, new_major: u32) {
-        self.inner.major = new_major;
+        self.major = new_major;
     }
 
     #[getter]
     pub fn get_minor(&self) -> u32 {
-        self.inner.minor
+        self.minor
     }
 
     #[setter]
     pub fn set_minor(&mut self, new_minor: u32) {
-        self.inner.minor = new_minor;
+        self.minor = new_minor;
     }
 
     #[getter]
     pub fn get_patch(&self) -> u32 {
-        self.inner.patch
+        self.patch
     }
 
     #[setter]
     pub fn set_patch(&mut self, new_patch: u32) {
-        self.inner.patch = new_patch;
+        self.patch = new_patch;
     }
 
     #[getter]
     pub fn get_rc(&self) -> &Option<Vec<String>> {
-        &self.inner.rc
+        &self.rc
     }
 
     #[setter]
     pub fn set_rc(&mut self, new_rc: Option<Vec<String>>) {
-        self.inner.rc = new_rc;
+        self.rc = new_rc;
     }
 
     #[getter]
     pub fn get_meta(&self) -> &Option<Vec<String>> {
-        &self.inner.meta
+        &self.meta
     }
 
     #[setter]
     pub fn set_meta(&mut self, new_meta: Option<Vec<String>>) {
-        self.inner.meta = new_meta;
+        self.meta = new_meta;
     }
 
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self.inner)
+        format!("{self:?}")
     }
 
     pub fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{self}")
     }
 }

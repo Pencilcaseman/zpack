@@ -546,10 +546,7 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    println!(
-        "{:?}",
-        zpack::package::version::semver::SemVer::new("1.2.3-4321")?
-    );
+    println!("{:?}", zpack::package::version::SemVer::new("1.2.3-4321")?);
 
     let test_graph = petgraph::graph::DiGraph::<i32, ()>::from_edges([
         (0, 1),

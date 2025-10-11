@@ -8,16 +8,18 @@ use pyo3::{
 
 use super::parsers::*;
 use crate::{
-    package::version::{PyVersion, Version},
+    package::version::Version,
     util::error::{ParserErrorType, ParserErrorWrapper},
 };
 
 /// Arbitrary dot-separated version
 ///
 /// For example: 2025.06.alpha.3
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct DotSeparated {
     /// Components of the version separated by '.'
+    #[pyo3(get, set)]
     pub parts: Vec<String>,
 }
 
@@ -56,15 +58,15 @@ impl std::fmt::Display for DotSeparated {
     }
 }
 
-/// Python wrapper around [`DotSeparated`]
-#[pyclass(name = "DotSeparated", eq, ord)]
-#[derive(Clone, PartialEq, PartialOrd)]
-pub struct PyDotSeparated {
-    pub inner: DotSeparated,
-}
+// /// Python wrapper around [`DotSeparated`]
+// #[pyclass(name = "DotSeparated", eq, ord)]
+// #[derive(Clone, PartialEq, PartialOrd)]
+// pub struct PyDotSeparated {
+//     pub inner: DotSeparated,
+// }
 
 #[pymethods]
-impl PyDotSeparated {
+impl DotSeparated {
     /// Construct a new [`PyDotSeparated`] wrapper
     ///
     /// Valid inputs are:
@@ -93,19 +95,15 @@ impl PyDotSeparated {
 
                     if let Ok(s) = arg0.downcast::<PyString>() {
                         // String
-                        return Ok(Self {
-                            inner: DotSeparated::new(s.to_str()?)?,
-                        });
+                        return Ok(Self::new(s.to_str()?)?);
                     } else if let Ok(other) = arg0.extract::<PyRef<Self>>() {
-                        // PyDotSeparated copy
-                        return Ok(Self { inner: (*other).inner.clone() });
-                    } else if let Ok(version) =
-                        arg0.extract::<PyRef<PyVersion>>()
+                        // DotSeparated copy
+                        return Ok((*other).clone());
+                    } else if let Ok(version) = arg0.extract::<PyRef<Version>>()
                     {
                         // PyVersion
-                        if let Version::DotSeparated(dotsep) = &(*version).inner
-                        {
-                            return Ok(Self { inner: dotsep.clone() });
+                        if let Version::DotSeparated(dotsep) = &(*version) {
+                            return Ok(dotsep.clone());
                         }
 
                         return Err(PyTypeError::new_err(format!(
@@ -145,7 +143,7 @@ impl PyDotSeparated {
                 }
             }
 
-            return Ok(Self { inner: DotSeparated { parts } });
+            return Ok(Self { parts });
         }
 
         Err(PyValueError::new_err("DotSeparated() requires arguments"))
@@ -153,19 +151,19 @@ impl PyDotSeparated {
 
     #[getter]
     pub fn get_parts(&self) -> &[String] {
-        &self.inner.parts
+        &self.parts
     }
 
     #[setter]
     pub fn set_parts(&mut self, new_parts: Vec<String>) {
-        self.inner.parts = new_parts
+        self.parts = new_parts
     }
 
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self.inner)
+        format!("{self:?}")
     }
 
     pub fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{self}")
     }
 }

@@ -2,11 +2,8 @@ name: Rust CI
 
 on:
   push:
-    branches:
-      - edge
-      - master
-    tags:
-      - '*'
+    branches: [edge, master]
+    tags: ['*']
   pull_request:
   release:
     types: [published]
@@ -16,93 +13,191 @@ permissions:
   contents: read
 
 jobs:
-  rust_ci:
-    name: Rust CI - ${{ matrix.os }}
+  debug_build:
+    name: Debug Build - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
-
     env:
       CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
-      RUSTDOCFLAGS: -D warnings
       Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
-      - name: Clone Z3 Source
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           repository: Z3Prover/z3
           path: z3_git_source
           ref: z3-4.15.3
-
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux Dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang llvm-dev libclang-dev
-
-      - name: Debug Build
-        run: cargo build --features z3_bundled
-
-      - name: Debug Test
-        run: cargo test --features z3_bundled
-
-      - name: Debug Doc Tests
-        run: cargo test --doc --features z3_bundled
-
-      - name: Release Build
-        run: cargo build --release --features z3_bundled
-
-      - name: Release Test
-        run: cargo test --release --features z3_bundled
-
-      - name: Release Doc Tests
-        run: cargo test --release --doc --features z3_bundled
-
-      - name: Run Benchmarks
-        run: cargo bench --features z3_bundled
-
-      - name: Build Documentation
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo doc --no-deps --document-private-items --features z3_bundled
-
-      - name: Upload Debug Binaries
-        uses: actions/upload-artifact@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo build --features z3_bundled
+      - uses: actions/upload-artifact@v4
         with:
           name: zpack-debug-${{ matrix.os }}
           path: |
             target/debug/*
             !target/debug/.*
-            !target/debug/build
-            !target/debug/deps
-            !target/debug/examples
-            !target/debug/incremental
-          if-no-files-found: ignore
+            !target/debug/{build,deps,examples,incremental}
 
-      - name: Upload Release Binaries
-        uses: actions/upload-artifact@v4
+  debug_test:
+    name: Debug Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo test --features z3_bundled
+
+  debug_doc_test:
+    name: Debug Doc Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo test --doc --features z3_bundled
+
+  release_build:
+    name: Release Build - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo build --release --features z3_bundled
+      - uses: actions/upload-artifact@v4
         with:
           name: zpack-release-${{ matrix.os }}
           path: |
             target/release/*
             !target/release/.*
-            !target/release/build
-            !target/release/deps
-            !target/release/examples
-            !target/release/incremental
-          if-no-files-found: ignore
+            !target/release/{build,deps,examples,incremental}
 
-      - name: Upload Documentation
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+  release_test:
+    name: Release Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo test --release --features z3_bundled
+
+  release_doc_test:
+    name: Release Doc Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo test --release --doc --features z3_bundled
+
+  benchmarks:
+    name: Benchmarks - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+    env:
+      CFLAGS_s390x_unknown_linux_gnu: '-march=z10'
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo bench --features z3_bundled
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+      Z3_SYS_BUNDLED_DIR_OVERRIDE: ${{ github.workspace }}/z3_git_source
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: Z3Prover/z3
+          path: z3_git_source
+          ref: z3-4.15.3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y build-essential clang llvm-dev libclang-dev
+      - run: cargo doc --no-deps --document-private-items --features z3_bundled
+      - uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: target/doc/

@@ -1,11 +1,8 @@
 use std::{collections::HashMap, hash::Hash, str::FromStr};
 
-use pyo3::{
-    BoundObject, IntoPyObjectExt,
-    exceptions::PyTypeError,
-    prelude::*,
-    types::{PyBool, PyFloat, PyInt, PyString},
-};
+use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
+
+use crate::package::version;
 
 pub type PackageOptionAstMap<'a> =
     HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>;
@@ -16,6 +13,7 @@ pub enum SpecOptionType {
     Int,
     Float,
     Str,
+    Version,
     // List, // TODO: How best to handle this?
 }
 
@@ -25,6 +23,7 @@ pub enum SpecOptionValue {
     Int(i64),
     Float(f64),
     Str(String),
+    Version(version::Version),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -45,6 +44,7 @@ impl SpecOptionValue {
             Self::Int(_) => SpecOptionType::Int,
             Self::Float(_) => SpecOptionType::Float,
             Self::Str(_) => SpecOptionType::Str,
+            Self::Version(_) => SpecOptionType::Version,
         }
     }
 
@@ -67,6 +67,7 @@ impl SpecOptionValue {
             Self::Int(i) => Int::from_i64(*i).into(),
             Self::Float(f) => Float::from_f64(*f).into(),
             Self::Str(s) => String::from_str(s).unwrap().into(),
+            Self::Version(v) => todo!(),
         }
     }
 }
@@ -101,6 +102,7 @@ impl SpecOption {
             SpecOptionType::Int => Int::new_const(n).into(),
             SpecOptionType::Float => Float::new_const_double(n).into(),
             SpecOptionType::Str => String::new_const(n).into(),
+            SpecOptionType::Version => todo!(),
         }
     }
 }
@@ -115,6 +117,8 @@ impl<'py> FromPyObject<'py> for SpecOptionValue {
             Ok(Self::Float(f))
         } else if let Ok(s) = ob.extract::<&str>() {
             Ok(Self::Str(s.to_string()))
+        } else if let Ok(v) = ob.extract::<version::Version>() {
+            todo!()
         } else {
             let msg = format!(
                 "cannot cast Python type '{}' to SpecOptionValue",
@@ -137,10 +141,11 @@ impl<'py> IntoPyObject<'py> for SpecOptionValue {
         py: Python<'py>,
     ) -> Result<Self::Output, Self::Error> {
         match self {
-            Self::Bool(b) => Ok(PyBool::new(py, b).into_bound_py_any(py)?),
-            Self::Int(i) => Ok(PyInt::new(py, i).into_bound_py_any(py)?),
-            Self::Float(f) => Ok(PyFloat::new(py, f).into_bound_py_any(py)?),
-            Self::Str(s) => Ok(PyString::new(py, &s).into_bound_py_any(py)?),
+            Self::Bool(b) => Ok(b.into_bound_py_any(py)?),
+            Self::Int(i) => Ok(i.into_bound_py_any(py)?),
+            Self::Float(f) => Ok(f.into_bound_py_any(py)?),
+            Self::Str(s) => Ok(s.into_bound_py_any(py)?),
+            Self::Version(v) => Ok(v.into_bound_py_any(py)?),
         }
     }
 }

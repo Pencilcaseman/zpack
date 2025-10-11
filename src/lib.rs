@@ -4,18 +4,36 @@ pub mod package;
 pub mod spec;
 pub mod util;
 
+fn register_submodule(
+    parent: &Bound<'_, PyModule>,
+    submodule: &Bound<'_, PyModule>,
+    full_name: &str,
+) -> PyResult<()> {
+    parent.add_submodule(submodule)?;
+
+    // Register in sys.modules
+    parent
+        .py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item(full_name, submodule)?;
+
+    Ok(())
+}
+
 fn register_module_package_version(
     parent_module: &Bound<'_, PyModule>,
 ) -> PyResult<()> {
     let child_module = PyModule::new(parent_module.py(), "version")?;
     use package::version;
 
-    child_module.add_class::<version::PyVersion>()?;
-    child_module.add_class::<version::semver::PySemVer>()?;
-    child_module.add_class::<version::dot_separated::PyDotSeparated>()?;
-    child_module.add_class::<version::other::PyOther>()?;
+    child_module.add_class::<version::Version>()?;
+    child_module.add_class::<version::SemVer>()?;
+    child_module.add_class::<version::DotSeparated>()?;
+    child_module.add_class::<version::Other>()?;
 
-    parent_module.add_submodule(&child_module)?;
+    // parent_module.add_submodule(&child_module)?;
+    register_submodule(parent_module, &child_module, "zpack.package.version")?;
 
     Ok(())
 }
@@ -28,7 +46,8 @@ fn register_module_package_outline(
 
     child_module.add_class::<outline::PackageOutline>()?;
 
-    parent_module.add_submodule(&child_module)?;
+    // parent_module.add_submodule(&child_module)?;
+    register_submodule(parent_module, &child_module, "zpack.package.outline")?;
 
     Ok(())
 }
@@ -44,7 +63,12 @@ fn register_module_package_constraint(
     child_module.add_class::<constraint::NumOf>()?;
     child_module.add_class::<constraint::SpecOptionEqual>()?;
 
-    parent_module.add_submodule(&child_module)?;
+    // parent_module.add_submodule(&child_module)?;
+    register_submodule(
+        parent_module,
+        &child_module,
+        "zpack.package.constraint",
+    )?;
 
     Ok(())
 }
@@ -58,7 +82,8 @@ fn register_module_package(
     register_module_package_outline(&child_module)?;
     register_module_package_constraint(&child_module)?;
 
-    parent_module.add_submodule(&child_module)?;
+    // parent_module.add_submodule(&child_module)?;
+    register_submodule(parent_module, &child_module, "zpack.package")?;
 
     Ok(())
 }
