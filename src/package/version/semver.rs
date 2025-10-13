@@ -109,8 +109,19 @@ impl std::cmp::PartialEq for SemVer {
     }
 }
 
-impl std::cmp::PartialOrd for SemVer {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl std::cmp::Eq for SemVer {}
+
+impl std::hash::Hash for SemVer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.major.hash(state);
+        self.minor.hash(state);
+        self.patch.hash(state);
+        self.rc.hash(state);
+    }
+}
+
+impl std::cmp::Ord for SemVer {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
 
         let version_cmp = (self.major, self.minor, self.patch).cmp(&(
@@ -120,28 +131,27 @@ impl std::cmp::PartialOrd for SemVer {
         ));
 
         if !matches!(version_cmp, Ordering::Equal) {
-            Some(version_cmp)
+            version_cmp
         } else {
             // Compare pre-releases.
             // 1.2.3-alpha is considered a lower version than 1.2.3
             //
             // If both pre-releases exist, compare lexicographically
             match (&self.rc, &other.rc) {
-                (None, None) => Some(Ordering::Equal),
-                (None, Some(_)) => Some(Ordering::Greater),
-                (Some(_), None) => Some(Ordering::Less),
-                (Some(s1), Some(s2)) => s1.partial_cmp(s2),
+                (None, None) => Ordering::Equal,
+                (None, Some(_)) => Ordering::Greater,
+                (Some(_), None) => Ordering::Less,
+                (Some(s1), Some(s2)) => s1.cmp(s2),
             }
         }
     }
 }
 
-// /// Python wrapper type for [`SemVer`]
-// #[pyclass(name = "SemVer", eq, ord)]
-// #[derive(Clone, PartialEq, PartialOrd)]
-// pub struct PySemVer {
-//     pub inner: SemVer,
-// }
+impl std::cmp::PartialOrd for SemVer {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 #[pymethods]
 impl SemVer {

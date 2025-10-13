@@ -1,44 +1,31 @@
-use std::collections::{HashMap, HashSet};
+use std::{any::Any, collections::HashSet};
 
 use dyn_clone::DynClone;
-use pyo3::{
-    conversion::FromPyObjectBound, exceptions::PyTypeError, prelude::*,
-};
-use z3::SortKind;
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{
-    package::outline::SolverError,
-    spec::spec_option::{PackageOptionAstMap, SpecOption},
+    package::{outline::SolverError, registry::Registry},
+    spec::spec_option::SpecOption,
 };
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 
-pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone {
-    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption>;
+pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
+    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)>;
     fn extract_dependencies(&self) -> HashSet<String>;
-
-    fn as_cond<'a>(
-        &self,
-        package: &str,
-        option_ast: &PackageOptionAstMap<'a>,
-    ) -> Result<z3::ast::Bool, SolverError> {
-        let val = self.to_z3_clause(package, option_ast)?;
-        val.as_bool().ok_or(SolverError::IncorrectType {
-            expected: SortKind::Bool,
-            received: val.sort_kind(),
-        })
-    }
 
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &PackageOptionAstMap<'a>,
+        registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError>;
 
     fn to_python_any<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyAny>>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 dyn_clone::clone_trait_object!(Constraint);

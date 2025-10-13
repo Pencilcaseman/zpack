@@ -2,10 +2,10 @@ use std::{collections::HashMap, hash::Hash, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::package::version;
-
-pub type PackageOptionAstMap<'a> =
-    HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>;
+use crate::package::{
+    registry::{Registry, WipRegistry},
+    version,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
@@ -59,7 +59,7 @@ impl SpecOptionValue {
     ///
     /// The dynamic type of the returned value matches the enum variant held by
     /// [`Self`]
-    pub fn to_z3_dynamic(&self) -> z3::ast::Dynamic {
+    pub fn to_z3_dynamic(&self, registry: &Registry) -> z3::ast::Dynamic {
         use z3::ast::{Bool, Float, Int, String};
 
         match self {
@@ -67,7 +67,19 @@ impl SpecOptionValue {
             Self::Int(i) => Int::from_i64(*i).into(),
             Self::Float(f) => Float::from_f64(*f).into(),
             Self::Str(s) => String::from_str(s).unwrap().into(),
-            Self::Version(v) => todo!(),
+            Self::Version(v) => {
+                let idx = match registry.versions.lookup(v) {
+                    Some(found) => found as u64,
+                    None => {
+                        tracing::error!(
+                            "encountered version not in Registry: {v}"
+                        );
+                        u64::MAX
+                    }
+                };
+
+                Int::from_u64(idx).into()
+            }
         }
     }
 }
@@ -92,17 +104,44 @@ impl SpecOption {
         format!("{}/{}", package, name)
     }
 
-    pub fn to_z3_dynamic(&self, package: &str, name: &str) -> z3::ast::Dynamic {
+    pub fn to_z3_dynamic(
+        &self,
+        package: &str,
+        name: &str,
+        registry: &mut WipRegistry,
+    ) -> z3::ast::Dynamic {
         let n = self.serialize_name(package, name);
 
         use z3::ast::{Bool, Float, Int, String};
 
         match self.dtype {
             SpecOptionType::Bool => Bool::new_const(n).into(),
-            SpecOptionType::Int => Int::new_const(n).into(),
+            SpecOptionType::Int => {
+                // Versions are sorted and stored in an array. The solver then
+                // works with indices into that version array
+                Int::new_const(n).into()
+            }
             SpecOptionType::Float => Float::new_const_double(n).into(),
             SpecOptionType::Str => String::new_const(n).into(),
-            SpecOptionType::Version => todo!(),
+            SpecOptionType::Version => {
+                let Some(value) = &self.value else {
+                    let msg = "Cannot create type-only Z3 Version";
+                    tracing::error!("{msg}");
+                    panic!("{msg}");
+                };
+
+                let SpecOptionValue::Version(v) = value else {
+                    let msg = "value and dtype are inconsistent; this is an internal error";
+                    tracing::error!("{msg}");
+                    panic!("{msg}");
+                };
+
+                registry.versions.push(v.clone());
+
+                // We treat versions as integer indices into a sorted array of
+                // all available version identifiers
+                Int::new_const(n).into()
+            }
         }
     }
 }
@@ -118,7 +157,7 @@ impl<'py> FromPyObject<'py> for SpecOptionValue {
         } else if let Ok(s) = ob.extract::<&str>() {
             Ok(Self::Str(s.to_string()))
         } else if let Ok(v) = ob.extract::<version::Version>() {
-            todo!()
+            Ok(Self::Version(v))
         } else {
             let msg = format!(
                 "cannot cast Python type '{}' to SpecOptionValue",

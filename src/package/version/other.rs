@@ -15,7 +15,7 @@ use crate::{
 ///
 /// For example: beta+3.4/abc
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Other {
     /// The version string
     #[pyo3(get, set)]

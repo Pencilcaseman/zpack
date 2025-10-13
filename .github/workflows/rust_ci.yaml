@@ -104,7 +104,7 @@ jobs:
           path: target/doc/
 
   documentation:
-    name: Documentation - ${{ matrix.os }}
+    name: Documentation
     runs-on: ubuntu-latest
 
     env:

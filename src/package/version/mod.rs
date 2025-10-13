@@ -21,7 +21,7 @@ pub use semver::SemVer;
 ///
 /// See [`SemVer`], [`DotSeparated`] and [`Other`] for more information.
 #[pyclass]
-#[derive(Clone, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum Version {
     SemVer(SemVer),
     DotSeparated(DotSeparated),

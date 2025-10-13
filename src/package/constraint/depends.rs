@@ -5,8 +5,8 @@ use z3::SortKind;
 
 use super::Constraint;
 use crate::{
-    package::outline::SolverError,
-    spec::spec_option::{PackageOptionAstMap, SpecOption},
+    package::{outline::SolverError, registry::Registry},
+    spec::spec_option::SpecOption,
 };
 
 #[pyclass]
@@ -23,11 +23,8 @@ impl Depends {
 }
 
 impl Constraint for Depends {
-    fn extract_spec_options(
-        &self,
-        _package: &str,
-    ) -> HashMap<&str, SpecOption> {
-        HashMap::default()
+    fn extract_spec_options(&self, _package: &str) -> Vec<(&str, SpecOption)> {
+        Vec::new()
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
@@ -37,9 +34,9 @@ impl Constraint for Depends {
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &PackageOptionAstMap<'a>,
+        registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
-        let Some(value) = option_ast.get(&(&self.on, None)) else {
+        let Some(value) = registry.option_ast_map.get(&(&self.on, None)) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
             return Err(SolverError::MissingDependency {
@@ -69,6 +66,10 @@ impl Constraint for Depends {
         py: Python<'py>,
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

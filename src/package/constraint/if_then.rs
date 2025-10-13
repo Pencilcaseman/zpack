@@ -8,8 +8,8 @@ use z3::SortKind;
 
 use super::Constraint;
 use crate::{
-    package::outline::SolverError,
-    spec::spec_option::{PackageOptionAstMap, SpecOption},
+    package::{outline::SolverError, registry::Registry},
+    spec::spec_option::SpecOption,
 };
 
 #[pyclass(unsendable)]
@@ -23,7 +23,7 @@ pub struct IfThen {
 }
 
 impl Constraint for IfThen {
-    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
+    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)> {
         [&self.cond, &self.then]
             .iter()
             .flat_map(|c| c.extract_spec_options(package))
@@ -37,26 +37,10 @@ impl Constraint for IfThen {
             .collect()
     }
 
-    fn as_cond<'a>(
-        &self,
-        package: &str,
-        option_ast: &PackageOptionAstMap<'a>,
-    ) -> Result<z3::ast::Bool, SolverError> {
-        let var = self.cond.to_z3_clause(package, option_ast)?;
-
-        match var.sort_kind() {
-            SortKind::Bool => Ok(var.as_bool().unwrap()),
-            kind => Err(SolverError::IncorrectType {
-                expected: SortKind::Bool,
-                received: kind,
-            }),
-        }
-    }
-
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &PackageOptionAstMap<'a>,
+        registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         tracing::info!(
             "{} -> (if '{:?}' then '{:?}')",
@@ -65,9 +49,10 @@ impl Constraint for IfThen {
             self.then
         );
 
-        let cond = self.cond.as_cond(package, option_ast)?;
+        let cond =
+            self.cond.to_z3_clause(package, registry)?.as_bool().unwrap();
+        let var = self.then.to_z3_clause(package, registry)?;
 
-        let var = self.then.to_z3_clause(package, option_ast)?;
         let then = match var.sort_kind() {
             SortKind::Bool => Ok(var.as_bool().unwrap()),
 
@@ -88,5 +73,9 @@ impl Constraint for IfThen {
         py: Python<'py>,
     ) -> PyResult<Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

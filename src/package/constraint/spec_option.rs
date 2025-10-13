@@ -3,8 +3,10 @@ use std::collections::{HashMap, HashSet};
 use pyo3::{IntoPyObjectExt, prelude::*};
 
 use crate::{
-    package::{constraint::Constraint, outline::SolverError},
-    spec::spec_option::{PackageOptionAstMap, SpecOption, SpecOptionValue},
+    package::{
+        constraint::Constraint, outline::SolverError, registry::Registry,
+    },
+    spec::spec_option::{SpecOption, SpecOptionValue},
 };
 
 #[pyclass]
@@ -21,9 +23,9 @@ pub struct SpecOptionEqual {
 }
 
 impl Constraint for SpecOptionEqual {
-    fn extract_spec_options(&self, package: &str) -> HashMap<&str, SpecOption> {
+    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)> {
         if self.package_name.as_ref().is_none_or(|p| package == p) {
-            HashMap::from([(
+            vec![(
                 self.option_name.as_ref(),
                 SpecOption {
                     dtype: self.equal_to.to_type(),
@@ -31,9 +33,9 @@ impl Constraint for SpecOptionEqual {
                     default: None,
                     valid: None,
                 },
-            )])
+            )]
         } else {
-            HashMap::default()
+            Vec::new()
         }
     }
 
@@ -44,7 +46,7 @@ impl Constraint for SpecOptionEqual {
     fn to_z3_clause<'a>(
         &self,
         package: &str,
-        option_ast: &PackageOptionAstMap,
+        registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         let package_name = match &self.package_name {
             Some(name) => name,
@@ -57,10 +59,15 @@ impl Constraint for SpecOptionEqual {
             self.equal_to
         );
 
-        match option_ast.get(&(package_name, Some(self.option_name.as_str()))) {
-            Some(var) => Ok(var.eq(self.equal_to.to_z3_dynamic()).into()),
+        match registry
+            .option_ast_map
+            .get(&(package_name, Some(self.option_name.as_str())))
+        {
+            Some(var) => {
+                Ok(var.eq(self.equal_to.to_z3_dynamic(registry)).into())
+            }
             None => {
-                if option_ast.contains_key(&(package_name, None)) {
+                if registry.option_ast_map.contains_key(&(package_name, None)) {
                     tracing::error!(
                         "missing variable {package_name}:{}",
                         self.option_name
@@ -87,5 +94,9 @@ impl Constraint for SpecOptionEqual {
         py: pyo3::Python<'py>,
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

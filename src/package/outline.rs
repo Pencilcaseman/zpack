@@ -3,7 +3,7 @@
 //! refined with information from the package configuration options provided
 //! from a configuration file or the command line.
 //!
-//! This outline definition is then passed to the [`Planner`], which solves for
+//! This outline definition is then passed to the `Planner`, which solves for
 //! a concrete, satisfiable set of dependencies and options which can then be
 //! built and installed.
 
@@ -18,8 +18,11 @@ use z3::{Optimize, SortKind};
 
 use super::constraint::Constraint;
 use crate::{
-    package::constraint::{SOFT_PACKAGE_WEIGHT, SpecOptionEqual},
-    spec::spec_option::{PackageOptionAstMap, SpecOptionValue},
+    package::{
+        constraint::{SOFT_PACKAGE_WEIGHT, SpecOptionEqual},
+        registry::{Registry, WipRegistry},
+    },
+    spec::spec_option::SpecOptionValue,
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
@@ -256,11 +259,11 @@ impl SpecOutline {
     }
 
     pub fn gen_spec_solver(
-        &mut self,
-    ) -> Result<(Optimize, PackageOptionAstMap<'_>), SolverError> {
+        &self,
+    ) -> Result<(Optimize, Registry<'_>), SolverError> {
         tracing::info!("generating spec solver");
 
-        let mut option_asts = PackageOptionAstMap::new();
+        let mut wip_registry = WipRegistry::default();
 
         let optimizer = Optimize::new();
 
@@ -276,7 +279,7 @@ impl SpecOutline {
             // allowing us to effectively toggle the package on and off.
 
             let package_toggle =
-                z3::ast::Bool::new_const(format!("{}", package.name));
+                z3::ast::Bool::new_const(package.name.to_string());
 
             optimizer.assert_soft(
                 &package_toggle.not(),
@@ -284,7 +287,9 @@ impl SpecOutline {
                 None,
             );
 
-            option_asts.insert((&package.name, None), package_toggle.into());
+            wip_registry
+                .option_ast_map
+                .insert((&package.name, None), package_toggle.into());
 
             // Create variables for each package option
             for (name, value) in package
@@ -298,10 +303,11 @@ impl SpecOutline {
                     name
                 );
 
-                option_asts.insert(
-                    (&package.name, Some(name)),
-                    value.to_z3_dynamic(&package.name, name),
-                );
+                let val =
+                    value.to_z3_dynamic(&package.name, name, &mut wip_registry);
+                wip_registry
+                    .option_ast_map
+                    .insert((&package.name, Some(name)), val);
             }
 
             for (name, value) in &package.set_options {
@@ -321,16 +327,20 @@ impl SpecOutline {
             }
         }
 
+        let registry = wip_registry.build();
+
+        println!("Registry: {registry:?}");
+
         for (idx, value) in additional_constraints {
             let package = &self.graph[idx];
 
             optimizer.assert_and_track(
-                &option_asts[&(package.name.as_ref(), None)]
+                &registry.option_ast_map[&(package.name.as_ref(), None)]
                     .as_bool()
                     .unwrap() // Safe because package toggle guaranteed to exist
                     .implies(
                         value
-                            .to_z3_clause(&package.name, &option_asts)
+                            .to_z3_clause(&package.name, &registry)
                             .unwrap()
                             .as_bool()
                             .unwrap(),
@@ -340,7 +350,8 @@ impl SpecOutline {
         }
 
         for r in &self.required {
-            let Some(d) = option_asts.get(&(r.as_str(), None)) else {
+            let Some(d) = registry.option_ast_map.get(&(r.as_str(), None))
+            else {
                 tracing::error!("missing explicitly required dependency '{r}'");
 
                 return Err(SolverError::MissingDependency {
@@ -351,9 +362,7 @@ impl SpecOutline {
 
             optimizer.assert_and_track(
                 &d.as_bool().unwrap(),
-                &z3::ast::Bool::new_const(format!(
-                    "'{r}' reqauired explicitly"
-                )),
+                &z3::ast::Bool::new_const(format!("'{r}' required explicitly")),
             );
         }
 
@@ -361,7 +370,7 @@ impl SpecOutline {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
-            tracing::info!("adding constraints for {}", package.name,);
+            tracing::info!("adding constraints for {}", package.name);
 
             for constraint in &package.constraints {
                 tracing::info!(
@@ -370,13 +379,13 @@ impl SpecOutline {
                     constraint
                 );
 
-                let package_toggle = option_asts
+                let package_toggle = registry.option_ast_map
                     [&(package.name.as_str(), None)]
                     .as_bool()
                     .unwrap();
 
                 let clause =
-                    constraint.to_z3_clause(&package.name, &option_asts)?;
+                    constraint.to_z3_clause(&package.name, &registry)?;
 
                 match clause.sort_kind() {
                     SortKind::Bool => {
@@ -399,25 +408,9 @@ impl SpecOutline {
             }
         }
 
-        Ok((optimizer, option_asts))
+        Ok((optimizer, registry))
     }
 }
-
-// #[pyclass(name = "PackageOutline")]
-// #[derive(Debug, Clone)]
-// pub struct PyPackageOutline {
-//     #[pyo3(get, set)]
-//     pub name: String,
-//
-//     #[pyo3(get, set)]
-//     pub constraints: Vec<Py<PyAny>>,
-//
-//     #[pyo3(get, set)]
-//     pub set_options: HashMap<String, SpecOptionValue>,
-//
-//     #[pyo3(get, set)]
-//     pub set_defaults: HashMap<String, Option<SpecOptionValue>>,
-// }
 
 #[pymethods]
 impl PackageOutline {

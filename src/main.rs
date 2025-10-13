@@ -16,7 +16,11 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use tracing::instrument;
-use zpack::package::constraint::NumOf;
+use z3::Optimize;
+use zpack::package::{
+    constraint::{Constraint, NumOf},
+    version,
+};
 
 fn build_cli() -> Command {
     Command::new("zpack")
@@ -150,9 +154,13 @@ fn test_outline() {
             Box::new(Depends::new("mpi".into())),
             Box::new(Depends::new("gcc".into())),
             Box::new(SpecOptionEqual {
-                package_name: Some("mpi".into()),
-                option_name: "openmpi".into(),
-                equal_to: SpecOptionValue::Bool(false),
+                package_name: Some("openmpi".into()),
+                option_name: "version".into(),
+                equal_to: SpecOptionValue::Version(
+                    // zpack::package::version::Version::new("2.12.2").
+                    // unwrap(),
+                    zpack::package::version::Version::new("1.2.3").unwrap(),
+                ),
             }),
         ],
         set_options: HashMap::default(),
@@ -165,27 +173,39 @@ fn test_outline() {
     let blas_outline = PackageOutline {
         name: "blas".into(),
 
-        constraints: vec![Box::new(NumOf {
-            n: 1,
-            of: vec![
-                Box::new(IfThen {
-                    cond: Box::new(SpecOptionEqual {
+        constraints: vec![
+            Box::new(NumOf {
+                n: 1,
+                of: vec![
+                    Box::new(SpecOptionEqual {
                         package_name: None,
                         option_name: "openblas".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends::new("openblas".into())),
-                }),
-                Box::new(IfThen {
-                    cond: Box::new(SpecOptionEqual {
+                    Box::new(SpecOptionEqual {
                         package_name: None,
                         option_name: "mkl".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends::new("mkl".into())),
+                ],
+            }),
+            Box::new(IfThen {
+                cond: Box::new(SpecOptionEqual {
+                    package_name: None,
+                    option_name: "openblas".into(),
+                    equal_to: SpecOptionValue::Bool(true),
                 }),
-            ],
-        })],
+                then: Box::new(Depends::new("openblas".into())),
+            }),
+            Box::new(IfThen {
+                cond: Box::new(SpecOptionEqual {
+                    package_name: None,
+                    option_name: "mkl".into(),
+                    equal_to: SpecOptionValue::Bool(true),
+                }),
+                then: Box::new(Depends::new("mkl".into())),
+            }),
+        ],
 
         set_options: HashMap::from([(
             "openblas".into(),
@@ -197,35 +217,52 @@ fn test_outline() {
     let mpi_outline = PackageOutline {
         name: "mpi".into(),
 
-        constraints: vec![Box::new(NumOf {
-            n: 1,
-            of: vec![
-                Box::new(IfThen {
-                    cond: Box::new(SpecOptionEqual {
+        constraints: vec![
+            Box::new(NumOf {
+                n: 1,
+                of: vec![
+                    Box::new(SpecOptionEqual {
                         package_name: None,
                         option_name: "openmpi".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends::new("openmpi".into())),
-                }),
-                Box::new(IfThen {
-                    cond: Box::new(SpecOptionEqual {
+                    Box::new(SpecOptionEqual {
                         package_name: None,
                         option_name: "mpich".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends::new("mpich".into())),
-                }),
-                Box::new(IfThen {
-                    cond: Box::new(SpecOptionEqual {
+                    Box::new(SpecOptionEqual {
                         package_name: None,
                         option_name: "intelmpi".into(),
                         equal_to: SpecOptionValue::Bool(true),
                     }),
-                    then: Box::new(Depends::new("intelmpi".into())),
+                ],
+            }),
+            Box::new(IfThen {
+                cond: Box::new(SpecOptionEqual {
+                    package_name: None,
+                    option_name: "openmpi".into(),
+                    equal_to: SpecOptionValue::Bool(true),
                 }),
-            ],
-        })],
+                then: Box::new(Depends::new("openmpi".into())),
+            }),
+            Box::new(IfThen {
+                cond: Box::new(SpecOptionEqual {
+                    package_name: None,
+                    option_name: "mpich".into(),
+                    equal_to: SpecOptionValue::Bool(true),
+                }),
+                then: Box::new(Depends::new("mpich".into())),
+            }),
+            Box::new(IfThen {
+                cond: Box::new(SpecOptionEqual {
+                    package_name: None,
+                    option_name: "intelmpi".into(),
+                    equal_to: SpecOptionValue::Bool(true),
+                }),
+                then: Box::new(Depends::new("intelmpi".into())),
+            }),
+        ],
 
         set_options: HashMap::from([(
             "openmpi".into(),
@@ -248,9 +285,27 @@ fn test_outline() {
         set_defaults: HashMap::default(),
     };
 
+    let openmpi_versions = [
+        "5.0.8", "5.0.7", "5.0.6", "5.0.5", "5.0.4", "5.0.3", "5.0.2", "5.0.1",
+        "5.0.0", "4.1.8", "4.1.7", "4.1.6", "4.1.5", "4.1.4", "4.1.3", "4.1.2",
+        "4.1.1", "4.1.0",
+    ]
+    .into_iter()
+    .map(|v| {
+        Box::new(SpecOptionEqual {
+            package_name: None,
+            option_name: "version".into(),
+            equal_to: SpecOptionValue::Version(
+                version::SemVer::new(v).unwrap().into(),
+            ),
+        }) as Box<dyn Constraint>
+    })
+    .collect();
+
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         constraints: vec![
+            Box::new(NumOf { n: 1, of: openmpi_versions }),
             Box::new(Depends::new("openpmix".into())),
             Box::new(Depends::new("openprrte".into())),
             Box::new(Depends::new("hwloc".into())),
@@ -292,9 +347,25 @@ fn test_outline() {
         set_defaults: HashMap::default(),
     };
 
+    let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
+        .into_iter()
+        .map(|v| {
+            Box::new(SpecOptionEqual {
+                package_name: None,
+                option_name: "version".into(),
+                equal_to: SpecOptionValue::Version(
+                    version::SemVer::new(v).unwrap().into(),
+                ),
+            }) as Box<dyn Constraint>
+        })
+        .collect();
+
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![
+            Box::new(NumOf { n: 1, of: hwloc_versions }),
+            Box::new(Depends::new("gcc".into())),
+        ],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
@@ -344,9 +415,11 @@ fn test_outline() {
             // println!("Proof: {:?}", optimizer.get_proof());
             println!("UnsatCore: {:?}", optimizer.get_unsat_core());
 
+            println!("\n\n");
+
             println!("Conflicting Constraints:");
             for lit in optimizer.get_unsat_core() {
-                println!("- {lit:?}");
+                println!("- {lit}");
             }
         }
         z3::SatResult::Unknown => {
@@ -358,7 +431,7 @@ fn test_outline() {
 
             let model = optimizer.get_model().unwrap();
 
-            for (k, v) in vars {
+            for (k, v) in vars.option_ast_map {
                 println!("{k:?} -> {:?}", model.eval(&v, true));
             }
         }
@@ -561,6 +634,16 @@ fn main() -> Result<()> {
 
     test_outline();
     test_z3();
+
+    // TODO: Fix version comparison
+    let a = zpack::package::version::Version::new("3.2.3").unwrap();
+    let b = zpack::package::version::Version::new("2.3.4.4").unwrap();
+
+    if a > b {
+        tracing::info!("Correct");
+    } else {
+        tracing::error!("Version comparison incorrect");
+    }
 
     Ok(())
 }

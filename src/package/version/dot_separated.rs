@@ -16,7 +16,7 @@ use crate::{
 ///
 /// For example: 2025.06.alpha.3
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DotSeparated {
     /// Components of the version separated by '.'
     #[pyo3(get, set)]
