@@ -5,8 +5,10 @@ use z3::SortKind;
 
 use super::Constraint;
 use crate::{
-    package::{outline::SolverError, registry::Registry},
-    spec::spec_option::SpecOption,
+    package::{
+        constraint::ConstraintType, outline::SolverError, registry::Registry,
+    },
+    spec::SpecOption,
 };
 
 #[pyclass]
@@ -31,6 +33,26 @@ impl Constraint for Depends {
         HashSet::from([self.on.clone()])
     }
 
+    fn get_type(&self) -> Option<ConstraintType> {
+        Some(ConstraintType::Depends)
+    }
+
+    fn propagate_types(
+        &mut self,
+        required: Option<ConstraintType>,
+    ) -> Result<(), SolverError> {
+        if let Some(t) = required
+            && t != ConstraintType::Depends
+        {
+            Err(SolverError::IncorrectConstraintType {
+                expected: ConstraintType::Equal,
+                received: t,
+            })
+        } else {
+            Ok(())
+        }
+    }
+
     fn to_z3_clause<'a>(
         &self,
         package: &str,
@@ -53,7 +75,7 @@ impl Constraint for Depends {
                     self.on
                 );
 
-                Err(SolverError::IncorrectType {
+                Err(SolverError::IncorrectZ3Type {
                     expected: SortKind::Bool,
                     received: kind,
                 })

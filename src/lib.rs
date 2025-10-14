@@ -32,7 +32,6 @@ fn register_module_package_version(
     child_module.add_class::<version::DotSeparated>()?;
     child_module.add_class::<version::Other>()?;
 
-    // parent_module.add_submodule(&child_module)?;
     register_submodule(parent_module, &child_module, "zpack.package.version")?;
 
     Ok(())
@@ -46,7 +45,6 @@ fn register_module_package_outline(
 
     child_module.add_class::<outline::PackageOutline>()?;
 
-    // parent_module.add_submodule(&child_module)?;
     register_submodule(parent_module, &child_module, "zpack.package.outline")?;
 
     Ok(())
@@ -61,9 +59,8 @@ fn register_module_package_constraint(
     child_module.add_class::<constraint::Depends>()?;
     child_module.add_class::<constraint::IfThen>()?;
     child_module.add_class::<constraint::NumOf>()?;
-    child_module.add_class::<constraint::SpecOptionEqual>()?;
+    child_module.add_class::<constraint::SpecOption>()?;
 
-    // parent_module.add_submodule(&child_module)?;
     register_submodule(
         parent_module,
         &child_module,

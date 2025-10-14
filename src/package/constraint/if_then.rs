@@ -9,7 +9,7 @@ use z3::SortKind;
 use super::Constraint;
 use crate::{
     package::{outline::SolverError, registry::Registry},
-    spec::spec_option::SpecOption,
+    spec,
 };
 
 #[pyclass(unsendable)]
@@ -23,7 +23,10 @@ pub struct IfThen {
 }
 
 impl Constraint for IfThen {
-    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)> {
+    fn extract_spec_options(
+        &self,
+        package: &str,
+    ) -> Vec<(&str, spec::SpecOption)> {
         [&self.cond, &self.then]
             .iter()
             .flat_map(|c| c.extract_spec_options(package))
@@ -35,6 +38,17 @@ impl Constraint for IfThen {
             .iter()
             .flat_map(|c| c.extract_dependencies())
             .collect()
+    }
+
+    fn get_type(&self) -> Option<super::ConstraintType> {
+        todo!()
+    }
+
+    fn propagate_types(
+        &mut self,
+        required: Option<super::ConstraintType>,
+    ) -> Result<(), SolverError> {
+        todo!()
     }
 
     fn to_z3_clause<'a>(
@@ -58,7 +72,7 @@ impl Constraint for IfThen {
 
             kind => {
                 tracing::error!("`then` must be Bool");
-                Err(SolverError::IncorrectType {
+                Err(SolverError::IncorrectZ3Type {
                     expected: SortKind::Bool,
                     received: kind,
                 })

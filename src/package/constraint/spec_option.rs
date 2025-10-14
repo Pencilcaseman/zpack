@@ -6,41 +6,40 @@ use crate::{
     package::{
         constraint::Constraint, outline::SolverError, registry::Registry,
     },
-    spec::spec_option::{SpecOption, SpecOptionValue},
+    spec,
 };
 
 #[pyclass]
 #[derive(Clone, Debug)]
-pub struct SpecOptionEqual {
+pub struct SpecOption {
     #[pyo3(get, set)]
     pub package_name: Option<String>,
 
     #[pyo3(get, set)]
     pub option_name: String,
-
-    #[pyo3(get, set)]
-    pub equal_to: SpecOptionValue,
 }
 
-impl Constraint for SpecOptionEqual {
-    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)> {
-        if self.package_name.as_ref().is_none_or(|p| package == p) {
-            vec![(
-                self.option_name.as_ref(),
-                SpecOption {
-                    dtype: self.equal_to.to_type(),
-                    value: Some(self.equal_to.clone()),
-                    default: None,
-                    valid: None,
-                },
-            )]
-        } else {
-            Vec::new()
-        }
+impl Constraint for SpecOption {
+    fn extract_spec_options(
+        &self,
+        _package: &str,
+    ) -> Vec<(&str, spec::SpecOption)> {
+        vec![(self.option_name.as_ref(), spec::SpecOption::default())]
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
         HashSet::default()
+    }
+
+    fn get_type(&self) -> Option<super::ConstraintType> {
+        todo!()
+    }
+
+    fn propagate_types(
+        &mut self,
+        required: Option<super::ConstraintType>,
+    ) -> Result<(), SolverError> {
+        todo!()
     }
 
     fn to_z3_clause<'a>(
@@ -53,19 +52,13 @@ impl Constraint for SpecOptionEqual {
             None => package,
         };
 
-        tracing::info!(
-            "{package_name}:{} == {:?}",
-            self.option_name,
-            self.equal_to
-        );
+        tracing::info!("{package_name}:{}", self.option_name);
 
         match registry
             .option_ast_map
             .get(&(package_name, Some(self.option_name.as_str())))
         {
-            Some(var) => {
-                Ok(var.eq(self.equal_to.to_z3_dynamic(registry)).into())
-            }
+            Some(var) => Ok(var.clone()),
             None => {
                 if registry.option_ast_map.contains_key(&(package_name, None)) {
                     tracing::error!(

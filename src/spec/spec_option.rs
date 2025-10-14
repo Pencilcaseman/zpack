@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash, str::FromStr};
+use std::{hash::Hash, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
@@ -26,9 +26,9 @@ pub enum SpecOptionValue {
     Version(version::Version),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct SpecOption {
-    pub dtype: SpecOptionType,
+    pub dtype: Option<SpecOptionType>,
     pub value: Option<SpecOptionValue>,
     pub default: Option<SpecOptionValue>,
     pub valid: Option<Vec<SpecOptionValue>>,
@@ -97,7 +97,7 @@ impl SpecOption {
     ///
     /// * `t`: The datatype of this option
     pub fn new_from_type(t: SpecOptionType) -> Self {
-        Self { dtype: t, value: None, default: None, valid: None }
+        Self { dtype: Some(t), value: None, default: None, valid: None }
     }
 
     pub fn serialize_name(&self, package: &str, name: &str) -> String {
@@ -115,15 +115,15 @@ impl SpecOption {
         use z3::ast::{Bool, Float, Int, String};
 
         match self.dtype {
-            SpecOptionType::Bool => Bool::new_const(n).into(),
-            SpecOptionType::Int => {
+            Some(SpecOptionType::Bool) => Bool::new_const(n).into(),
+            Some(SpecOptionType::Int) => {
                 // Versions are sorted and stored in an array. The solver then
                 // works with indices into that version array
                 Int::new_const(n).into()
             }
-            SpecOptionType::Float => Float::new_const_double(n).into(),
-            SpecOptionType::Str => String::new_const(n).into(),
-            SpecOptionType::Version => {
+            Some(SpecOptionType::Float) => Float::new_const_double(n).into(),
+            Some(SpecOptionType::Str) => String::new_const(n).into(),
+            Some(SpecOptionType::Version) => {
                 let Some(value) = &self.value else {
                     let msg = "Cannot create type-only Z3 Version";
                     tracing::error!("{msg}");
@@ -141,6 +141,11 @@ impl SpecOption {
                 // We treat versions as integer indices into a sorted array of
                 // all available version identifiers
                 Int::new_const(n).into()
+            }
+            None => {
+                let msg = "no datatype set for {package}:{name}";
+                tracing::error!("{msg}");
+                panic!("{msg}");
             }
         }
     }

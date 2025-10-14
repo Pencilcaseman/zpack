@@ -1,3 +1,5 @@
 // pub mod parse;
 
-pub mod spec_option;
+mod spec_option;
+
+pub use spec_option::{SpecOption, SpecOptionType, SpecOptionValue};

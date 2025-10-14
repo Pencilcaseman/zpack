@@ -5,14 +5,35 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{
     package::{outline::SolverError, registry::Registry},
-    spec::spec_option::SpecOption,
+    spec,
 };
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstraintType {
+    Depends,
+    Equal,
+    IfThen,
+    NumOf,
+    SpecOption,
+    Value(spec::SpecOptionType),
+}
+
 pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
-    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)>;
+    fn extract_spec_options(
+        &self,
+        package: &str,
+    ) -> Vec<(&str, spec::SpecOption)>;
+
     fn extract_dependencies(&self) -> HashSet<String>;
+
+    fn get_type(&self) -> Option<ConstraintType>;
+
+    fn propagate_types(
+        &mut self,
+        required: Option<ConstraintType>,
+    ) -> Result<(), SolverError>;
 
     fn to_z3_clause<'a>(
         &self,
@@ -31,14 +52,18 @@ pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
 dyn_clone::clone_trait_object!(Constraint);
 
 mod depends;
+mod equal;
 mod if_then;
 mod num_of;
 mod spec_option;
+mod value;
 
 pub use depends::Depends;
+pub use equal::Equal;
 pub use if_then::IfThen;
 pub use num_of::NumOf;
-pub use spec_option::SpecOptionEqual;
+pub use spec_option::SpecOption;
+pub use value::Value;
 
 impl<'py> FromPyObject<'py> for Box<dyn Constraint> {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
@@ -54,7 +79,7 @@ impl<'py> FromPyObject<'py> for Box<dyn Constraint> {
         try_extract::<Depends>(ob)
             .or_else(|_| try_extract::<IfThen>(ob))
             .or_else(|_| try_extract::<NumOf>(ob))
-            .or_else(|_| try_extract::<SpecOptionEqual>(ob))
+            .or_else(|_| try_extract::<SpecOption>(ob))
             .map_err(|_| {
                 let msg =
                     format!("cannot convert '{}' to Constraint", ob.get_type());

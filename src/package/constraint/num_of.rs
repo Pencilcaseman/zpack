@@ -9,7 +9,7 @@ use z3::{SortKind, ast::Bool};
 use super::Constraint;
 use crate::{
     package::{constraint::IfThen, outline::SolverError, registry::Registry},
-    spec::spec_option::SpecOption,
+    spec::SpecOption,
 };
 
 #[pyclass]
@@ -31,6 +31,17 @@ impl Constraint for NumOf {
 
     fn extract_dependencies(&self) -> HashSet<String> {
         self.of.iter().flat_map(|b| b.extract_dependencies()).collect()
+    }
+
+    fn get_type(&self) -> Option<super::ConstraintType> {
+        todo!()
+    }
+
+    fn propagate_types(
+        &mut self,
+        required: Option<super::ConstraintType>,
+    ) -> Result<(), SolverError> {
+        todo!()
     }
 
     fn to_z3_clause<'a>(

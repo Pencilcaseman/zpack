@@ -19,14 +19,14 @@ use z3::{Optimize, SortKind};
 use super::constraint::Constraint;
 use crate::{
     package::{
-        constraint::{SOFT_PACKAGE_WEIGHT, SpecOptionEqual},
+        constraint::{self, ConstraintType, SOFT_PACKAGE_WEIGHT},
         registry::{Registry, WipRegistry},
     },
-    spec::spec_option::SpecOptionValue,
+    spec,
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
-pub type SpecMap = HashMap<String, Option<SpecOptionValue>>;
+pub type SpecMap = HashMap<String, Option<spec::SpecOptionValue>>;
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -38,10 +38,10 @@ pub struct PackageOutline {
     pub constraints: Vec<Box<dyn Constraint>>,
 
     #[pyo3(get, set)]
-    pub set_options: HashMap<String, SpecOptionValue>,
+    pub set_options: HashMap<String, spec::SpecOptionValue>,
 
     #[pyo3(get, set)]
-    pub set_defaults: HashMap<String, Option<SpecOptionValue>>,
+    pub set_defaults: HashMap<String, Option<spec::SpecOptionValue>>,
 }
 
 impl std::fmt::Display for PackageOutline {
@@ -75,9 +75,9 @@ pub enum PropagateDefaultError {
         package_name: String,
         default_name: String,
         first_setter: String,
-        first_value: SpecOptionValue,
+        first_value: spec::SpecOptionValue,
         conflict_setter: String,
-        conflict_value: SpecOptionValue,
+        conflict_value: spec::SpecOptionValue,
     },
 }
 
@@ -90,9 +90,22 @@ pub enum GenSpecSolverError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SolverError {
     DuplicateOption(String),
-    MissingDependency { package: String, dep: String },
-    MissingVariable { package: String, name: String },
-    IncorrectType { expected: SortKind, received: SortKind },
+    MissingDependency {
+        package: String,
+        dep: String,
+    },
+    MissingVariable {
+        package: String,
+        name: String,
+    },
+    IncorrectZ3Type {
+        expected: SortKind,
+        received: SortKind,
+    },
+    IncorrectConstraintType {
+        expected: ConstraintType,
+        received: ConstraintType,
+    },
     InvalidConstraint(String),
 }
 
@@ -318,10 +331,15 @@ impl SpecOutline {
 
                 additional_constraints.push((
                     idx,
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: name.clone(),
-                        equal_to: value.clone(),
+                    Box::new(constraint::Equal {
+                        lhs: Box::new(constraint::SpecOption {
+                            package_name: None,
+                            option_name: name.clone(),
+                        }),
+
+                        rhs: Box::new(constraint::Value {
+                            value: value.clone(),
+                        }),
                     }),
                 ));
             }
@@ -399,7 +417,7 @@ impl SpecOutline {
                     kind => {
                         tracing::error!("clause must be Bool");
 
-                        return Err(SolverError::IncorrectType {
+                        return Err(SolverError::IncorrectZ3Type {
                             expected: SortKind::Bool,
                             received: kind,
                         });
@@ -419,8 +437,8 @@ impl PackageOutline {
     pub fn py_new(
         name: &str,
         constraints: Option<Vec<Box<dyn Constraint>>>,
-        set_options: Option<HashMap<String, SpecOptionValue>>,
-        set_defaults: Option<HashMap<String, Option<SpecOptionValue>>>,
+        set_options: Option<HashMap<String, spec::SpecOptionValue>>,
+        set_defaults: Option<HashMap<String, Option<spec::SpecOptionValue>>>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut instance = Self {

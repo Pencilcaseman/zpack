@@ -141,10 +141,10 @@ fn test_outline() {
 
     use zpack::{
         package::{
-            constraint::{Depends, IfThen, SpecOptionEqual},
+            constraint::{Depends, Equal, IfThen, SpecOption, Value},
             outline::{PackageOutline, SpecOutline},
         },
-        spec::spec_option::SpecOptionValue,
+        spec::SpecOptionValue,
     };
 
     let hpl_outline = PackageOutline {
@@ -153,14 +153,23 @@ fn test_outline() {
             Box::new(Depends::new("blas".into())),
             Box::new(Depends::new("mpi".into())),
             Box::new(Depends::new("gcc".into())),
-            Box::new(SpecOptionEqual {
-                package_name: Some("openmpi".into()),
-                option_name: "version".into(),
-                equal_to: SpecOptionValue::Version(
-                    // zpack::package::version::Version::new("2.12.2").
-                    // unwrap(),
-                    zpack::package::version::Version::new("1.2.3").unwrap(),
-                ),
+            Box::new(Equal {
+                lhs: Box::new(SpecOption {
+                    package_name: Some("openmpi".into()),
+                    option_name: "version".into(),
+                }),
+                rhs: Box::new(Value {
+                    value: SpecOptionValue::Version(
+                        zpack::package::version::Version::new("5.0.8").unwrap(),
+                    ),
+                }),
+            }),
+            Box::new(Equal {
+                lhs: Box::new(SpecOption {
+                    package_name: Some("openmpi".into()),
+                    option_name: "version".into(),
+                }),
+                rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
             }),
         ],
         set_options: HashMap::default(),
@@ -177,31 +186,43 @@ fn test_outline() {
             Box::new(NumOf {
                 n: 1,
                 of: vec![
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: "openblas".into(),
-                        equal_to: SpecOptionValue::Bool(true),
+                    Box::new(Equal {
+                        lhs: Box::new(SpecOption {
+                            package_name: None,
+                            option_name: "openblas".into(),
+                        }),
+                        rhs: Box::new(Value {
+                            value: SpecOptionValue::Bool(true),
+                        }),
                     }),
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: "mkl".into(),
-                        equal_to: SpecOptionValue::Bool(true),
+                    Box::new(Equal {
+                        lhs: Box::new(SpecOption {
+                            package_name: None,
+                            option_name: "mkl".into(),
+                        }),
+                        rhs: Box::new(Value {
+                            value: SpecOptionValue::Bool(true),
+                        }),
                     }),
                 ],
             }),
             Box::new(IfThen {
-                cond: Box::new(SpecOptionEqual {
-                    package_name: None,
-                    option_name: "openblas".into(),
-                    equal_to: SpecOptionValue::Bool(true),
+                cond: Box::new(Equal {
+                    lhs: Box::new(SpecOption {
+                        package_name: None,
+                        option_name: "openblas".into(),
+                    }),
+                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
                 }),
                 then: Box::new(Depends::new("openblas".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(SpecOptionEqual {
-                    package_name: None,
-                    option_name: "mkl".into(),
-                    equal_to: SpecOptionValue::Bool(true),
+                cond: Box::new(Equal {
+                    lhs: Box::new(SpecOption {
+                        package_name: None,
+                        option_name: "mkl".into(),
+                    }),
+                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
                 }),
                 then: Box::new(Depends::new("mkl".into())),
             }),
@@ -221,44 +242,62 @@ fn test_outline() {
             Box::new(NumOf {
                 n: 1,
                 of: vec![
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: "openmpi".into(),
-                        equal_to: SpecOptionValue::Bool(true),
+                    Box::new(Equal {
+                        lhs: Box::new(SpecOption {
+                            package_name: None,
+                            option_name: "openmpi".into(),
+                        }),
+                        rhs: Box::new(Value {
+                            value: SpecOptionValue::Bool(true),
+                        }),
                     }),
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: "mpich".into(),
-                        equal_to: SpecOptionValue::Bool(true),
+                    Box::new(Equal {
+                        lhs: Box::new(SpecOption {
+                            package_name: None,
+                            option_name: "mpich".into(),
+                        }),
+                        rhs: Box::new(Value {
+                            value: SpecOptionValue::Bool(true),
+                        }),
                     }),
-                    Box::new(SpecOptionEqual {
-                        package_name: None,
-                        option_name: "intelmpi".into(),
-                        equal_to: SpecOptionValue::Bool(true),
+                    Box::new(Equal {
+                        lhs: Box::new(SpecOption {
+                            package_name: None,
+                            option_name: "intelmpi".into(),
+                        }),
+                        rhs: Box::new(Value {
+                            value: SpecOptionValue::Bool(true),
+                        }),
                     }),
                 ],
             }),
             Box::new(IfThen {
-                cond: Box::new(SpecOptionEqual {
-                    package_name: None,
-                    option_name: "openmpi".into(),
-                    equal_to: SpecOptionValue::Bool(true),
+                cond: Box::new(Equal {
+                    lhs: Box::new(SpecOption {
+                        package_name: None,
+                        option_name: "openmpi".into(),
+                    }),
+                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
                 }),
                 then: Box::new(Depends::new("openmpi".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(SpecOptionEqual {
-                    package_name: None,
-                    option_name: "mpich".into(),
-                    equal_to: SpecOptionValue::Bool(true),
+                cond: Box::new(Equal {
+                    lhs: Box::new(SpecOption {
+                        package_name: None,
+                        option_name: "mpich".into(),
+                    }),
+                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
                 }),
                 then: Box::new(Depends::new("mpich".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(SpecOptionEqual {
-                    package_name: None,
-                    option_name: "intelmpi".into(),
-                    equal_to: SpecOptionValue::Bool(true),
+                cond: Box::new(Equal {
+                    lhs: Box::new(SpecOption {
+                        package_name: None,
+                        option_name: "intelmpi".into(),
+                    }),
+                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
                 }),
                 then: Box::new(Depends::new("intelmpi".into())),
             }),
@@ -292,12 +331,16 @@ fn test_outline() {
     ]
     .into_iter()
     .map(|v| {
-        Box::new(SpecOptionEqual {
-            package_name: None,
-            option_name: "version".into(),
-            equal_to: SpecOptionValue::Version(
-                version::SemVer::new(v).unwrap().into(),
-            ),
+        Box::new(Equal {
+            lhs: Box::new(SpecOption {
+                package_name: None,
+                option_name: "version".into(),
+            }),
+            rhs: Box::new(Value {
+                value: SpecOptionValue::Version(
+                    version::SemVer::new(v).unwrap().into(),
+                ),
+            }),
         }) as Box<dyn Constraint>
     })
     .collect();
@@ -350,12 +393,16 @@ fn test_outline() {
     let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
         .into_iter()
         .map(|v| {
-            Box::new(SpecOptionEqual {
-                package_name: None,
-                option_name: "version".into(),
-                equal_to: SpecOptionValue::Version(
-                    version::SemVer::new(v).unwrap().into(),
-                ),
+            Box::new(Equal {
+                lhs: Box::new(SpecOption {
+                    package_name: None,
+                    option_name: "version".into(),
+                }),
+                rhs: Box::new(Value {
+                    value: SpecOptionValue::Version(
+                        version::SemVer::new(v).unwrap().into(),
+                    ),
+                }),
             }) as Box<dyn Constraint>
         })
         .collect();
@@ -407,15 +454,10 @@ fn test_outline() {
 
     println!("\n\n");
 
+    let start = std::time::Instant::now();
     match optimizer.check(&[]) {
         z3::SatResult::Unsat => {
             tracing::info!("unsat");
-
-            println!("No solution found.");
-            // println!("Proof: {:?}", optimizer.get_proof());
-            println!("UnsatCore: {:?}", optimizer.get_unsat_core());
-
-            println!("\n\n");
 
             println!("Conflicting Constraints:");
             for lit in optimizer.get_unsat_core() {
@@ -430,12 +472,13 @@ fn test_outline() {
             tracing::info!("sat");
 
             let model = optimizer.get_model().unwrap();
-
             for (k, v) in vars.option_ast_map {
                 println!("{k:?} -> {:?}", model.eval(&v, true));
             }
         }
     }
+
+    println!("elapsed: {:?}", start.elapsed());
 
     println!("\n\n");
 
