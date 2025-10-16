@@ -44,13 +44,6 @@ impl Constraint for IfThen {
         todo!()
     }
 
-    fn propagate_types(
-        &mut self,
-        required: Option<super::ConstraintType>,
-    ) -> Result<(), SolverError> {
-        todo!()
-    }
-
     fn to_z3_clause<'a>(
         &self,
         package: &str,

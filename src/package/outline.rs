@@ -271,25 +271,18 @@ impl SpecOutline {
         Ok(())
     }
 
-    pub fn gen_spec_solver(
-        &self,
-    ) -> Result<(Optimize, Registry<'_>), SolverError> {
-        tracing::info!("generating spec solver");
-
-        let mut wip_registry = WipRegistry::default();
-
-        let optimizer = Optimize::new();
-
-        let mut additional_constraints = Vec::new();
-
+    pub fn create_tracking_variables<'a>(
+        &'a self,
+        optimizer: &Optimize,
+        wip_registry: &mut WipRegistry<'a>,
+    ) -> Result<(), SolverError>
+    where
+        Self: 'a,
+    {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
             tracing::info!("creating activation toggle for {}", package.name);
-
-            // Whether the package is enabled.
-            // This variable implies all the package's constraints are true,
-            // allowing us to effectively toggle the package on and off.
 
             let package_toggle =
                 z3::ast::Bool::new_const(package.name.to_string());
@@ -304,7 +297,6 @@ impl SpecOutline {
                 .option_ast_map
                 .insert((&package.name, None), package_toggle.into());
 
-            // Create variables for each package option
             for (name, value) in package
                 .constraints
                 .iter()
@@ -317,11 +309,27 @@ impl SpecOutline {
                 );
 
                 let val =
-                    value.to_z3_dynamic(&package.name, name, &mut wip_registry);
+                    value.to_z3_dynamic(&package.name, name, wip_registry);
+
                 wip_registry
                     .option_ast_map
                     .insert((&package.name, Some(name)), val);
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_explicit_options<'a>(
+        &'a self,
+        optimizer: &Optimize,
+        registry: &Registry<'a>,
+    ) -> Result<(), SolverError>
+    where
+        Self: 'a,
+    {
+        for idx in self.graph.node_indices() {
+            let package = &self.graph[idx];
 
             for (name, value) in &package.set_options {
                 tracing::info!(
@@ -329,44 +337,41 @@ impl SpecOutline {
                     package.name
                 );
 
-                additional_constraints.push((
-                    idx,
-                    Box::new(constraint::Equal {
-                        lhs: Box::new(constraint::SpecOption {
-                            package_name: None,
-                            option_name: name.clone(),
-                        }),
-
-                        rhs: Box::new(constraint::Value {
-                            value: value.clone(),
-                        }),
+                let eq: Box<dyn Constraint> = Box::new(constraint::Equal {
+                    lhs: Box::new(constraint::SpecOption {
+                        package_name: None,
+                        option_name: name.clone(),
                     }),
-                ));
+
+                    rhs: Box::new(constraint::Value { value: value.clone() }),
+                });
+
+                optimizer.assert_and_track(
+                    &registry.option_ast_map[&(package.name.as_ref(), None)]
+                        .as_bool()
+                        .unwrap() // Safe because package toggle guaranteed to exist
+                        .implies(
+                            eq.to_z3_clause(&package.name, &registry)
+                                .unwrap()
+                                .as_bool()
+                                .unwrap(),
+                        ),
+                    &z3::ast::Bool::new_const(format!("{value:?}")),
+                );
             }
         }
 
-        let registry = wip_registry.build();
+        Ok(())
+    }
 
-        println!("Registry: {registry:?}");
-
-        for (idx, value) in additional_constraints {
-            let package = &self.graph[idx];
-
-            optimizer.assert_and_track(
-                &registry.option_ast_map[&(package.name.as_ref(), None)]
-                    .as_bool()
-                    .unwrap() // Safe because package toggle guaranteed to exist
-                    .implies(
-                        value
-                            .to_z3_clause(&package.name, &registry)
-                            .unwrap()
-                            .as_bool()
-                            .unwrap(),
-                    ),
-                &z3::ast::Bool::new_const(format!("{value:?}")),
-            );
-        }
-
+    pub fn require_packages<'a>(
+        &'a self,
+        optimizer: &Optimize,
+        registry: &Registry<'a>,
+    ) -> Result<(), SolverError>
+    where
+        Self: 'a,
+    {
         for r in &self.required {
             let Some(d) = registry.option_ast_map.get(&(r.as_str(), None))
             else {
@@ -384,7 +389,17 @@ impl SpecOutline {
             );
         }
 
-        // Add constraints to the solver
+        Ok(())
+    }
+
+    pub fn add_constraints<'a>(
+        &'a self,
+        optimizer: &Optimize,
+        registry: &Registry<'a>,
+    ) -> Result<(), SolverError>
+    where
+        Self: 'a,
+    {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
@@ -397,13 +412,13 @@ impl SpecOutline {
                     constraint
                 );
 
-                let package_toggle = registry.option_ast_map
+                let package_toggle = &registry.option_ast_map
                     [&(package.name.as_str(), None)]
                     .as_bool()
                     .unwrap();
 
                 let clause =
-                    constraint.to_z3_clause(&package.name, &registry)?;
+                    constraint.to_z3_clause(&package.name, registry)?;
 
                 match clause.sort_kind() {
                     SortKind::Bool => {
@@ -425,6 +440,24 @@ impl SpecOutline {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    pub fn gen_spec_solver(
+        &self,
+    ) -> Result<(Optimize, Registry<'_>), SolverError> {
+        tracing::info!("generating spec solver");
+
+        let optimizer = Optimize::new();
+        let mut wip_registry = WipRegistry::new();
+
+        self.create_tracking_variables(&optimizer, &mut wip_registry)?;
+
+        let registry = wip_registry.build();
+        self.handle_explicit_options(&optimizer, &registry)?;
+        self.require_packages(&optimizer, &registry)?;
+        self.add_constraints(&optimizer, &registry)?;
 
         Ok((optimizer, registry))
     }

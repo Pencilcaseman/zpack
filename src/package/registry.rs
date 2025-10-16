@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 
-use crate::package::version::Version;
+use crate::{package::version::Version, spec};
 
 #[derive(Debug, Default, Clone)]
 pub struct WipRegistry<'a> {
+    pub option_type_map:
+        HashMap<(&'a str, Option<&'a str>), Option<spec::SpecOptionType>>,
     pub option_ast_map: HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>,
     pub versions: WipVersionRegistry,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct Registry<'a> {
+    pub option_type_map:
+        HashMap<(&'a str, Option<&'a str>), Option<spec::SpecOptionType>>,
     pub option_ast_map: HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>,
     pub versions: VersionRegistry,
 }
@@ -21,6 +25,7 @@ impl<'a> WipRegistry<'a> {
 
     pub fn build(self) -> Registry<'a> {
         Registry {
+            option_type_map: self.option_type_map,
             option_ast_map: self.option_ast_map,
             versions: self.versions.build(),
         }

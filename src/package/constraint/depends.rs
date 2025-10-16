@@ -37,22 +37,6 @@ impl Constraint for Depends {
         Some(ConstraintType::Depends)
     }
 
-    fn propagate_types(
-        &mut self,
-        required: Option<ConstraintType>,
-    ) -> Result<(), SolverError> {
-        if let Some(t) = required
-            && t != ConstraintType::Depends
-        {
-            Err(SolverError::IncorrectConstraintType {
-                expected: ConstraintType::Equal,
-                received: t,
-            })
-        } else {
-            Ok(())
-        }
-    }
-
     fn to_z3_clause<'a>(
         &self,
         package: &str,

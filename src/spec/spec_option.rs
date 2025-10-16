@@ -7,7 +7,7 @@ use crate::package::{
     version,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
     Bool,
     Int,

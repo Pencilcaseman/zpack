@@ -21,19 +21,14 @@ pub enum ConstraintType {
 }
 
 pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
+    fn get_type(&self) -> Option<ConstraintType>;
+
     fn extract_spec_options(
         &self,
         package: &str,
     ) -> Vec<(&str, spec::SpecOption)>;
 
     fn extract_dependencies(&self) -> HashSet<String>;
-
-    fn get_type(&self) -> Option<ConstraintType>;
-
-    fn propagate_types(
-        &mut self,
-        required: Option<ConstraintType>,
-    ) -> Result<(), SolverError>;
 
     fn to_z3_clause<'a>(
         &self,

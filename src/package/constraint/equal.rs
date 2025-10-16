@@ -40,35 +40,6 @@ impl Constraint for Equal {
         Some(ConstraintType::Equal)
     }
 
-    fn propagate_types(
-        &mut self,
-        required: Option<ConstraintType>,
-    ) -> Result<(), SolverError> {
-        if let Some(t) = required
-            && t != ConstraintType::Equal
-        {
-            tracing::error!("expected Equal, found {t:?}");
-
-            return Err(SolverError::IncorrectConstraintType {
-                expected: ConstraintType::Equal,
-                received: t,
-            });
-        }
-
-        match (self.lhs.get_type(), self.rhs.get_type()) {
-            (None, Some(r_type)) => self.lhs.propagate_types(Some(r_type)),
-            (Some(l_type), None) => self.rhs.propagate_types(Some(l_type)),
-            (Some(l_type), Some(r_type)) if l_type != r_type => {
-                tracing::error!("cannot compare {l_type:?} and {r_type:?}");
-                Err(SolverError::IncorrectConstraintType {
-                    expected: l_type,
-                    received: r_type,
-                })
-            }
-            _ => Ok(()),
-        }
-    }
-
     fn to_z3_clause<'a>(
         &self,
         package: &str,
