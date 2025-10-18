@@ -332,7 +332,7 @@ impl SpecOutline {
 
             for (name, value) in &package.set_options {
                 tracing::info!(
-                    "adding explicit value {}:{name} -> {value:?}",
+                    "adding explicit value {}:{name} -> {value}",
                     package.name
                 );
 
@@ -350,12 +350,12 @@ impl SpecOutline {
                         .as_bool()
                         .unwrap() // Safe because package toggle guaranteed to exist
                         .implies(
-                            eq.to_z3_clause(&registry)
+                            eq.to_z3_clause(registry)
                                 .unwrap()
                                 .as_bool()
                                 .unwrap(),
                         ),
-                    &z3::ast::Bool::new_const(format!("{value:?}")),
+                    &z3::ast::Bool::new_const(format!("{value}")),
                 );
             }
         }
@@ -403,7 +403,7 @@ impl SpecOutline {
 
             for constraint in &package.constraints {
                 tracing::info!(
-                    "adding constraint {} -> {:?}",
+                    "adding constraint {} -> {}",
                     package.name,
                     constraint
                 );
@@ -419,9 +419,7 @@ impl SpecOutline {
                     SortKind::Bool => {
                         optimizer.assert_and_track(
                             &package_toggle.implies(clause.as_bool().unwrap()),
-                            &z3::ast::Bool::new_const(format!(
-                                "{constraint:?}"
-                            )),
+                            &z3::ast::Bool::new_const(format!("{constraint}")),
                         );
                     }
                     kind => {

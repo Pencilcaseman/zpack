@@ -4,7 +4,7 @@ use std::{
 };
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::{SortKind, ast::Bool};
+use z3::ast::{Bool, Int};
 
 use super::Constraint;
 use crate::{
@@ -13,15 +13,12 @@ use crate::{
         outline::SolverError,
         registry::Registry,
     },
-    spec::SpecOption,
+    spec::{self, SpecOption},
 };
 
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct NumOf {
-    #[pyo3(get, set)]
-    pub n: i32,
-
     #[pyo3(get, set)]
     pub of: Vec<Box<dyn Constraint>>,
 }
@@ -31,7 +28,7 @@ impl Constraint for NumOf {
         &'a self,
         _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
-        Some(ConstraintType::NumOf)
+        Some(ConstraintType::Value(spec::SpecOptionType::Int))
     }
 
     fn set_type<'a>(
@@ -64,10 +61,12 @@ impl Constraint for NumOf {
         &self,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
-        tracing::info!("(exactly {} of {} constraints)", self.n, self.of.len());
+        // tracing::info!("(exactly {} of {} constraints)", self.n,
+        // self.of.len());
 
         let mut clauses = Vec::new();
 
+        // TODO: Move this to type_check
         for constraint in &self.of {
             if (**constraint).as_any().is::<IfThen>() {
                 tracing::error!("IfThen inside NumOf; this does nothing");
@@ -81,11 +80,15 @@ impl Constraint for NumOf {
                 panic!("{msg}");
             };
 
-            clauses.push((cond, 1));
+            clauses.push(cond);
         }
 
-        let refs = clauses.iter().map(|(b, m)| (b, *m)).collect::<Vec<_>>();
-        Ok(Bool::pb_eq(&refs, self.n).into())
+        let refs = clauses
+            .iter()
+            .map(|b| b.ite(&Int::from_i64(1), &Int::from_i64(0)))
+            .collect::<Vec<_>>();
+
+        Ok(Int::add(&refs).into())
     }
 
     fn to_python_any<'py>(
@@ -97,5 +100,15 @@ impl Constraint for NumOf {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl std::fmt::Display for NumOf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NumOf( ")?;
+        self.of.iter().enumerate().try_for_each(|(idx, of)| {
+            write!(f, "{}{}", of, if idx == self.of.len() { "" } else { ", " })
+        })?;
+        f.write_str(" )")
     }
 }

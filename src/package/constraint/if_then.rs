@@ -4,7 +4,6 @@ use std::{
 };
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use tracing::instrument;
 use z3::SortKind;
 
 use super::Constraint;
@@ -57,18 +56,16 @@ impl Constraint for IfThen {
         };
 
         match cond_type {
-            ConstraintType::Depends
-            | ConstraintType::Equal
-            | ConstraintType::NumOf => Ok(()),
+            ConstraintType::Depends | ConstraintType::Equal => Ok(()),
 
             ConstraintType::IfThen => {
                 tracing::error!(
                     "cannot have IfThen as condition for another IfThen. Consider using Boolean operators like And, Or, Not, etc."
                 );
 
-                Err(SolverError::InvalidConstraint(format!(
-                    "nested IfThen constraint"
-                )))
+                Err(SolverError::InvalidConstraint(
+                    "nested IfThen constraint".into(),
+                ))
             }
 
             ConstraintType::Value(value) => {
@@ -79,9 +76,9 @@ impl Constraint for IfThen {
                         "cannot use non-Boolean value {value:?} in IfThen condition"
                     );
 
-                    Err(SolverError::InvalidConstraint(format!(
-                        "non-Boolean condition in IfThen"
-                    )))
+                    Err(SolverError::InvalidConstraint(
+                        "non-Boolean condition in IfThen".into(),
+                    ))
                 }
             }
 
@@ -91,10 +88,7 @@ impl Constraint for IfThen {
         }
     }
 
-    #[instrument]
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
-        tracing::info!("extracting spec options");
-
         [&self.cond, &self.then]
             .iter()
             .flat_map(|c| c.extract_spec_options())
@@ -141,5 +135,11 @@ impl Constraint for IfThen {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl std::fmt::Display for IfThen {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "If( {} ) Then [ {} ]", self.cond, self.then)
     }
 }

@@ -18,12 +18,13 @@ pub enum ConstraintType {
     Depends,
     Equal,
     IfThen,
-    NumOf,
     SpecOption,
     Value(spec::SpecOptionType),
 }
 
-pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
+pub trait Constraint:
+    Send + Sync + DynClone + Any + std::fmt::Debug + std::fmt::Display
+{
     fn get_type<'a>(
         &'a self,
         wip_registry: &mut WipRegistry<'a>,

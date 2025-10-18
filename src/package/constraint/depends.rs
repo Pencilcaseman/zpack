@@ -6,7 +6,9 @@ use z3::SortKind;
 use super::Constraint;
 use crate::{
     package::{
-        constraint::ConstraintType, outline::SolverError, registry::Registry,
+        constraint::{ConstraintType, Equal},
+        outline::SolverError,
+        registry::Registry,
     },
     spec::SpecOption,
 };
@@ -104,5 +106,11 @@ impl Depends {
     #[new]
     pub fn py_new(name: String) -> PyResult<Self> {
         Ok(Self::new(name))
+    }
+}
+
+impl std::fmt::Display for Depends {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Depends( {} )", self.on)
     }
 }

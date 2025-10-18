@@ -121,3 +121,13 @@ impl Constraint for SpecOption {
         self
     }
 }
+
+impl std::fmt::Display for SpecOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Package '{}' -> Option '{}'",
+            self.package_name, self.option_name
+        )
+    }
+}

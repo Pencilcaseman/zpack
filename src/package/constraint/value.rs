@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use tracing::instrument;
 
 use crate::{
     package::{
@@ -27,7 +26,6 @@ impl Constraint for Value {
         Some(ConstraintType::Value(self.value.to_type()))
     }
 
-    #[instrument]
     fn set_type<'a>(
         &'a self,
         _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
@@ -53,9 +51,7 @@ impl Constraint for Value {
         Ok(())
     }
 
-    #[instrument]
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
-        tracing::info!("extracting spec options");
         Vec::new()
     }
 
@@ -79,5 +75,11 @@ impl Constraint for Value {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
     }
 }

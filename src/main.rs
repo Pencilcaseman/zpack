@@ -15,7 +15,6 @@ use syntect::{
     parsing::SyntaxSet,
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
-use tracing::instrument;
 use z3::Optimize;
 use zpack::package::{
     constraint::{Constraint, NumOf},
@@ -51,7 +50,6 @@ fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
     generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
-#[instrument]
 fn test_yaml() {
     let yaml_str = r#"
 zpack:
@@ -184,28 +182,30 @@ fn test_outline() {
         name: "blas".into(),
 
         constraints: vec![
-            Box::new(NumOf {
-                n: 1,
-                of: vec![
-                    Box::new(Equal {
-                        lhs: Box::new(SpecOption {
-                            package_name: "blas".into(),
-                            option_name: "openblas".into(),
+            Box::new(Equal {
+                lhs: Box::new(NumOf {
+                    of: vec![
+                        Box::new(Equal {
+                            lhs: Box::new(SpecOption {
+                                package_name: "blas".into(),
+                                option_name: "openblas".into(),
+                            }),
+                            rhs: Box::new(Value {
+                                value: SpecOptionValue::Bool(true),
+                            }),
                         }),
-                        rhs: Box::new(Value {
-                            value: SpecOptionValue::Bool(true),
+                        Box::new(Equal {
+                            lhs: Box::new(SpecOption {
+                                package_name: "blas".into(),
+                                option_name: "mkl".into(),
+                            }),
+                            rhs: Box::new(Value {
+                                value: SpecOptionValue::Bool(true),
+                            }),
                         }),
-                    }),
-                    Box::new(Equal {
-                        lhs: Box::new(SpecOption {
-                            package_name: "blas".into(),
-                            option_name: "mkl".into(),
-                        }),
-                        rhs: Box::new(Value {
-                            value: SpecOptionValue::Bool(true),
-                        }),
-                    }),
-                ],
+                    ],
+                }),
+                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
             }),
             Box::new(IfThen {
                 cond: Box::new(Equal {
@@ -240,37 +240,39 @@ fn test_outline() {
         name: "mpi".into(),
 
         constraints: vec![
-            Box::new(NumOf {
-                n: 1,
-                of: vec![
-                    Box::new(Equal {
-                        lhs: Box::new(SpecOption {
-                            package_name: "mpi".into(),
-                            option_name: "openmpi".into(),
+            Box::new(Equal {
+                lhs: Box::new(NumOf {
+                    of: vec![
+                        Box::new(Equal {
+                            lhs: Box::new(SpecOption {
+                                package_name: "mpi".into(),
+                                option_name: "openmpi".into(),
+                            }),
+                            rhs: Box::new(Value {
+                                value: SpecOptionValue::Bool(true),
+                            }),
                         }),
-                        rhs: Box::new(Value {
-                            value: SpecOptionValue::Bool(true),
+                        Box::new(Equal {
+                            lhs: Box::new(SpecOption {
+                                package_name: "mpi".into(),
+                                option_name: "mpich".into(),
+                            }),
+                            rhs: Box::new(Value {
+                                value: SpecOptionValue::Bool(true),
+                            }),
                         }),
-                    }),
-                    Box::new(Equal {
-                        lhs: Box::new(SpecOption {
-                            package_name: "mpi".into(),
-                            option_name: "mpich".into(),
+                        Box::new(Equal {
+                            lhs: Box::new(SpecOption {
+                                package_name: "mpi".into(),
+                                option_name: "intelmpi".into(),
+                            }),
+                            rhs: Box::new(Value {
+                                value: SpecOptionValue::Bool(true),
+                            }),
                         }),
-                        rhs: Box::new(Value {
-                            value: SpecOptionValue::Bool(true),
-                        }),
-                    }),
-                    Box::new(Equal {
-                        lhs: Box::new(SpecOption {
-                            package_name: "mpi".into(),
-                            option_name: "intelmpi".into(),
-                        }),
-                        rhs: Box::new(Value {
-                            value: SpecOptionValue::Bool(true),
-                        }),
-                    }),
-                ],
+                    ],
+                }),
+                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
             }),
             Box::new(IfThen {
                 cond: Box::new(Equal {
@@ -349,7 +351,10 @@ fn test_outline() {
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         constraints: vec![
-            Box::new(NumOf { n: 1, of: openmpi_versions }),
+            Box::new(Equal {
+                lhs: Box::new(NumOf { of: openmpi_versions }),
+                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+            }),
             Box::new(Depends::new("openpmix".into())),
             Box::new(Depends::new("openprrte".into())),
             Box::new(Depends::new("hwloc".into())),
@@ -388,18 +393,18 @@ fn test_outline() {
         name: "openprrte".into(),
         constraints: vec![
             Box::new(Depends::new("gcc".into())),
-            // Box::new(Equal {
-            //     lhs: Box::new(SpecOption {
-            //         package_name: "hwloc".into(),
-            //         option_name: "version".into(),
-            //     }),
-            //     rhs: Box::new(Value {
-            //         value: SpecOptionValue::Version(
-            //             zpack::package::version::Version::new("2.12.1")
-            //                 .unwrap(),
-            //         ),
-            //     }),
-            // }),
+            Box::new(Equal {
+                lhs: Box::new(SpecOption {
+                    package_name: "hwloc".into(),
+                    option_name: "version".into(),
+                }),
+                rhs: Box::new(Value {
+                    value: SpecOptionValue::Version(
+                        zpack::package::version::Version::new("2.12.2")
+                            .unwrap(),
+                    ),
+                }),
+            }),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
@@ -425,7 +430,10 @@ fn test_outline() {
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
         constraints: vec![
-            Box::new(NumOf { n: 1, of: hwloc_versions }),
+            Box::new(Equal {
+                lhs: Box::new(NumOf { of: hwloc_versions }),
+                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+            }),
             Box::new(Depends::new("gcc".into())),
         ],
         set_options: HashMap::default(),

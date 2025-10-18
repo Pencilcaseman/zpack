@@ -91,6 +91,18 @@ impl Hash for SpecOptionValue {
 
 impl std::cmp::Eq for SpecOptionValue {}
 
+impl std::fmt::Display for SpecOptionValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bool(v) => write!(f, "{v}"),
+            Self::Int(v) => write!(f, "{v}"),
+            Self::Float(v) => write!(f, "{v}"),
+            Self::Str(v) => write!(f, "{v}"),
+            Self::Version(v) => write!(f, "{v}"),
+        }
+    }
+}
+
 impl SpecOption {
     /// Construct a type descriptor instance of a [`SpecOption`]
     ///
@@ -120,8 +132,6 @@ impl SpecOption {
             Some(SpecOptionType::Float) => Float::new_const_double(n).into(),
             Some(SpecOptionType::Str) => String::new_const(n).into(),
             Some(SpecOptionType::Version) => {
-                tracing::error!("DEBUG POINT: {self:?}");
-
                 if let Some(value) = &self.value {
                     let SpecOptionValue::Version(v) = value else {
                         let msg = "value and dtype are inconsistent; this is an internal error";

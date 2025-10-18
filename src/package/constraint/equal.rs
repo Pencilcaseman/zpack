@@ -1,7 +1,6 @@
 use std::{any::Any, collections::HashSet};
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use tracing::instrument;
 
 use crate::{
     package::{
@@ -30,7 +29,6 @@ impl Constraint for Equal {
         Some(ConstraintType::Equal)
     }
 
-    #[instrument]
     fn set_type<'a>(
         &'a self,
         _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
@@ -39,7 +37,7 @@ impl Constraint for Equal {
         tracing::warn!("attempting to set type of Equal. This does nothing");
     }
 
-    #[instrument]
+    #[tracing::instrument(skip(self, wip_registry))]
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut crate::package::registry::WipRegistry<'a>,
@@ -50,7 +48,7 @@ impl Constraint for Equal {
         let lhs_type = self.lhs.get_type(wip_registry);
         let rhs_type = self.rhs.get_type(wip_registry);
 
-        let res = match (lhs_type, rhs_type) {
+        match (lhs_type, rhs_type) {
             (None, None) => Ok(()),
 
             (None, Some(rhs)) => {
@@ -77,19 +75,16 @@ impl Constraint for Equal {
                     Ok(())
                 }
             }
-        };
+        }?;
 
         // Continue type checking
         self.lhs.type_check(wip_registry)?;
         self.rhs.type_check(wip_registry)?;
 
-        res
+        Ok(())
     }
 
-    #[instrument]
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
-        tracing::info!("extracting spec options");
-
         let mut res = Vec::new();
         res.extend(self.lhs.extract_spec_options());
         res.extend(self.rhs.extract_spec_options());
@@ -120,5 +115,11 @@ impl Constraint for Equal {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl std::fmt::Display for Equal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[ {} ] == [ {} ]", self.lhs, self.rhs)
     }
 }
