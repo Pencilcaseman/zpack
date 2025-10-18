@@ -28,3 +28,4 @@ python/dist
 zpack_py/uv.lock
 uv.lock
 .schema/
+.direnv
