@@ -4,7 +4,10 @@ use dyn_clone::DynClone;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{
-    package::{outline::SolverError, registry::Registry},
+    package::{
+        outline::SolverError,
+        registry::{Registry, WipRegistry},
+    },
     spec,
 };
 
@@ -21,18 +24,28 @@ pub enum ConstraintType {
 }
 
 pub trait Constraint: std::fmt::Debug + Send + Sync + DynClone + Any {
-    fn get_type(&self) -> Option<ConstraintType>;
+    fn get_type<'a>(
+        &'a self,
+        wip_registry: &mut WipRegistry<'a>,
+    ) -> Option<ConstraintType>;
 
-    fn extract_spec_options(
-        &self,
-        package: &str,
-    ) -> Vec<(&str, spec::SpecOption)>;
+    fn set_type<'a>(
+        &'a self,
+        wip_registry: &mut WipRegistry<'a>,
+        constraint_type: ConstraintType,
+    );
+
+    fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut WipRegistry<'a>,
+    ) -> Result<(), SolverError>;
+
+    fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)>;
 
     fn extract_dependencies(&self) -> HashSet<String>;
 
     fn to_z3_clause<'a>(
         &self,
-        package: &str,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError>;
 

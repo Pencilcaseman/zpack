@@ -8,7 +8,11 @@ use z3::{SortKind, ast::Bool};
 
 use super::Constraint;
 use crate::{
-    package::{constraint::IfThen, outline::SolverError, registry::Registry},
+    package::{
+        constraint::{ConstraintType, IfThen},
+        outline::SolverError,
+        registry::Registry,
+    },
     spec::SpecOption,
 };
 
@@ -23,31 +27,44 @@ pub struct NumOf {
 }
 
 impl Constraint for NumOf {
-    fn extract_spec_options(&self, package: &str) -> Vec<(&str, SpecOption)> {
-        tracing::info!("extracting {} spec options", self.of.len());
+    fn get_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Option<ConstraintType> {
+        Some(ConstraintType::NumOf)
+    }
 
-        self.of.iter().flat_map(|c| c.extract_spec_options(package)).collect()
+    fn set_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _constraint_type: ConstraintType,
+    ) {
+        tracing::warn!(
+            "attempting to change data type of NumOf. This does nothing"
+        );
+    }
+
+    fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Result<(), SolverError> {
+        self.of.iter().try_for_each(|c| c.type_check(wip_registry))
+    }
+
+    fn extract_spec_options(&self) -> Vec<(&str, &str, SpecOption)> {
+        tracing::info!("extracting {} spec options", self.of.len());
+        self.of.iter().flat_map(|c| c.extract_spec_options()).collect()
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
         self.of.iter().flat_map(|b| b.extract_dependencies()).collect()
     }
 
-    fn get_type(&self) -> Option<super::ConstraintType> {
-        todo!()
-    }
-
     fn to_z3_clause<'a>(
         &self,
-        package: &str,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
-        tracing::info!(
-            "{} -> (exactly {} of {} constraints)",
-            package,
-            self.n,
-            self.of.len()
-        );
+        tracing::info!("(exactly {} of {} constraints)", self.n, self.of.len());
 
         let mut clauses = Vec::new();
 
@@ -56,7 +73,7 @@ impl Constraint for NumOf {
                 tracing::error!("IfThen inside NumOf; this does nothing");
             }
 
-            let cond = constraint.to_z3_clause(package, registry)?;
+            let cond = constraint.to_z3_clause(registry)?;
             let Some(cond) = cond.as_bool() else {
                 let msg =
                     format!("expected Bool; received {:?}", cond.sort_kind());

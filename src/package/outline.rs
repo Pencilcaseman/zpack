@@ -91,7 +91,6 @@ pub enum GenSpecSolverError {
 pub enum SolverError {
     DuplicateOption(String),
     MissingDependency {
-        package: String,
         dep: String,
     },
     MissingVariable {
@@ -134,10 +133,7 @@ impl SpecOutline {
                             src_name
                         );
 
-                        SolverError::MissingDependency {
-                            package: src_name.clone(),
-                            dep: dep.clone(),
-                        }
+                        SolverError::MissingDependency { dep: dep.clone() }
                     })?,
                 ))
             }
@@ -297,23 +293,26 @@ impl SpecOutline {
                 .option_ast_map
                 .insert((&package.name, None), package_toggle.into());
 
-            for (name, value) in package
+            for (package_name, option_name, value) in package
                 .constraints
                 .iter()
-                .flat_map(|c| c.extract_spec_options(&package.name))
+                .flat_map(|c| c.extract_spec_options())
             {
                 tracing::info!(
                     "creating variable for {}:{}",
-                    package.name,
-                    name
+                    package_name,
+                    option_name
                 );
 
-                let val =
-                    value.to_z3_dynamic(&package.name, name, wip_registry);
+                let val = value.to_z3_dynamic(
+                    package_name,
+                    option_name,
+                    wip_registry,
+                );
 
                 wip_registry
                     .option_ast_map
-                    .insert((&package.name, Some(name)), val);
+                    .insert((package_name, Some(option_name)), val);
             }
         }
 
@@ -339,7 +338,7 @@ impl SpecOutline {
 
                 let eq: Box<dyn Constraint> = Box::new(constraint::Equal {
                     lhs: Box::new(constraint::SpecOption {
-                        package_name: None,
+                        package_name: package.name.clone(),
                         option_name: name.clone(),
                     }),
 
@@ -351,7 +350,7 @@ impl SpecOutline {
                         .as_bool()
                         .unwrap() // Safe because package toggle guaranteed to exist
                         .implies(
-                            eq.to_z3_clause(&package.name, &registry)
+                            eq.to_z3_clause(&registry)
                                 .unwrap()
                                 .as_bool()
                                 .unwrap(),
@@ -377,10 +376,7 @@ impl SpecOutline {
             else {
                 tracing::error!("missing explicitly required dependency '{r}'");
 
-                return Err(SolverError::MissingDependency {
-                    package: "REQUIRED".to_string(),
-                    dep: r.clone(),
-                });
+                return Err(SolverError::MissingDependency { dep: r.clone() });
             };
 
             optimizer.assert_and_track(
@@ -417,8 +413,7 @@ impl SpecOutline {
                     .as_bool()
                     .unwrap();
 
-                let clause =
-                    constraint.to_z3_clause(&package.name, registry)?;
+                let clause = constraint.to_z3_clause(registry)?;
 
                 match clause.sort_kind() {
                     SortKind::Bool => {
@@ -444,6 +439,27 @@ impl SpecOutline {
         Ok(())
     }
 
+    pub fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut WipRegistry<'a>,
+    ) -> Result<(), SolverError> {
+        for idx in self.graph.node_indices() {
+            let package = &self.graph[idx];
+
+            tracing::info!("checking types for package '{}'", package.name);
+
+            for constraint in &package.constraints {
+                tracing::info!(
+                    "checking types for constraint '{constraint:?}'"
+                );
+
+                constraint.type_check(wip_registry)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn gen_spec_solver(
         &self,
     ) -> Result<(Optimize, Registry<'_>), SolverError> {
@@ -452,9 +468,16 @@ impl SpecOutline {
         let optimizer = Optimize::new();
         let mut wip_registry = WipRegistry::new();
 
+        self.type_check(&mut wip_registry)?;
+
+        println!("Type Registry: {:?}", wip_registry.option_type_map);
+
         self.create_tracking_variables(&optimizer, &mut wip_registry)?;
 
+        tracing::error!("Version Registry: {:?}", wip_registry.versions);
+
         let registry = wip_registry.build();
+
         self.handle_explicit_options(&optimizer, &registry)?;
         self.require_packages(&optimizer, &registry)?;
         self.add_constraints(&optimizer, &registry)?;

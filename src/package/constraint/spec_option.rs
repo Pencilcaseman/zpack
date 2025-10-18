@@ -4,7 +4,9 @@ use pyo3::{IntoPyObjectExt, prelude::*};
 
 use crate::{
     package::{
-        constraint::Constraint, outline::SolverError, registry::Registry,
+        constraint::{Constraint, ConstraintType},
+        outline::SolverError,
+        registry::Registry,
     },
     spec,
 };
@@ -13,62 +15,95 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct SpecOption {
     #[pyo3(get, set)]
-    pub package_name: Option<String>,
+    pub package_name: String,
 
     #[pyo3(get, set)]
     pub option_name: String,
 }
 
 impl Constraint for SpecOption {
-    fn extract_spec_options(
+    fn get_type<'a>(
+        &'a self,
+        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Option<ConstraintType> {
+        wip_registry
+            .option_type_map
+            .get(&(&self.package_name, Some(self.option_name.as_ref())))
+            .map(|v| ConstraintType::Value(*v))
+    }
+
+    fn set_type<'a>(
+        &'a self,
+        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        constraint_type: ConstraintType,
+    ) {
+        let ConstraintType::Value(option_type) = constraint_type else {
+            tracing::error!(
+                "cannot set data type of SpecOption to anything but ConstraintType::Value(...)"
+            );
+            panic!("TODO: Improve error handling here");
+        };
+
+        tracing::error!("{self:?}");
+
+        wip_registry.option_type_map.insert(
+            (&self.package_name, Some(self.option_name.as_ref())),
+            option_type,
+        );
+    }
+
+    fn type_check<'a>(
         &self,
-        _package: &str,
-    ) -> Vec<(&str, spec::SpecOption)> {
-        vec![(self.option_name.as_ref(), spec::SpecOption::default())]
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Result<(), SolverError> {
+        // Nothing to type check
+        Ok(())
+    }
+
+    fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
+        tracing::warn!("extracing SpecOption '{}'", self.option_name);
+        vec![(
+            &self.package_name,
+            &self.option_name,
+            spec::SpecOption::default(),
+        )]
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
         HashSet::default()
     }
 
-    fn get_type(&self) -> Option<super::ConstraintType> {
-        todo!()
-    }
-
     fn to_z3_clause<'a>(
         &self,
-        package: &str,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
-        let package_name = match &self.package_name {
-            Some(name) => name,
-            None => package,
-        };
-
-        tracing::info!("{package_name}:{}", self.option_name);
+        tracing::info!("{}:{}", self.package_name, self.option_name);
 
         match registry
             .option_ast_map
-            .get(&(package_name, Some(self.option_name.as_str())))
+            .get(&(&self.package_name, Some(self.option_name.as_str())))
         {
             Some(var) => Ok(var.clone()),
             None => {
-                if registry.option_ast_map.contains_key(&(package_name, None)) {
+                if registry
+                    .option_ast_map
+                    .contains_key(&(&self.package_name, None))
+                {
                     tracing::error!(
-                        "missing variable {package_name}:{}",
+                        "missing variable {}:{}",
+                        self.package_name,
                         self.option_name
                     );
 
                     Err(SolverError::MissingVariable {
-                        package: package_name.to_string(),
+                        package: self.package_name.clone(),
                         name: self.option_name.clone(),
                     })
                 } else {
-                    tracing::error!("missing package {package_name}");
+                    tracing::error!("missing package {}", self.package_name);
 
                     Err(SolverError::MissingDependency {
-                        package: package.to_string(),
-                        dep: package_name.to_string(),
+                        dep: self.package_name.clone(),
                     })
                 }
             }

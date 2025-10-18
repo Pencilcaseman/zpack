@@ -1,13 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
+use tracing::instrument;
 
 use crate::{
     package::{
-        constraint::Constraint, outline::SolverError, registry::Registry,
+        constraint::{Constraint, ConstraintType},
+        outline::SolverError,
+        registry::Registry,
     },
-    spec,
-    spec::SpecOptionValue,
+    spec::{self, SpecOptionValue},
 };
 
 #[pyclass]
@@ -18,10 +20,42 @@ pub struct Value {
 }
 
 impl Constraint for Value {
-    fn extract_spec_options(
-        &self,
-        _package: &str,
-    ) -> Vec<(&str, spec::SpecOption)> {
+    fn get_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Option<ConstraintType> {
+        Some(ConstraintType::Value(self.value.to_type()))
+    }
+
+    #[instrument]
+    fn set_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _constraint_type: ConstraintType,
+    ) {
+        tracing::error!("Cannot change datatype of constraint type Value");
+    }
+
+    fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Result<(), SolverError> {
+        match &self.value {
+            SpecOptionValue::Bool(_)
+            | SpecOptionValue::Int(_)
+            | SpecOptionValue::Float(_)
+            | SpecOptionValue::Str(_) => (),
+            SpecOptionValue::Version(version) => {
+                wip_registry.versions.push(version.clone());
+            }
+        }
+
+        Ok(())
+    }
+
+    #[instrument]
+    fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
+        tracing::info!("extracting spec options");
         Vec::new()
     }
 
@@ -29,13 +63,8 @@ impl Constraint for Value {
         HashSet::default()
     }
 
-    fn get_type(&self) -> Option<super::ConstraintType> {
-        todo!()
-    }
-
     fn to_z3_clause<'a>(
         &self,
-        _package: &str,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         Ok(self.value.to_z3_dynamic(registry))

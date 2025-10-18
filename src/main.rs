@@ -153,24 +153,25 @@ fn test_outline() {
             Box::new(Depends::new("blas".into())),
             Box::new(Depends::new("mpi".into())),
             Box::new(Depends::new("gcc".into())),
-            Box::new(Equal {
-                lhs: Box::new(SpecOption {
-                    package_name: Some("openmpi".into()),
-                    option_name: "version".into(),
-                }),
-                rhs: Box::new(Value {
-                    value: SpecOptionValue::Version(
-                        zpack::package::version::Version::new("5.0.8").unwrap(),
-                    ),
-                }),
-            }),
-            Box::new(Equal {
-                lhs: Box::new(SpecOption {
-                    package_name: Some("openmpi".into()),
-                    option_name: "version".into(),
-                }),
-                rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
-            }),
+            // Box::new(Equal {
+            //     lhs: Box::new(SpecOption {
+            //         package_name: "openmpi".into(),
+            //         option_name: "version".into(),
+            //     }),
+            //     rhs: Box::new(Value {
+            //         value: SpecOptionValue::Version(
+            //
+            // zpack::package::version::Version::new("5.0.8").unwrap(),
+            //         ),
+            //     }),
+            // }),
+            // Box::new(Equal {
+            //     lhs: Box::new(SpecOption {
+            //         package_name: Some("openmpi".into()),
+            //         option_name: "version".into(),
+            //     }),
+            //     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+            // }),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
@@ -188,7 +189,7 @@ fn test_outline() {
                 of: vec![
                     Box::new(Equal {
                         lhs: Box::new(SpecOption {
-                            package_name: None,
+                            package_name: "blas".into(),
                             option_name: "openblas".into(),
                         }),
                         rhs: Box::new(Value {
@@ -197,7 +198,7 @@ fn test_outline() {
                     }),
                     Box::new(Equal {
                         lhs: Box::new(SpecOption {
-                            package_name: None,
+                            package_name: "blas".into(),
                             option_name: "mkl".into(),
                         }),
                         rhs: Box::new(Value {
@@ -209,7 +210,7 @@ fn test_outline() {
             Box::new(IfThen {
                 cond: Box::new(Equal {
                     lhs: Box::new(SpecOption {
-                        package_name: None,
+                        package_name: "blas".into(),
                         option_name: "openblas".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
@@ -219,7 +220,7 @@ fn test_outline() {
             Box::new(IfThen {
                 cond: Box::new(Equal {
                     lhs: Box::new(SpecOption {
-                        package_name: None,
+                        package_name: "blas".into(),
                         option_name: "mkl".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
@@ -244,7 +245,7 @@ fn test_outline() {
                 of: vec![
                     Box::new(Equal {
                         lhs: Box::new(SpecOption {
-                            package_name: None,
+                            package_name: "mpi".into(),
                             option_name: "openmpi".into(),
                         }),
                         rhs: Box::new(Value {
@@ -253,7 +254,7 @@ fn test_outline() {
                     }),
                     Box::new(Equal {
                         lhs: Box::new(SpecOption {
-                            package_name: None,
+                            package_name: "mpi".into(),
                             option_name: "mpich".into(),
                         }),
                         rhs: Box::new(Value {
@@ -262,7 +263,7 @@ fn test_outline() {
                     }),
                     Box::new(Equal {
                         lhs: Box::new(SpecOption {
-                            package_name: None,
+                            package_name: "mpi".into(),
                             option_name: "intelmpi".into(),
                         }),
                         rhs: Box::new(Value {
@@ -274,7 +275,7 @@ fn test_outline() {
             Box::new(IfThen {
                 cond: Box::new(Equal {
                     lhs: Box::new(SpecOption {
-                        package_name: None,
+                        package_name: "mpi".into(),
                         option_name: "openmpi".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
@@ -284,7 +285,7 @@ fn test_outline() {
             Box::new(IfThen {
                 cond: Box::new(Equal {
                     lhs: Box::new(SpecOption {
-                        package_name: None,
+                        package_name: "mpi".into(),
                         option_name: "mpich".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
@@ -294,7 +295,7 @@ fn test_outline() {
             Box::new(IfThen {
                 cond: Box::new(Equal {
                     lhs: Box::new(SpecOption {
-                        package_name: None,
+                        package_name: "mpi".into(),
                         option_name: "intelmpi".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
@@ -333,7 +334,7 @@ fn test_outline() {
     .map(|v| {
         Box::new(Equal {
             lhs: Box::new(SpecOption {
-                package_name: None,
+                package_name: "openmpi".into(),
                 option_name: "version".into(),
             }),
             rhs: Box::new(Value {
@@ -385,7 +386,21 @@ fn test_outline() {
 
     let openprrte_outline = PackageOutline {
         name: "openprrte".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![
+            Box::new(Depends::new("gcc".into())),
+            // Box::new(Equal {
+            //     lhs: Box::new(SpecOption {
+            //         package_name: "hwloc".into(),
+            //         option_name: "version".into(),
+            //     }),
+            //     rhs: Box::new(Value {
+            //         value: SpecOptionValue::Version(
+            //             zpack::package::version::Version::new("2.12.1")
+            //                 .unwrap(),
+            //         ),
+            //     }),
+            // }),
+        ],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
@@ -395,7 +410,7 @@ fn test_outline() {
         .map(|v| {
             Box::new(Equal {
                 lhs: Box::new(SpecOption {
-                    package_name: None,
+                    package_name: "hwloc".into(),
                     option_name: "version".into(),
                 }),
                 rhs: Box::new(Value {
@@ -503,15 +518,6 @@ fn test_outline() {
     // }
     //
     // child.wait().expect("dot command failed");
-
-    println!("TopoSort: {:?}", petgraph::algo::toposort(&outline.graph, None));
-
-    for idx in petgraph::algo::toposort(&outline.graph, None).unwrap() {
-        println!(
-            "{}: {:?}",
-            outline.graph[idx].name, outline.graph[idx].set_defaults
-        );
-    }
 }
 
 fn test_z3() {

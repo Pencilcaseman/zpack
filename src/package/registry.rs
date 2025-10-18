@@ -4,8 +4,11 @@ use crate::{package::version::Version, spec};
 
 #[derive(Debug, Default, Clone)]
 pub struct WipRegistry<'a> {
+    pub current_package_name: Option<&'a str>,
+    pub current_option_name: Option<&'a str>,
+
     pub option_type_map:
-        HashMap<(&'a str, Option<&'a str>), Option<spec::SpecOptionType>>,
+        HashMap<(&'a str, Option<&'a str>), spec::SpecOptionType>,
     pub option_ast_map: HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>,
     pub versions: WipVersionRegistry,
 }
@@ -13,7 +16,7 @@ pub struct WipRegistry<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct Registry<'a> {
     pub option_type_map:
-        HashMap<(&'a str, Option<&'a str>), Option<spec::SpecOptionType>>,
+        HashMap<(&'a str, Option<&'a str>), spec::SpecOptionType>,
     pub option_ast_map: HashMap<(&'a str, Option<&'a str>), z3::ast::Dynamic>,
     pub versions: VersionRegistry,
 }

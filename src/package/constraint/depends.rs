@@ -25,7 +25,33 @@ impl Depends {
 }
 
 impl Constraint for Depends {
-    fn extract_spec_options(&self, _package: &str) -> Vec<(&str, SpecOption)> {
+    fn get_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Option<ConstraintType> {
+        Some(ConstraintType::Depends)
+    }
+
+    fn set_type<'a>(
+        &'a self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _constraint_type: ConstraintType,
+    ) {
+        // Nothing to set
+        tracing::warn!("attempting to set type of Depends. This does nothing");
+    }
+
+    fn type_check<'a>(
+        &self,
+        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+    ) -> Result<(), SolverError> {
+        // Nothing to type-check
+        Ok(())
+    }
+
+    fn extract_spec_options(
+        &self,
+    ) -> Vec<(&str, &str, crate::spec::SpecOption)> {
         Vec::new()
     }
 
@@ -33,20 +59,14 @@ impl Constraint for Depends {
         HashSet::from([self.on.clone()])
     }
 
-    fn get_type(&self) -> Option<ConstraintType> {
-        Some(ConstraintType::Depends)
-    }
-
     fn to_z3_clause<'a>(
         &self,
-        package: &str,
         registry: &Registry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         let Some(value) = registry.option_ast_map.get(&(&self.on, None)) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
             return Err(SolverError::MissingDependency {
-                package: package.to_string(),
                 dep: self.on.clone(),
             });
         };
