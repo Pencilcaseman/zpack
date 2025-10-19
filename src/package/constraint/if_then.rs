@@ -9,7 +9,8 @@ use z3::SortKind;
 use super::Constraint;
 use crate::{
     package::{
-        constraint::ConstraintType, outline::SolverError, registry::Registry,
+        self, constraint::ConstraintType, outline::SolverError,
+        registry::Registry,
     },
     spec,
 };
@@ -27,14 +28,14 @@ pub struct IfThen {
 impl Constraint for IfThen {
     fn get_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<super::ConstraintType> {
         Some(ConstraintType::IfThen)
     }
 
     fn set_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         _constraint_type: ConstraintType,
     ) {
         tracing::warn!(
@@ -44,7 +45,7 @@ impl Constraint for IfThen {
 
     fn type_check<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         let Some(cond_type) = self.cond.get_type(wip_registry) else {
             self.cond.set_type(
@@ -104,7 +105,7 @@ impl Constraint for IfThen {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         tracing::info!("(if '{:?}' then '{:?}')", self.cond, self.then);
 
@@ -116,7 +117,7 @@ impl Constraint for IfThen {
 
             kind => {
                 tracing::error!("`then` must be Bool");
-                Err(SolverError::IncorrectZ3Type {
+                Err(SolverError::IncorrectSolverType {
                     expected: SortKind::Bool,
                     received: kind,
                 })

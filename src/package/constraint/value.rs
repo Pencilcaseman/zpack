@@ -4,6 +4,7 @@ use pyo3::{IntoPyObjectExt, prelude::*};
 
 use crate::{
     package::{
+        self,
         constraint::{Constraint, ConstraintType},
         outline::SolverError,
         registry::Registry,
@@ -21,14 +22,14 @@ pub struct Value {
 impl Constraint for Value {
     fn get_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Value(self.value.to_type()))
     }
 
     fn set_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         _constraint_type: ConstraintType,
     ) {
         tracing::error!("Cannot change datatype of constraint type Value");
@@ -36,7 +37,7 @@ impl Constraint for Value {
 
     fn type_check<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         match &self.value {
             SpecOptionValue::Bool(_)
@@ -44,7 +45,7 @@ impl Constraint for Value {
             | SpecOptionValue::Float(_)
             | SpecOptionValue::Str(_) => (),
             SpecOptionValue::Version(version) => {
-                wip_registry.versions.push(version.clone());
+                wip_registry.version_registry_mut().push(version.clone());
             }
         }
 
@@ -61,7 +62,7 @@ impl Constraint for Value {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         Ok(self.value.to_z3_dynamic(registry))
     }

@@ -4,10 +4,7 @@ use dyn_clone::DynClone;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{
-    package::{
-        outline::SolverError,
-        registry::{Registry, WipRegistry},
-    },
+    package::{self, outline::SolverError},
     spec,
 };
 
@@ -27,18 +24,18 @@ pub trait Constraint:
 {
     fn get_type<'a>(
         &'a self,
-        wip_registry: &mut WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType>;
 
     fn set_type<'a>(
         &'a self,
-        wip_registry: &mut WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
         constraint_type: ConstraintType,
     );
 
     fn type_check<'a>(
         &'a self,
-        wip_registry: &mut WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError>;
 
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)>;
@@ -47,7 +44,7 @@ pub trait Constraint:
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError>;
 
     fn to_python_any<'py>(

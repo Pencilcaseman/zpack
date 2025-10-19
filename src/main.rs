@@ -15,7 +15,7 @@ use syntect::{
     parsing::SyntaxSet,
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
-use z3::Optimize;
+use tracing_subscriber::registry;
 use zpack::package::{
     constraint::{Constraint, NumOf},
     version,
@@ -151,6 +151,17 @@ fn test_outline() {
             Box::new(Depends::new("blas".into())),
             Box::new(Depends::new("mpi".into())),
             Box::new(Depends::new("gcc".into())),
+            Box::new(Equal {
+                lhs: Box::new(SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }),
+                rhs: Box::new(Value {
+                    value: SpecOptionValue::Version(
+                        zpack::package::version::Version::new("5.0.8").unwrap(),
+                    ),
+                }),
+            }),
             // Box::new(Equal {
             //     lhs: Box::new(SpecOption {
             //         package_name: "openmpi".into(),
@@ -158,17 +169,10 @@ fn test_outline() {
             //     }),
             //     rhs: Box::new(Value {
             //         value: SpecOptionValue::Version(
-            //
-            // zpack::package::version::Version::new("5.0.8").unwrap(),
+            //             
+            // zpack::package::version::Version::new("5.0.7").unwrap(),
             //         ),
             //     }),
-            // }),
-            // Box::new(Equal {
-            //     lhs: Box::new(SpecOption {
-            //         package_name: Some("openmpi".into()),
-            //         option_name: "version".into(),
-            //     }),
-            //     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
             // }),
         ],
         set_options: HashMap::default(),
@@ -473,7 +477,7 @@ fn test_outline() {
     let mut config = z3::Config::new();
     config.set_bool_param_value("unsat_core", true);
 
-    let (optimizer, vars) = outline.gen_spec_solver().unwrap();
+    let (optimizer, registry) = outline.gen_spec_solver().unwrap();
 
     println!("\n\n");
 
@@ -484,7 +488,7 @@ fn test_outline() {
 
             println!("Conflicting Constraints:");
             for lit in optimizer.get_unsat_core() {
-                println!("- {lit}");
+                println!("- {:?}", registry.constraint_description(&lit));
             }
         }
         z3::SatResult::Unknown => {
@@ -495,8 +499,13 @@ fn test_outline() {
             tracing::info!("sat");
 
             let model = optimizer.get_model().unwrap();
-            for (k, v) in vars.option_ast_map {
-                println!("{k:?} -> {:?}", model.eval(&v, true));
+            for &(package, option) in registry.spec_option_names() {
+                println!(
+                    "{}:{:?} -> {:?}",
+                    package,
+                    option,
+                    registry.eval_option(package, option, &model, &registry)
+                );
             }
         }
     }

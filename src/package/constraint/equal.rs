@@ -4,6 +4,7 @@ use pyo3::{IntoPyObjectExt, prelude::*};
 
 use crate::{
     package::{
+        self,
         constraint::{Constraint, ConstraintType},
         outline::SolverError,
         registry::Registry,
@@ -24,14 +25,14 @@ pub struct Equal {
 impl Constraint for Equal {
     fn get_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Equal)
     }
 
     fn set_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         _constraint_type: ConstraintType,
     ) {
         tracing::warn!("attempting to set type of Equal. This does nothing");
@@ -40,7 +41,7 @@ impl Constraint for Equal {
     #[tracing::instrument(skip(self, wip_registry))]
     fn type_check<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         // Types must be the same
         // Propagate types from known to unknown
@@ -97,7 +98,7 @@ impl Constraint for Equal {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         Ok(self
             .lhs

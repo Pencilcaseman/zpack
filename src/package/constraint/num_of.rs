@@ -9,6 +9,7 @@ use z3::ast::{Bool, Int};
 use super::Constraint;
 use crate::{
     package::{
+        self,
         constraint::{ConstraintType, IfThen},
         outline::SolverError,
         registry::Registry,
@@ -26,14 +27,14 @@ pub struct NumOf {
 impl Constraint for NumOf {
     fn get_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Value(spec::SpecOptionType::Int))
     }
 
     fn set_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         _constraint_type: ConstraintType,
     ) {
         tracing::warn!(
@@ -43,7 +44,7 @@ impl Constraint for NumOf {
 
     fn type_check<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         self.of.iter().try_for_each(|c| c.type_check(wip_registry))
     }
@@ -59,7 +60,7 @@ impl Constraint for NumOf {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         // tracing::info!("(exactly {} of {} constraints)", self.n,
         // self.of.len());

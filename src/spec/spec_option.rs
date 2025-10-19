@@ -2,10 +2,7 @@ use std::{hash::Hash, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::package::{
-    registry::{Registry, WipRegistry},
-    version,
-};
+use crate::package::{self, version};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
@@ -58,7 +55,10 @@ impl SpecOptionValue {
     ///
     /// The dynamic type of the returned value matches the enum variant held by
     /// [`Self`]
-    pub fn to_z3_dynamic(&self, registry: &Registry) -> z3::ast::Dynamic {
+    pub fn to_z3_dynamic(
+        &self,
+        registry: &package::BuiltRegistry,
+    ) -> z3::ast::Dynamic {
         use z3::ast::{Bool, Float, Int, String};
 
         match self {
@@ -67,7 +67,7 @@ impl SpecOptionValue {
             Self::Float(f) => Float::from_f64(*f).into(),
             Self::Str(s) => String::from_str(s).unwrap().into(),
             Self::Version(v) => {
-                let idx = match registry.versions.lookup(v) {
+                let idx = match registry.version_registry().lookup(v) {
                     Some(found) => found as u64,
                     None => {
                         tracing::error!(
@@ -78,6 +78,35 @@ impl SpecOptionValue {
                 };
 
                 Int::from_u64(idx).into()
+            }
+        }
+    }
+
+    pub fn from_z3_dynamic(
+        dtype: SpecOptionType,
+        dynamic: &z3::ast::Dynamic,
+        registry: &package::BuiltRegistry,
+    ) -> Self {
+        match dtype {
+            SpecOptionType::Bool => {
+                Self::Bool(dynamic.as_bool().unwrap().as_bool().unwrap())
+            }
+            SpecOptionType::Int => {
+                Self::Int(dynamic.as_int().unwrap().as_i64().unwrap())
+            }
+            SpecOptionType::Float => {
+                Self::Float(dynamic.as_float().unwrap().as_f64())
+            }
+            SpecOptionType::Str => {
+                Self::Str(dynamic.as_string().unwrap().as_string().unwrap())
+            }
+            SpecOptionType::Version => {
+                let idx = dynamic.as_int().unwrap().as_u64().unwrap();
+                let v = registry
+                    .version_registry()
+                    .lookup_id(&usize::try_from(idx).unwrap())
+                    .unwrap();
+                Self::Version(v.clone())
             }
         }
     }
@@ -108,7 +137,6 @@ impl SpecOption {
     ///
     /// * `t`: The datatype of this option
     pub fn new_from_type(t: SpecOptionType) -> Self {
-        // Self { dtype: Some(t), value: None, default: None, valid: None }
         Self { value: None, default: None, valid: None }
     }
 
@@ -116,22 +144,28 @@ impl SpecOption {
         format!("{}/{}", package, name)
     }
 
-    pub fn to_z3_dynamic(
+    pub fn to_z3_dynamic<'a>(
         &self,
-        package: &str,
-        name: &str,
-        wip_registry: &mut WipRegistry,
+        package: &'a str,
+        name: &'a str,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> z3::ast::Dynamic {
-        let n = self.serialize_name(package, name);
-
         use z3::ast::{Bool, Float, Int, String};
 
-        match wip_registry.option_type_map.get(&(package, Some(name))) {
-            Some(SpecOptionType::Bool) => Bool::new_const(n).into(),
-            Some(SpecOptionType::Int) => Int::new_const(n).into(),
-            Some(SpecOptionType::Float) => Float::new_const_double(n).into(),
-            Some(SpecOptionType::Str) => String::new_const(n).into(),
-            Some(SpecOptionType::Version) => {
+        let n = self.serialize_name(package, name);
+
+        let Some(idx) = wip_registry.lookup_option(package, Some(name)) else {
+            let msg = format!("no datatype set for {package}:{name}");
+            tracing::error!("{msg}");
+            panic!("{msg}");
+        };
+
+        match wip_registry.spec_options()[idx].0 {
+            SpecOptionType::Bool => Bool::new_const(n).into(),
+            SpecOptionType::Int => Int::new_const(n).into(),
+            SpecOptionType::Float => Float::new_const_double(n).into(),
+            SpecOptionType::Str => String::new_const(n).into(),
+            SpecOptionType::Version => {
                 if let Some(value) = &self.value {
                     let SpecOptionValue::Version(v) = value else {
                         let msg = "value and dtype are inconsistent; this is an internal error";
@@ -139,15 +173,10 @@ impl SpecOption {
                         panic!("{msg}");
                     };
 
-                    wip_registry.versions.push(v.clone());
+                    wip_registry.version_registry_mut().push(v.clone());
                 }
 
                 Int::new_const(n).into()
-            }
-            None => {
-                let msg = format!("no datatype set for {package}:{name}");
-                tracing::error!("{msg}");
-                panic!("{msg}");
             }
         }
     }

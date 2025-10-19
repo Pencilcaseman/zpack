@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+use chumsky::container::Seq;
 use pyo3::{IntoPyObjectExt, prelude::*};
+use tracing_subscriber::registry;
 
 use crate::{
     package::{
+        self,
         constraint::{Constraint, ConstraintType},
         outline::SolverError,
         registry::Registry,
@@ -24,17 +27,19 @@ pub struct SpecOption {
 impl Constraint for SpecOption {
     fn get_type<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
-        wip_registry
-            .option_type_map
-            .get(&(&self.package_name, Some(self.option_name.as_ref())))
-            .map(|v| ConstraintType::Value(*v))
+        let idx = wip_registry.lookup_option(
+            &self.package_name,
+            Some(self.option_name.as_ref()),
+        )?;
+
+        Some(ConstraintType::Value(wip_registry.spec_options()[idx].0))
     }
 
     fn set_type<'a>(
         &'a self,
-        wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
         constraint_type: ConstraintType,
     ) {
         let ConstraintType::Value(option_type) = constraint_type else {
@@ -44,17 +49,17 @@ impl Constraint for SpecOption {
             panic!("TODO: Improve error handling here");
         };
 
-        tracing::error!("{self:?}");
-
-        wip_registry.option_type_map.insert(
-            (&self.package_name, Some(self.option_name.as_ref())),
+        wip_registry.insert_option(
+            &self.package_name,
+            Some(self.option_name.as_ref()),
             option_type,
+            None,
         );
     }
 
     fn type_check<'a>(
         &self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         // Nothing to type check
         Ok(())
@@ -75,39 +80,45 @@ impl Constraint for SpecOption {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
         tracing::info!("{}:{}", self.package_name, self.option_name);
 
-        match registry
-            .option_ast_map
-            .get(&(&self.package_name, Some(self.option_name.as_str())))
-        {
-            Some(var) => Ok(var.clone()),
-            None => {
-                if registry
-                    .option_ast_map
-                    .contains_key(&(&self.package_name, None))
-                {
-                    tracing::error!(
-                        "missing variable {}:{}",
-                        self.package_name,
-                        self.option_name
-                    );
+        let Some(idx) = registry
+            .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
+        else {
+            return if let Some(_) =
+                registry.lookup_option(&self.package_name, None)
+            {
+                tracing::error!(
+                    "missing variable {}:{}",
+                    self.package_name,
+                    self.option_name
+                );
 
-                    Err(SolverError::MissingVariable {
-                        package: self.package_name.clone(),
-                        name: self.option_name.clone(),
-                    })
-                } else {
-                    tracing::error!("missing package {}", self.package_name);
+                Err(SolverError::MissingVariable {
+                    package: self.package_name.clone(),
+                    name: self.option_name.clone(),
+                })
+            } else {
+                tracing::error!("missing package {}", self.package_name);
 
-                    Err(SolverError::MissingDependency {
-                        dep: self.package_name.clone(),
-                    })
-                }
-            }
-        }
+                Err(SolverError::MissingPackage {
+                    dep: self.package_name.clone(),
+                })
+            };
+        };
+
+        let Some(dynamic) = &registry.spec_options()[idx].1 else {
+            tracing::error!(
+                "{}:{} not initialized in solver",
+                self.package_name,
+                self.option_name
+            );
+            panic!();
+        };
+
+        Ok(dynamic.clone())
     }
 
     fn to_python_any<'py>(

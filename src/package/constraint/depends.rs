@@ -1,17 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::SortKind;
 
 use super::Constraint;
-use crate::{
-    package::{
-        constraint::{ConstraintType, Equal},
-        outline::SolverError,
-        registry::Registry,
-    },
-    spec::SpecOption,
-};
+use crate::package::{self, constraint::ConstraintType, outline::SolverError};
 
 #[pyclass]
 #[derive(Clone, Debug)]
@@ -29,14 +22,14 @@ impl Depends {
 impl Constraint for Depends {
     fn get_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Depends)
     }
 
     fn set_type<'a>(
         &'a self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         _constraint_type: ConstraintType,
     ) {
         // Nothing to set
@@ -45,7 +38,7 @@ impl Constraint for Depends {
 
     fn type_check<'a>(
         &self,
-        _wip_registry: &mut crate::package::registry::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         // Nothing to type-check
         Ok(())
@@ -63,30 +56,24 @@ impl Constraint for Depends {
 
     fn to_z3_clause<'a>(
         &self,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, SolverError> {
-        let Some(value) = registry.option_ast_map.get(&(&self.on, None)) else {
+        let Some(idx) = registry.lookup_option(&self.on, None) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
-            return Err(SolverError::MissingDependency {
-                dep: self.on.clone(),
-            });
+            return Err(SolverError::MissingPackage { dep: self.on.clone() });
         };
 
-        match value.sort_kind() {
-            SortKind::Bool => Ok(value.clone()),
-            kind => {
-                tracing::error!(
-                    "package activation variable '{}' is not of type Bool",
-                    self.on
-                );
+        let Some(dynamic) = &registry.spec_options()[idx].1 else {
+            tracing::error!(
+                "activation variable for package '{}' has not been initialized in the solver",
+                self.on
+            );
 
-                Err(SolverError::IncorrectZ3Type {
-                    expected: SortKind::Bool,
-                    received: kind,
-                })
-            }
-        }
+            panic!();
+        };
+
+        Ok(dynamic.clone())
     }
 
     fn to_python_any<'py>(

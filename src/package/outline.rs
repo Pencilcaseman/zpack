@@ -14,13 +14,14 @@ use std::{
 
 use petgraph::{algo::Cycle, graph::DiGraph, visit::EdgeRef};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use tracing_subscriber::registry;
 use z3::{Optimize, SortKind};
 
 use super::constraint::Constraint;
 use crate::{
     package::{
+        self,
         constraint::{self, ConstraintType, SOFT_PACKAGE_WEIGHT},
-        registry::{Registry, WipRegistry},
     },
     spec,
 };
@@ -90,22 +91,33 @@ pub enum GenSpecSolverError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SolverError {
     DuplicateOption(String),
-    MissingDependency {
+
+    MissingPackage {
         dep: String,
     },
+
     MissingVariable {
         package: String,
         name: String,
     },
-    IncorrectZ3Type {
-        expected: SortKind,
-        received: SortKind,
-    },
+
     IncorrectConstraintType {
         expected: ConstraintType,
         received: ConstraintType,
     },
     InvalidConstraint(String),
+
+    IncorrectSolverType {
+        expected: SortKind,
+        received: SortKind,
+    },
+
+    DuplicatePackageEntry(String),
+
+    NoSolverVariable {
+        package: String,
+        option: Option<String>,
+    },
 }
 
 impl SpecOutline {
@@ -133,7 +145,7 @@ impl SpecOutline {
                             src_name
                         );
 
-                        SolverError::MissingDependency { dep: dep.clone() }
+                        SolverError::MissingPackage { dep: dep.clone() }
                     })?,
                 ))
             }
@@ -270,7 +282,7 @@ impl SpecOutline {
     pub fn create_tracking_variables<'a>(
         &'a self,
         optimizer: &Optimize,
-        wip_registry: &mut WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError>
     where
         Self: 'a,
@@ -289,9 +301,12 @@ impl SpecOutline {
                 None,
             );
 
-            wip_registry
-                .option_ast_map
-                .insert((&package.name, None), package_toggle.into());
+            wip_registry.insert_option(
+                &package.name,
+                None,
+                spec::SpecOptionType::Bool,
+                Some(package_toggle.into()),
+            )?;
 
             for (package_name, option_name, value) in package
                 .constraints
@@ -304,15 +319,28 @@ impl SpecOutline {
                     option_name
                 );
 
+                // Cannot skip this call since VersionRegistry must be updated
                 let val = value.to_z3_dynamic(
                     package_name,
                     option_name,
                     wip_registry,
                 );
 
-                wip_registry
-                    .option_ast_map
-                    .insert((package_name, Some(option_name)), val);
+                if let Some(idx) =
+                    wip_registry.lookup_option(package_name, Some(option_name))
+                {
+                    if wip_registry.spec_options()[idx].1.is_some() {
+                        tracing::info!(
+                            "solver variable {package_name}:{option_name} already exists. Continuing"
+                        );
+                    } else {
+                        wip_registry.set_option_value(
+                            package_name,
+                            Some(option_name),
+                            val,
+                        )?;
+                    }
+                }
             }
         }
 
@@ -322,7 +350,7 @@ impl SpecOutline {
     pub fn handle_explicit_options<'a>(
         &'a self,
         optimizer: &Optimize,
-        registry: &Registry<'a>,
+        registry: &package::BuiltRegistry<'a>,
     ) -> Result<(), SolverError>
     where
         Self: 'a,
@@ -345,8 +373,26 @@ impl SpecOutline {
                     rhs: Box::new(constraint::Value { value: value.clone() }),
                 });
 
+                let Some(idx) = registry.lookup_option(&package.name, None)
+                else {
+                    tracing::error!(
+                        "package '{}' does not exist",
+                        package.name
+                    );
+                    panic!("Add a proper error here.");
+                };
+
+                let Some(dynamic) = &registry.spec_options()[idx].1 else {
+                    tracing::error!(
+                        "{}:{} not assigned variable in solver",
+                        package.name,
+                        name
+                    );
+                    panic!("Error handling plz");
+                };
+
                 optimizer.assert_and_track(
-                    &registry.option_ast_map[&(package.name.as_ref(), None)]
+                    &dynamic
                         .as_bool()
                         .unwrap() // Safe because package toggle guaranteed to exist
                         .implies(
@@ -366,23 +412,33 @@ impl SpecOutline {
     pub fn require_packages<'a>(
         &'a self,
         optimizer: &Optimize,
-        registry: &Registry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<(), SolverError>
     where
         Self: 'a,
     {
         for r in &self.required {
-            let Some(d) = registry.option_ast_map.get(&(r.as_str(), None))
-            else {
+            let Some(idx) = registry.lookup_option(r, None) else {
                 tracing::error!("missing explicitly required dependency '{r}'");
-
-                return Err(SolverError::MissingDependency { dep: r.clone() });
+                return Err(SolverError::MissingPackage { dep: r.clone() });
             };
 
-            optimizer.assert_and_track(
-                &d.as_bool().unwrap(),
-                &z3::ast::Bool::new_const(format!("'{r}' required explicitly")),
+            let Some(dynamic) = &registry.spec_options()[idx].1 else {
+                tracing::error!(
+                    "activation toggle for package '{}' not assigned variable in solver",
+                    r
+                );
+                panic!("Error handling plz");
+            };
+
+            let assertion = &dynamic.as_bool().unwrap();
+
+            let boolean = z3::ast::Bool::new_const(
+                registry
+                    .new_constraint_id(format!("'{r}' required explicitly")),
             );
+
+            optimizer.assert_and_track(&assertion, &boolean);
         }
 
         Ok(())
@@ -391,7 +447,7 @@ impl SpecOutline {
     pub fn add_constraints<'a>(
         &'a self,
         optimizer: &Optimize,
-        registry: &Registry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<(), SolverError>
     where
         Self: 'a,
@@ -408,24 +464,48 @@ impl SpecOutline {
                     constraint
                 );
 
-                let package_toggle = &registry.option_ast_map
-                    [&(package.name.as_str(), None)]
-                    .as_bool()
-                    .unwrap();
+                // let package_toggle = &registry
+                //     .lookup_option_ast(package.name.as_str(), None)
+                //     .unwrap()
+                //     .as_bool()
+                //     .unwrap();
+
+                let Some(idx) = registry.lookup_option(&package.name, None)
+                else {
+                    tracing::error!("package '{}' not found", package.name);
+
+                    return Err(SolverError::MissingPackage {
+                        dep: package.name.clone(),
+                    });
+                };
+
+                let Some(dynamic) = &registry.spec_options()[idx].1 else {
+                    tracing::error!(
+                        "activation toggle for package '{}' not assigned variable in solver",
+                        package.name
+                    );
+                    panic!("Error handling plz");
+                };
+
+                let package_toggle = &dynamic.as_bool().unwrap();
 
                 let clause = constraint.to_z3_clause(registry)?;
 
                 match clause.sort_kind() {
                     SortKind::Bool => {
-                        optimizer.assert_and_track(
-                            &package_toggle.implies(clause.as_bool().unwrap()),
-                            &z3::ast::Bool::new_const(format!("{constraint}")),
+                        let assertion =
+                            package_toggle.implies(clause.as_bool().unwrap());
+
+                        let boolean = z3::ast::Bool::new_const(
+                            registry.new_constraint_id(format!("{constraint}")),
                         );
+
+                        optimizer.assert_and_track(&assertion, &boolean);
                     }
                     kind => {
                         tracing::error!("clause must be Bool");
 
-                        return Err(SolverError::IncorrectZ3Type {
+                        return Err(SolverError::IncorrectSolverType {
                             expected: SortKind::Bool,
                             received: kind,
                         });
@@ -439,7 +519,7 @@ impl SpecOutline {
 
     pub fn type_check<'a>(
         &'a self,
-        wip_registry: &mut WipRegistry<'a>,
+        wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), SolverError> {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
@@ -460,25 +540,20 @@ impl SpecOutline {
 
     pub fn gen_spec_solver(
         &self,
-    ) -> Result<(Optimize, Registry<'_>), SolverError> {
+    ) -> Result<(Optimize, package::BuiltRegistry<'_>), SolverError> {
         tracing::info!("generating spec solver");
 
         let optimizer = Optimize::new();
-        let mut wip_registry = WipRegistry::new();
+        let mut wip_registry = package::WipRegistry::default();
 
         self.type_check(&mut wip_registry)?;
-
-        println!("Type Registry: {:?}", wip_registry.option_type_map);
-
         self.create_tracking_variables(&optimizer, &mut wip_registry)?;
 
-        tracing::error!("Version Registry: {:?}", wip_registry.versions);
-
-        let registry = wip_registry.build();
+        let mut registry = wip_registry.build();
 
         self.handle_explicit_options(&optimizer, &registry)?;
-        self.require_packages(&optimizer, &registry)?;
-        self.add_constraints(&optimizer, &registry)?;
+        self.require_packages(&optimizer, &mut registry)?;
+        self.add_constraints(&optimizer, &mut registry)?;
 
         Ok((optimizer, registry))
     }
