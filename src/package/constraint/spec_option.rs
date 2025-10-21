@@ -60,7 +60,7 @@ impl Constraint for SpecOption {
     fn type_check<'a>(
         &self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         // Nothing to type check
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Constraint for SpecOption {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         tracing::info!("{}:{}", self.package_name, self.option_name);
 
         let Some(idx) = registry
@@ -96,16 +96,16 @@ impl Constraint for SpecOption {
                     self.option_name
                 );
 
-                Err(SolverError::MissingVariable {
+                Err(Box::new(SolverError::MissingVariable {
                     package: self.package_name.clone(),
                     name: self.option_name.clone(),
-                })
+                }))
             } else {
                 tracing::error!("missing package {}", self.package_name);
 
-                Err(SolverError::MissingPackage {
+                Err(Box::new(SolverError::MissingPackage {
                     dep: self.package_name.clone(),
-                })
+                }))
             };
         };
 

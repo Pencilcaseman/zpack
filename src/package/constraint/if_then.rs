@@ -46,7 +46,7 @@ impl Constraint for IfThen {
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         let Some(cond_type) = self.cond.get_type(wip_registry) else {
             self.cond.set_type(
                 wip_registry,
@@ -59,14 +59,16 @@ impl Constraint for IfThen {
         match cond_type {
             ConstraintType::Depends | ConstraintType::Equal => Ok(()),
 
-            ConstraintType::IfThen => {
-                tracing::error!(
-                    "cannot have IfThen as condition for another IfThen. Consider using Boolean operators like And, Or, Not, etc."
+            ConstraintType::IfThen
+            | ConstraintType::Maximize
+            | ConstraintType::Minimize => {
+                let msg = format!(
+                    "invalid condition '{cond_type:?}' for IfThen. Consider using Boolean operators like And, Or, Not, etc."
                 );
 
-                Err(SolverError::InvalidConstraint(
-                    "nested IfThen constraint".into(),
-                ))
+                tracing::error!("{msg}");
+
+                Err(Box::new(SolverError::InvalidConstraint(msg)))
             }
 
             ConstraintType::Value(value) => {
@@ -77,9 +79,9 @@ impl Constraint for IfThen {
                         "cannot use non-Boolean value {value:?} in IfThen condition"
                     );
 
-                    Err(SolverError::InvalidConstraint(
+                    Err(Box::new(SolverError::InvalidConstraint(
                         "non-Boolean condition in IfThen".into(),
-                    ))
+                    )))
                 }
             }
 
@@ -106,7 +108,7 @@ impl Constraint for IfThen {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         tracing::info!("(if '{:?}' then '{:?}')", self.cond, self.then);
 
         let cond = self.cond.to_z3_clause(registry)?.as_bool().unwrap();

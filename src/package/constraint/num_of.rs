@@ -45,7 +45,7 @@ impl Constraint for NumOf {
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         self.of.iter().try_for_each(|c| c.type_check(wip_registry))
     }
 
@@ -61,10 +61,7 @@ impl Constraint for NumOf {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
-        // tracing::info!("(exactly {} of {} constraints)", self.n,
-        // self.of.len());
-
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let mut clauses = Vec::new();
 
         // TODO: Move this to type_check

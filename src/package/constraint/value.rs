@@ -7,7 +7,6 @@ use crate::{
         self,
         constraint::{Constraint, ConstraintType},
         outline::SolverError,
-        registry::Registry,
     },
     spec::{self, SpecOptionValue},
 };
@@ -38,7 +37,7 @@ impl Constraint for Value {
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         match &self.value {
             SpecOptionValue::Bool(_)
             | SpecOptionValue::Int(_)
@@ -63,7 +62,7 @@ impl Constraint for Value {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         Ok(self.value.to_z3_dynamic(registry))
     }
 

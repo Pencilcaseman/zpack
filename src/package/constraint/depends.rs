@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::SortKind;
 
 use super::Constraint;
 use crate::package::{self, constraint::ConstraintType, outline::SolverError};
@@ -39,7 +38,7 @@ impl Constraint for Depends {
     fn type_check<'a>(
         &self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         // Nothing to type-check
         Ok(())
     }
@@ -57,11 +56,13 @@ impl Constraint for Depends {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let Some(idx) = registry.lookup_option(&self.on, None) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
-            return Err(SolverError::MissingPackage { dep: self.on.clone() });
+            return Err(Box::new(SolverError::MissingPackage {
+                dep: self.on.clone(),
+            }));
         };
 
         let Some(dynamic) = &registry.spec_options()[idx].1 else {

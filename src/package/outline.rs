@@ -7,14 +7,10 @@
 //! a concrete, satisfiable set of dependencies and options which can then be
 //! built and installed.
 
-use std::{
-    collections::{HashMap, hash_map},
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
 
 use petgraph::{algo::Cycle, graph::DiGraph, visit::EdgeRef};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
-use tracing_subscriber::registry;
 use z3::{Optimize, SortKind};
 
 use super::constraint::Constraint;
@@ -69,19 +65,6 @@ pub struct SpecOutline {
     pub required: Vec<String>,
 }
 
-#[derive(Debug)]
-pub enum PropagateDefaultError {
-    Cycle(Cycle<<PackageDiGraph as petgraph::visit::GraphBase>::NodeId>),
-    Conflict {
-        package_name: String,
-        default_name: String,
-        first_setter: String,
-        first_value: spec::SpecOptionValue,
-        conflict_setter: String,
-        conflict_value: spec::SpecOptionValue,
-    },
-}
-
 #[derive(Clone, Debug)]
 pub enum GenSpecSolverError {
     DuplicateOption(String),
@@ -118,10 +101,23 @@ pub enum SolverError {
         package: String,
         option: Option<String>,
     },
+
+    Cycle(Cycle<<PackageDiGraph as petgraph::visit::GraphBase>::NodeId>),
+
+    DefaultConflict {
+        package_name: String,
+        default_name: String,
+        first_setter: String,
+        first_value: spec::SpecOptionValue,
+        conflict_setter: String,
+        conflict_value: spec::SpecOptionValue,
+    },
 }
 
 impl SpecOutline {
-    pub fn new(outlines: Vec<PackageOutline>) -> Result<Self, SolverError> {
+    pub fn new(
+        outlines: Vec<PackageOutline>,
+    ) -> Result<Self, Box<SolverError>> {
         let mut lookup = HashMap::new();
         let mut graph = PackageDiGraph::new();
 
@@ -171,17 +167,14 @@ impl SpecOutline {
     /// - A cycle exists in the graph, in which case it is impossible to
     ///   propagate default values
     /// - Two inherited defaults conflict
-    pub fn propagate_defaults(
-        &mut self,
-    ) -> Result<(), Box<PropagateDefaultError>> {
+    pub fn propagate_defaults(&mut self) -> Result<(), Box<SolverError>> {
         use petgraph::algo::toposort;
 
         tracing::info!("propagating default values");
 
         let mut reason_tracker = HashMap::<(String, String), String>::new();
 
-        let sorted = toposort(&self.graph, None)
-            .map_err(PropagateDefaultError::Cycle)?;
+        let sorted = toposort(&self.graph, None).map_err(SolverError::Cycle)?;
 
         for idx in sorted {
             let src_name = self.graph[idx].name.clone();
@@ -203,76 +196,88 @@ impl SpecOutline {
                         "propagating default value {src_name}:{opt_name}"
                     );
 
+                    // Skip None values
                     let Some(src_val) = src_val else {
-                        tracing::warn!(
-                            "Top-level package '{}' has default option '{}' with value None. This has no effect; consider removing it",
-                            &src_name,
-                            opt_name
-                        );
                         continue;
                     };
 
-                    if dep.set_defaults.contains_key(opt_name) {
-                        match &dep.set_defaults[opt_name] {
-                            Some(old_val) => {
-                                if let Some(reason) = reason_tracker
-                                    .get(&(dep.name.clone(), opt_name.clone()))
-                                {
-                                    if old_val != src_val {
-                                        // Conflict
+                    match &dep.set_defaults.get(opt_name) {
+                        Some(Some(old_val)) => {
+                            if let Some(reason) = reason_tracker
+                                .get(&(dep.name.clone(), opt_name.clone()))
+                            {
+                                if old_val != src_val {
+                                    tracing::error!(
+                                        "conflicting default values detected"
+                                    );
 
-                                        tracing::error!(
-                                            "conflicting default values detected"
-                                        );
+                                    let e = SolverError::DefaultConflict {
+                                        package_name: dep.name.clone(),
+                                        default_name: opt_name.clone(),
+                                        first_setter: reason.clone(),
+                                        first_value: old_val.clone(),
+                                        conflict_setter: match reason_tracker
+                                            .get(&(
+                                                src_name.clone(),
+                                                opt_name.clone(),
+                                            )) {
+                                            Some(val) => val.clone(),
+                                            None => src_name.clone(),
+                                        },
+                                        conflict_value: src_val.clone(),
+                                    };
 
-                                        let e =
-                                            PropagateDefaultError::Conflict {
-                                                package_name: dep.name.clone(),
-                                                default_name: opt_name.clone(),
-                                                first_setter: reason.clone(),
-                                                first_value: old_val.clone(),
-                                                conflict_setter:
-                                                    match reason_tracker.get(&(
-                                                        src_name.clone(),
-                                                        opt_name.clone(),
-                                                    )) {
-                                                        Some(val) => {
-                                                            val.clone()
-                                                        }
-                                                        None => {
-                                                            src_name.clone()
-                                                        }
-                                                    },
-                                                conflict_value: src_val.clone(),
-                                            };
-
-                                        return Err(Box::new(e));
-                                    }
+                                    return Err(Box::new(e));
                                 }
                             }
-                            None => {
-                                dep.set_defaults.remove(opt_name);
-                            }
                         }
-                    } else {
-                        // Insert and track default
+                        Some(None) => {
+                            dep.set_defaults.remove(opt_name);
+                        }
 
-                        dep.set_defaults
-                            .insert(opt_name.clone(), Some(src_val.clone()));
+                        None => {
+                            // Insert and track default
 
-                        let reason = match reason_tracker
-                            .get(&(src_name.clone(), opt_name.clone()))
-                        {
-                            Some(prev) => prev.clone(),
-                            None => src_name.clone(),
-                        };
+                            dep.set_defaults.insert(
+                                opt_name.clone(),
+                                Some(src_val.clone()),
+                            );
 
-                        reason_tracker.insert(
-                            (dep.name.clone(), opt_name.clone()),
-                            reason,
-                        );
+                            let reason = match reason_tracker
+                                .get(&(src_name.clone(), opt_name.clone()))
+                            {
+                                Some(prev) => prev.clone(),
+                                None => src_name.clone(),
+                            };
+
+                            reason_tracker.insert(
+                                (dep.name.clone(), opt_name.clone()),
+                                reason,
+                            );
+                        }
                     }
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut package::WipRegistry<'a>,
+    ) -> Result<(), Box<SolverError>> {
+        for idx in self.graph.node_indices() {
+            let package = &self.graph[idx];
+
+            tracing::info!("checking types for package '{}'", package.name);
+
+            for constraint in &package.constraints {
+                tracing::info!(
+                    "checking types for constraint '{constraint:?}'"
+                );
+
+                constraint.type_check(wip_registry)?;
             }
         }
 
@@ -283,7 +288,7 @@ impl SpecOutline {
         &'a self,
         optimizer: &Optimize,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError>
+    ) -> Result<(), Box<SolverError>>
     where
         Self: 'a,
     {
@@ -351,7 +356,7 @@ impl SpecOutline {
         &'a self,
         optimizer: &Optimize,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<(), SolverError>
+    ) -> Result<(), Box<SolverError>>
     where
         Self: 'a,
     {
@@ -375,20 +380,14 @@ impl SpecOutline {
 
                 let Some(idx) = registry.lookup_option(&package.name, None)
                 else {
-                    tracing::error!(
-                        "package '{}' does not exist",
-                        package.name
-                    );
-                    panic!("Add a proper error here.");
+                    panic!("package '{}' does not exist", package.name);
                 };
 
                 let Some(dynamic) = &registry.spec_options()[idx].1 else {
-                    tracing::error!(
+                    panic!(
                         "{}:{} not assigned variable in solver",
-                        package.name,
-                        name
+                        package.name, name
                     );
-                    panic!("Error handling plz");
                 };
 
                 optimizer.assert_and_track(
@@ -401,7 +400,7 @@ impl SpecOutline {
                                 .as_bool()
                                 .unwrap(),
                         ),
-                    &z3::ast::Bool::new_const(format!("{value}")),
+                    &z3::ast::Bool::new_const(eq.to_string()),
                 );
             }
         }
@@ -413,22 +412,23 @@ impl SpecOutline {
         &'a self,
         optimizer: &Optimize,
         registry: &mut package::BuiltRegistry<'a>,
-    ) -> Result<(), SolverError>
+    ) -> Result<(), Box<SolverError>>
     where
         Self: 'a,
     {
         for r in &self.required {
             let Some(idx) = registry.lookup_option(r, None) else {
                 tracing::error!("missing explicitly required dependency '{r}'");
-                return Err(SolverError::MissingPackage { dep: r.clone() });
+                return Err(Box::new(SolverError::MissingPackage {
+                    dep: r.clone(),
+                }));
             };
 
             let Some(dynamic) = &registry.spec_options()[idx].1 else {
-                tracing::error!(
+                panic!(
                     "activation toggle for package '{}' not assigned variable in solver",
                     r
                 );
-                panic!("Error handling plz");
             };
 
             let assertion = &dynamic.as_bool().unwrap();
@@ -438,7 +438,7 @@ impl SpecOutline {
                     .new_constraint_id(format!("'{r}' required explicitly")),
             );
 
-            optimizer.assert_and_track(&assertion, &boolean);
+            optimizer.assert_and_track(assertion, &boolean);
         }
 
         Ok(())
@@ -448,7 +448,7 @@ impl SpecOutline {
         &'a self,
         optimizer: &Optimize,
         registry: &mut package::BuiltRegistry<'a>,
-    ) -> Result<(), SolverError>
+    ) -> Result<(), Box<SolverError>>
     where
         Self: 'a,
     {
@@ -457,6 +457,23 @@ impl SpecOutline {
 
             tracing::info!("adding constraints for {}", package.name);
 
+            let Some(idx) = registry.lookup_option(&package.name, None) else {
+                tracing::error!("package '{}' not found", package.name);
+
+                return Err(Box::new(SolverError::MissingPackage {
+                    dep: package.name.clone(),
+                }));
+            };
+
+            let Some(dynamic) = &registry.spec_options()[idx].1 else {
+                panic!(
+                    "activation toggle for package '{}' not assigned variable in solver",
+                    package.name
+                );
+            };
+
+            let package_toggle = &dynamic.as_bool().unwrap();
+
             for constraint in &package.constraints {
                 tracing::info!(
                     "adding constraint {} -> {}",
@@ -464,74 +481,22 @@ impl SpecOutline {
                     constraint
                 );
 
-                // let package_toggle = &registry
-                //     .lookup_option_ast(package.name.as_str(), None)
-                //     .unwrap()
-                //     .as_bool()
-                //     .unwrap();
+                // let clause = constraint.to_z3_clause(registry)?;
+                //
+                // let assertion =
+                //     package_toggle.implies(clause.as_bool().unwrap());
+                //
+                // let boolean = z3::ast::Bool::new_const(
+                //     registry.new_constraint_id(format!("{constraint}")),
+                // );
+                //
+                // optimizer.assert_and_track(&assertion, &boolean);
 
-                let Some(idx) = registry.lookup_option(&package.name, None)
-                else {
-                    tracing::error!("package '{}' not found", package.name);
-
-                    return Err(SolverError::MissingPackage {
-                        dep: package.name.clone(),
-                    });
-                };
-
-                let Some(dynamic) = &registry.spec_options()[idx].1 else {
-                    tracing::error!(
-                        "activation toggle for package '{}' not assigned variable in solver",
-                        package.name
-                    );
-                    panic!("Error handling plz");
-                };
-
-                let package_toggle = &dynamic.as_bool().unwrap();
-
-                let clause = constraint.to_z3_clause(registry)?;
-
-                match clause.sort_kind() {
-                    SortKind::Bool => {
-                        let assertion =
-                            package_toggle.implies(clause.as_bool().unwrap());
-
-                        let boolean = z3::ast::Bool::new_const(
-                            registry.new_constraint_id(format!("{constraint}")),
-                        );
-
-                        optimizer.assert_and_track(&assertion, &boolean);
-                    }
-                    kind => {
-                        tracing::error!("clause must be Bool");
-
-                        return Err(SolverError::IncorrectSolverType {
-                            expected: SortKind::Bool,
-                            received: kind,
-                        });
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn type_check<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
-        for idx in self.graph.node_indices() {
-            let package = &self.graph[idx];
-
-            tracing::info!("checking types for package '{}'", package.name);
-
-            for constraint in &package.constraints {
-                tracing::info!(
-                    "checking types for constraint '{constraint:?}'"
-                );
-
-                constraint.type_check(wip_registry)?;
+                constraint.add_to_solver(
+                    package_toggle,
+                    optimizer,
+                    registry,
+                )?;
             }
         }
 
@@ -539,13 +504,14 @@ impl SpecOutline {
     }
 
     pub fn gen_spec_solver(
-        &self,
-    ) -> Result<(Optimize, package::BuiltRegistry<'_>), SolverError> {
+        &mut self,
+    ) -> Result<(Optimize, package::BuiltRegistry<'_>), Box<SolverError>> {
         tracing::info!("generating spec solver");
 
         let optimizer = Optimize::new();
         let mut wip_registry = package::WipRegistry::default();
 
+        self.propagate_defaults()?;
         self.type_check(&mut wip_registry)?;
         self.create_tracking_variables(&optimizer, &mut wip_registry)?;
 

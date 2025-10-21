@@ -2,9 +2,10 @@ use std::{any::Any, collections::HashSet};
 
 use dyn_clone::DynClone;
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use z3::{Optimize, ast::Bool};
 
 use crate::{
-    package::{self, outline::SolverError},
+    package::{self, BuiltRegistry, outline::SolverError},
     spec,
 };
 
@@ -13,10 +14,15 @@ pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstraintType {
     Depends,
-    Equal,
-    IfThen,
     SpecOption,
     Value(spec::SpecOptionType),
+
+    Equal,
+
+    IfThen,
+
+    Maximize,
+    Minimize,
 }
 
 pub trait Constraint:
@@ -36,7 +42,7 @@ pub trait Constraint:
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError>;
+    ) -> Result<(), Box<SolverError>>;
 
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)>;
 
@@ -45,7 +51,25 @@ pub trait Constraint:
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError>;
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>>;
+
+    fn add_to_solver<'a>(
+        &self,
+        toggle: &Bool,
+        optimizer: &Optimize,
+        registry: &mut BuiltRegistry<'a>,
+    ) -> Result<(), Box<SolverError>> {
+        let clause = self.to_z3_clause(registry)?;
+        let assertion = toggle.implies(clause.as_bool().unwrap());
+
+        let boolean = z3::ast::Bool::new_const(
+            registry.new_constraint_id(self.to_string()),
+        );
+
+        optimizer.assert_and_track(&assertion, &boolean);
+
+        Ok(())
+    }
 
     fn to_python_any<'py>(
         &self,
@@ -60,6 +84,8 @@ dyn_clone::clone_trait_object!(Constraint);
 mod depends;
 mod equal;
 mod if_then;
+mod maximize;
+mod minimize;
 mod num_of;
 mod spec_option;
 mod value;
@@ -67,6 +93,8 @@ mod value;
 pub use depends::Depends;
 pub use equal::Equal;
 pub use if_then::IfThen;
+pub use maximize::Maximize;
+pub use minimize::Minimize;
 pub use num_of::NumOf;
 pub use spec_option::SpecOption;
 pub use value::Value;

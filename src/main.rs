@@ -15,9 +15,8 @@ use syntect::{
     parsing::SyntaxSet,
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
-use tracing_subscriber::registry;
 use zpack::package::{
-    constraint::{Constraint, NumOf},
+    constraint::{Constraint, Maximize, Minimize, NumOf},
     version,
 };
 
@@ -151,17 +150,6 @@ fn test_outline() {
             Box::new(Depends::new("blas".into())),
             Box::new(Depends::new("mpi".into())),
             Box::new(Depends::new("gcc".into())),
-            Box::new(Equal {
-                lhs: Box::new(SpecOption {
-                    package_name: "openmpi".into(),
-                    option_name: "version".into(),
-                }),
-                rhs: Box::new(Value {
-                    value: SpecOptionValue::Version(
-                        zpack::package::version::Version::new("5.0.8").unwrap(),
-                    ),
-                }),
-            }),
             // Box::new(Equal {
             //     lhs: Box::new(SpecOption {
             //         package_name: "openmpi".into(),
@@ -169,7 +157,19 @@ fn test_outline() {
             //     }),
             //     rhs: Box::new(Value {
             //         value: SpecOptionValue::Version(
-            //             
+            //
+            // zpack::package::version::Version::new("5.0.8").unwrap(),
+            //         ),
+            //     }),
+            // }),
+            // Box::new(Equal {
+            //     lhs: Box::new(SpecOption {
+            //         package_name: "openmpi".into(),
+            //         option_name: "version".into(),
+            //     }),
+            //     rhs: Box::new(Value {
+            //         value: SpecOptionValue::Version(
+            //
             // zpack::package::version::Version::new("5.0.7").unwrap(),
             //         ),
             //     }),
@@ -178,7 +178,7 @@ fn test_outline() {
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
             ("static".into(), Some(SpecOptionValue::Bool(true))),
-            ("something".into(), None),
+            // ("something".into(), None),
         ]),
     };
 
@@ -237,7 +237,7 @@ fn test_outline() {
             "openblas".into(),
             SpecOptionValue::Bool(true),
         )]),
-        set_defaults: HashMap::default(),
+        set_defaults: HashMap::from([("something".into(), None)]),
     };
 
     let mpi_outline = PackageOutline {
@@ -359,6 +359,18 @@ fn test_outline() {
                 lhs: Box::new(NumOf { of: openmpi_versions }),
                 rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
             }),
+            Box::new(Maximize {
+                item: Box::new(SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }),
+            }),
+            Box::new(Minimize {
+                item: Box::new(SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }),
+            }),
             Box::new(Depends::new("openpmix".into())),
             Box::new(Depends::new("openprrte".into())),
             Box::new(Depends::new("hwloc".into())),
@@ -397,18 +409,18 @@ fn test_outline() {
         name: "openprrte".into(),
         constraints: vec![
             Box::new(Depends::new("gcc".into())),
-            Box::new(Equal {
-                lhs: Box::new(SpecOption {
-                    package_name: "hwloc".into(),
-                    option_name: "version".into(),
-                }),
-                rhs: Box::new(Value {
-                    value: SpecOptionValue::Version(
-                        zpack::package::version::Version::new("2.12.2")
-                            .unwrap(),
-                    ),
-                }),
-            }),
+            // Box::new(Equal {
+            //     lhs: Box::new(SpecOption {
+            //         package_name: "hwloc".into(),
+            //         option_name: "version".into(),
+            //     }),
+            //     rhs: Box::new(Value {
+            //         value: SpecOptionValue::Version(
+            //             zpack::package::version::Version::new("2.12.2")
+            //                 .unwrap(),
+            //         ),
+            //     }),
+            // }),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
@@ -488,7 +500,10 @@ fn test_outline() {
 
             println!("Conflicting Constraints:");
             for lit in optimizer.get_unsat_core() {
-                println!("- {:?}", registry.constraint_description(&lit));
+                println!(
+                    "- {}",
+                    registry.constraint_description(&lit).unwrap()
+                );
             }
         }
         z3::SatResult::Unknown => {

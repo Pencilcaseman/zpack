@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use tracing::Instrument;
-use tracing_subscriber::registry;
-use z3::{Model, Optimize};
+use z3::Model;
 
 use crate::{
     package::{BuiltRegistry, outline::SolverError, version::Version},
@@ -11,8 +9,12 @@ use crate::{
 
 #[derive(Debug, Default, Clone)]
 pub struct Registry<'a, VersionRegistryType> {
+    // // Tracking variables for better error messages and debug information
+    // current_package: Option<&'a str>,
+    // current_option: Option<&'a str>,
+
     // Map from constraint ID to human-readable description
-    constraint_description_map: HashMap<String, String>,
+    constraint_descriptions: HashMap<String, String>,
     constraint_id: usize,
 
     // Lookup tables for type checking and solver generation
@@ -72,7 +74,9 @@ impl BuiltVersionRegistry {
 impl<'a> Registry<'a, WipVersionRegistry> {
     pub fn build(self) -> Registry<'a, BuiltVersionRegistry> {
         Registry {
-            constraint_description_map: self.constraint_description_map,
+            // current_package_name: self.current_package_name,
+            // current_option_name: self.current_option_name,
+            constraint_descriptions: self.constraint_descriptions,
             constraint_id: self.constraint_id,
             spec_option_map: self.spec_option_map,
             spec_options: self.spec_options,
@@ -172,7 +176,7 @@ impl<'a, T> Registry<'a, T> {
     pub fn new_constraint_id(&mut self, description: String) -> String {
         let idx = format!("{}", self.constraint_id);
         self.constraint_id += 1;
-        self.constraint_description_map.insert(idx.clone(), description);
+        self.constraint_descriptions.insert(idx.clone(), description);
         idx
     }
 
@@ -188,7 +192,7 @@ impl<'a, T> Registry<'a, T> {
             &name
         };
 
-        self.constraint_description_map.get(id)
+        self.constraint_descriptions.get(id)
     }
 
     pub fn eval_option(

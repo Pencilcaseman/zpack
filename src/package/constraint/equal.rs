@@ -7,7 +7,6 @@ use crate::{
         self,
         constraint::{Constraint, ConstraintType},
         outline::SolverError,
-        registry::Registry,
     },
     spec,
 };
@@ -42,7 +41,7 @@ impl Constraint for Equal {
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), SolverError> {
+    ) -> Result<(), Box<SolverError>> {
         // Types must be the same
         // Propagate types from known to unknown
 
@@ -99,7 +98,7 @@ impl Constraint for Equal {
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, SolverError> {
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         Ok(self
             .lhs
             .to_z3_clause(registry)?
