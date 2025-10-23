@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use z3::Model;
 
 use crate::{
-    package::{BuiltRegistry, outline::SolverError, version::Version},
+    package::{
+        BuiltRegistry,
+        outline::SolverError,
+        version::{Other, Version},
+    },
     spec,
 };
 
@@ -68,6 +72,10 @@ impl BuiltVersionRegistry {
 
     pub fn lookup_id(&self, id: &usize) -> Option<&Version> {
         self.ids.get(id)
+    }
+
+    pub fn num_version(&self) -> usize {
+        self.versions.len()
     }
 }
 
@@ -201,7 +209,7 @@ impl<'a, T> Registry<'a, T> {
         option: Option<&'a str>,
         model: &Model,
         registry: &'a BuiltRegistry,
-    ) -> Result<spec::SpecOptionValue, SolverError> {
+    ) -> Result<spec::SpecOptionValue, Box<SolverError>> {
         let idx = self.lookup_option(package, option).ok_or_else(|| {
             tracing::error!("missing option {package}:{option:?}");
 
@@ -217,10 +225,10 @@ impl<'a, T> Registry<'a, T> {
 
         let val = &self.spec_options()[idx];
         let Some(dynamic) = &val.1 else {
-            return Err(SolverError::NoSolverVariable {
+            return Err(Box::new(SolverError::NoSolverVariable {
                 package: package.to_string(),
                 option: option.map(str::to_string),
-            });
+            }));
         };
 
         let model_eval = model.eval(dynamic, true).unwrap();

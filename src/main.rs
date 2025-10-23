@@ -16,7 +16,7 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use zpack::package::{
-    constraint::{Constraint, Maximize, Minimize, NumOf},
+    constraint::{Cmp, CmpType, Constraint, Maximize, Minimize, NumOf},
     version,
 };
 
@@ -138,7 +138,7 @@ fn test_outline() {
 
     use zpack::{
         package::{
-            constraint::{Depends, Equal, IfThen, SpecOption, Value},
+            constraint::{Depends, IfThen, SpecOption, Value},
             outline::{PackageOutline, SpecOutline},
         },
         spec::SpecOptionValue,
@@ -186,10 +186,10 @@ fn test_outline() {
         name: "blas".into(),
 
         constraints: vec![
-            Box::new(Equal {
+            Box::new(Cmp {
                 lhs: Box::new(NumOf {
                     of: vec![
-                        Box::new(Equal {
+                        Box::new(Cmp {
                             lhs: Box::new(SpecOption {
                                 package_name: "blas".into(),
                                 option_name: "openblas".into(),
@@ -197,8 +197,9 @@ fn test_outline() {
                             rhs: Box::new(Value {
                                 value: SpecOptionValue::Bool(true),
                             }),
+                            op: CmpType::Equal,
                         }),
-                        Box::new(Equal {
+                        Box::new(Cmp {
                             lhs: Box::new(SpecOption {
                                 package_name: "blas".into(),
                                 option_name: "mkl".into(),
@@ -206,28 +207,32 @@ fn test_outline() {
                             rhs: Box::new(Value {
                                 value: SpecOptionValue::Bool(true),
                             }),
+                            op: CmpType::Equal,
                         }),
                     ],
                 }),
                 rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                op: CmpType::Equal,
             }),
             Box::new(IfThen {
-                cond: Box::new(Equal {
+                cond: Box::new(Cmp {
                     lhs: Box::new(SpecOption {
                         package_name: "blas".into(),
                         option_name: "openblas".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    op: CmpType::Equal,
                 }),
                 then: Box::new(Depends::new("openblas".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(Equal {
+                cond: Box::new(Cmp {
                     lhs: Box::new(SpecOption {
                         package_name: "blas".into(),
                         option_name: "mkl".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    op: CmpType::Equal,
                 }),
                 then: Box::new(Depends::new("mkl".into())),
             }),
@@ -244,10 +249,10 @@ fn test_outline() {
         name: "mpi".into(),
 
         constraints: vec![
-            Box::new(Equal {
+            Box::new(Cmp {
                 lhs: Box::new(NumOf {
                     of: vec![
-                        Box::new(Equal {
+                        Box::new(Cmp {
                             lhs: Box::new(SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "openmpi".into(),
@@ -255,8 +260,9 @@ fn test_outline() {
                             rhs: Box::new(Value {
                                 value: SpecOptionValue::Bool(true),
                             }),
+                            op: CmpType::Equal,
                         }),
-                        Box::new(Equal {
+                        Box::new(Cmp {
                             lhs: Box::new(SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "mpich".into(),
@@ -264,8 +270,9 @@ fn test_outline() {
                             rhs: Box::new(Value {
                                 value: SpecOptionValue::Bool(true),
                             }),
+                            op: CmpType::Equal,
                         }),
-                        Box::new(Equal {
+                        Box::new(Cmp {
                             lhs: Box::new(SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "intelmpi".into(),
@@ -273,38 +280,43 @@ fn test_outline() {
                             rhs: Box::new(Value {
                                 value: SpecOptionValue::Bool(true),
                             }),
+                            op: CmpType::Equal,
                         }),
                     ],
                 }),
                 rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                op: CmpType::Equal,
             }),
             Box::new(IfThen {
-                cond: Box::new(Equal {
+                cond: Box::new(Cmp {
                     lhs: Box::new(SpecOption {
                         package_name: "mpi".into(),
                         option_name: "openmpi".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    op: CmpType::Equal,
                 }),
                 then: Box::new(Depends::new("openmpi".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(Equal {
+                cond: Box::new(Cmp {
                     lhs: Box::new(SpecOption {
                         package_name: "mpi".into(),
                         option_name: "mpich".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    op: CmpType::Equal,
                 }),
                 then: Box::new(Depends::new("mpich".into())),
             }),
             Box::new(IfThen {
-                cond: Box::new(Equal {
+                cond: Box::new(Cmp {
                     lhs: Box::new(SpecOption {
                         package_name: "mpi".into(),
                         option_name: "intelmpi".into(),
                     }),
                     rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    op: CmpType::Equal,
                 }),
                 then: Box::new(Depends::new("intelmpi".into())),
             }),
@@ -338,7 +350,7 @@ fn test_outline() {
     ]
     .into_iter()
     .map(|v| {
-        Box::new(Equal {
+        Box::new(Cmp {
             lhs: Box::new(SpecOption {
                 package_name: "openmpi".into(),
                 option_name: "version".into(),
@@ -348,6 +360,7 @@ fn test_outline() {
                     version::SemVer::new(v).unwrap().into(),
                 ),
             }),
+            op: CmpType::Equal,
         }) as Box<dyn Constraint>
     })
     .collect();
@@ -355,9 +368,10 @@ fn test_outline() {
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         constraints: vec![
-            Box::new(Equal {
+            Box::new(Cmp {
                 lhs: Box::new(NumOf { of: openmpi_versions }),
                 rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                op: CmpType::LessOrEqual,
             }),
             Box::new(Maximize {
                 item: Box::new(SpecOption {
@@ -429,7 +443,7 @@ fn test_outline() {
     let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
         .into_iter()
         .map(|v| {
-            Box::new(Equal {
+            Box::new(Cmp {
                 lhs: Box::new(SpecOption {
                     package_name: "hwloc".into(),
                     option_name: "version".into(),
@@ -439,6 +453,7 @@ fn test_outline() {
                         version::SemVer::new(v).unwrap().into(),
                     ),
                 }),
+                op: CmpType::Equal,
             }) as Box<dyn Constraint>
         })
         .collect();
@@ -446,9 +461,10 @@ fn test_outline() {
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
         constraints: vec![
-            Box::new(Equal {
+            Box::new(Cmp {
                 lhs: Box::new(NumOf { of: hwloc_versions }),
                 rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                op: CmpType::Equal,
             }),
             Box::new(Depends::new("gcc".into())),
         ],
@@ -502,7 +518,10 @@ fn test_outline() {
             for lit in optimizer.get_unsat_core() {
                 println!(
                     "- {}",
-                    registry.constraint_description(&lit).unwrap()
+                    registry
+                        .constraint_description(&lit)
+                        .cloned()
+                        .unwrap_or_else(|| lit.to_string())
                 );
             }
         }

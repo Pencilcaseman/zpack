@@ -88,6 +88,7 @@ pub enum SolverError {
         expected: ConstraintType,
         received: ConstraintType,
     },
+
     InvalidConstraint(String),
 
     IncorrectSolverType {
@@ -273,9 +274,7 @@ impl SpecOutline {
             tracing::info!("checking types for package '{}'", package.name);
 
             for constraint in &package.constraints {
-                tracing::info!(
-                    "checking types for constraint '{constraint:?}'"
-                );
+                tracing::info!("checking types for constraint '{constraint}'");
 
                 constraint.type_check(wip_registry)?;
             }
@@ -355,7 +354,7 @@ impl SpecOutline {
     pub fn handle_explicit_options<'a>(
         &'a self,
         optimizer: &Optimize,
-        registry: &package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<(), Box<SolverError>>
     where
         Self: 'a,
@@ -369,13 +368,15 @@ impl SpecOutline {
                     package.name
                 );
 
-                let eq: Box<dyn Constraint> = Box::new(constraint::Equal {
+                let eq: Box<dyn Constraint> = Box::new(constraint::Cmp {
                     lhs: Box::new(constraint::SpecOption {
                         package_name: package.name.clone(),
                         option_name: name.clone(),
                     }),
 
                     rhs: Box::new(constraint::Value { value: value.clone() }),
+
+                    op: constraint::CmpType::Equal,
                 });
 
                 let Some(idx) = registry.lookup_option(&package.name, None)
@@ -400,7 +401,9 @@ impl SpecOutline {
                                 .as_bool()
                                 .unwrap(),
                         ),
-                    &z3::ast::Bool::new_const(eq.to_string()),
+                    &z3::ast::Bool::new_const(
+                        registry.new_constraint_id(eq.to_string()),
+                    ),
                 );
             }
         }
@@ -481,17 +484,6 @@ impl SpecOutline {
                     constraint
                 );
 
-                // let clause = constraint.to_z3_clause(registry)?;
-                //
-                // let assertion =
-                //     package_toggle.implies(clause.as_bool().unwrap());
-                //
-                // let boolean = z3::ast::Bool::new_const(
-                //     registry.new_constraint_id(format!("{constraint}")),
-                // );
-                //
-                // optimizer.assert_and_track(&assertion, &boolean);
-
                 constraint.add_to_solver(
                     package_toggle,
                     optimizer,
@@ -517,9 +509,24 @@ impl SpecOutline {
 
         let mut registry = wip_registry.build();
 
-        self.handle_explicit_options(&optimizer, &registry)?;
+        self.handle_explicit_options(&optimizer, &mut registry)?;
         self.require_packages(&optimizer, &mut registry)?;
         self.add_constraints(&optimizer, &mut registry)?;
+
+        // Ensure that all version types are valid
+        for (kind, value) in registry.spec_options() {
+            let Some(dynamic) = value else {
+                continue;
+            };
+
+            if matches!(kind, spec::SpecOptionType::Version) {
+                optimizer.assert(&dynamic.as_int().unwrap().lt(
+                    z3::ast::Int::from_u64(
+                        registry.version_registry().num_version() as u64,
+                    ),
+                ))
+            }
+        }
 
         Ok((optimizer, registry))
     }

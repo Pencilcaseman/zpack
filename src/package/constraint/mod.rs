@@ -11,13 +11,13 @@ use crate::{
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConstraintType {
     Depends,
     SpecOption,
     Value(spec::SpecOptionType),
 
-    Equal,
+    Cmp,
 
     IfThen,
 
@@ -81,8 +81,8 @@ pub trait Constraint:
 
 dyn_clone::clone_trait_object!(Constraint);
 
+mod cmp;
 mod depends;
-mod equal;
 mod if_then;
 mod maximize;
 mod minimize;
@@ -90,8 +90,8 @@ mod num_of;
 mod spec_option;
 mod value;
 
+pub use cmp::{Cmp, CmpType};
 pub use depends::Depends;
-pub use equal::Equal;
 pub use if_then::IfThen;
 pub use maximize::Maximize;
 pub use minimize::Minimize;

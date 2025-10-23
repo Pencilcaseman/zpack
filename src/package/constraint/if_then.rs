@@ -57,7 +57,7 @@ impl Constraint for IfThen {
         };
 
         match cond_type {
-            ConstraintType::Depends | ConstraintType::Equal => Ok(()),
+            ConstraintType::Depends | ConstraintType::Cmp => Ok(()),
 
             ConstraintType::IfThen
             | ConstraintType::Maximize
