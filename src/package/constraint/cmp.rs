@@ -1,15 +1,11 @@
 use std::{any::Any, collections::HashSet};
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::{
-    SortKind,
-    ast::{Bool, Dynamic},
-};
 
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintType, spec_option},
+        constraint::{Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
     },
     spec,
@@ -43,16 +39,16 @@ impl std::fmt::Display for CmpType {
 #[derive(Debug, Clone)]
 pub struct Cmp {
     #[pyo3(get, set)]
-    pub lhs: Box<dyn Constraint>,
+    pub lhs: Constraint,
 
     #[pyo3(get, set)]
-    pub rhs: Box<dyn Constraint>,
+    pub rhs: Constraint,
 
     #[pyo3(get, set)]
     pub op: CmpType,
 }
 
-impl Constraint for Cmp {
+impl ConstraintUtils for Cmp {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -153,25 +149,41 @@ impl Constraint for Cmp {
         Default::default()
     }
 
+    fn cmp_to_z3<'a>(
+        &self,
+        other: &Constraint,
+        op: CmpType,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        match op {
+            CmpType::Less
+            | CmpType::LessOrEqual
+            | CmpType::GreaterOrEqual
+            | CmpType::Greater => {
+                let msg = format!(
+                    "only Equal and NotEqual are valid comparison types for Cmp constraint. Received '{op:?}'"
+                );
+                tracing::error!("{msg}");
+                Err(Box::new(SolverError::InvalidConstraint(msg)))
+            }
+
+            CmpType::Equal => Ok(self
+                .to_z3_clause(registry)?
+                .eq(other.to_z3_clause(registry)?)
+                .into()),
+
+            CmpType::NotEqual => Ok(self
+                .to_z3_clause(registry)?
+                .ne(other.to_z3_clause(registry)?)
+                .into()),
+        }
+    }
+
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        let l = self.lhs.to_z3_clause(registry)?;
-        let r = self.rhs.to_z3_clause(registry)?;
-
-        // We know lhs and rhs type check and are comparable, so simply match
-        // against the Z3 type of the clause
-
-        Ok(match self.op {
-            CmpType::Less => compare_less(&l, &r),
-            CmpType::LessOrEqual => compare_less_equal(&l, &r),
-            CmpType::NotEqual => compare_not_equal(&l, &r),
-            CmpType::Equal => compare_equal(&l, &r),
-            CmpType::GreaterOrEqual => compare_greater_equal(&l, &r),
-            CmpType::Greater => compare_greater(&l, &r),
-        }
-        .into())
+        self.lhs.cmp_to_z3(&self.rhs, self.op, registry)
     }
 
     fn to_python_any<'py>(
@@ -180,9 +192,11 @@ impl Constraint for Cmp {
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
+impl Into<Constraint> for Cmp {
+    fn into(self) -> Constraint {
+        Constraint::Cmp(Box::new(self))
     }
 }
 
@@ -230,113 +244,5 @@ fn can_compare_eq(ct: ConstraintType) -> bool {
             | spec::SpecOptionType::Str
             | spec::SpecOptionType::Version => true,
         },
-    }
-}
-
-fn compare_less(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    match lhs.sort_kind() {
-        SortKind::Uninterpreted
-        | SortKind::RoundingMode
-        | SortKind::RE
-        | SortKind::Unknown
-        | SortKind::BV
-        | SortKind::Datatype
-        | SortKind::Relation
-        | SortKind::FiniteDomain
-        | SortKind::Real
-        | SortKind::Array => unimplemented!(),
-
-        SortKind::Bool => unreachable!(),
-
-        SortKind::Int => lhs.as_int().unwrap().lt(rhs.as_int().unwrap()),
-        SortKind::FloatingPoint => {
-            lhs.as_float().unwrap().lt(rhs.as_float().unwrap())
-        }
-        SortKind::Seq => {
-            lhs.as_string().unwrap().str_lt(rhs.as_string().unwrap())
-        }
-    }
-}
-
-fn compare_less_equal(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    match lhs.sort_kind() {
-        SortKind::Uninterpreted
-        | SortKind::RoundingMode
-        | SortKind::RE
-        | SortKind::Unknown
-        | SortKind::BV
-        | SortKind::Datatype
-        | SortKind::Relation
-        | SortKind::FiniteDomain
-        | SortKind::Real
-        | SortKind::Array => unimplemented!(),
-
-        SortKind::Bool => unreachable!(),
-
-        SortKind::Int => lhs.as_int().unwrap().le(rhs.as_int().unwrap()),
-        SortKind::FloatingPoint => {
-            lhs.as_float().unwrap().le(rhs.as_float().unwrap())
-        }
-        SortKind::Seq => {
-            lhs.as_string().unwrap().str_le(rhs.as_string().unwrap())
-        }
-    }
-}
-
-fn compare_not_equal(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    lhs.ne(rhs)
-}
-
-fn compare_equal(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    lhs.eq(rhs)
-}
-
-fn compare_greater(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    match lhs.sort_kind() {
-        SortKind::Uninterpreted
-        | SortKind::RoundingMode
-        | SortKind::RE
-        | SortKind::Unknown
-        | SortKind::BV
-        | SortKind::Datatype
-        | SortKind::Relation
-        | SortKind::FiniteDomain
-        | SortKind::Real
-        | SortKind::Array => unimplemented!(),
-
-        SortKind::Bool => unreachable!(),
-
-        SortKind::Int => lhs.as_int().unwrap().gt(rhs.as_int().unwrap()),
-        SortKind::FloatingPoint => {
-            lhs.as_float().unwrap().gt(rhs.as_float().unwrap())
-        }
-        SortKind::Seq => {
-            lhs.as_string().unwrap().str_gt(rhs.as_string().unwrap())
-        }
-    }
-}
-
-fn compare_greater_equal(lhs: &Dynamic, rhs: &Dynamic) -> Bool {
-    match lhs.sort_kind() {
-        SortKind::Uninterpreted
-        | SortKind::RoundingMode
-        | SortKind::RE
-        | SortKind::Unknown
-        | SortKind::BV
-        | SortKind::Datatype
-        | SortKind::Relation
-        | SortKind::FiniteDomain
-        | SortKind::Real
-        | SortKind::Array => unimplemented!(),
-
-        SortKind::Bool => unreachable!(),
-
-        SortKind::Int => lhs.as_int().unwrap().ge(rhs.as_int().unwrap()),
-        SortKind::FloatingPoint => {
-            lhs.as_float().unwrap().ge(rhs.as_float().unwrap())
-        }
-        SortKind::Seq => {
-            lhs.as_string().unwrap().str_ge(rhs.as_string().unwrap())
-        }
     }
 }

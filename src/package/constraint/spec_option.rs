@@ -7,7 +7,7 @@ use tracing_subscriber::registry;
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintType},
+        constraint::{Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
         registry::Registry,
     },
@@ -24,7 +24,7 @@ pub struct SpecOption {
     pub option_name: String,
 }
 
-impl Constraint for SpecOption {
+impl ConstraintUtils for SpecOption {
     fn get_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
@@ -127,9 +127,11 @@ impl Constraint for SpecOption {
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+impl Into<Constraint> for SpecOption {
+    fn into(self) -> Constraint {
+        Constraint::SpecOption(Box::new(self))
     }
 }
 

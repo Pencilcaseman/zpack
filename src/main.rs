@@ -16,7 +16,7 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use zpack::package::{
-    constraint::{Cmp, CmpType, Constraint, Maximize, Minimize, NumOf},
+    constraint::{Cmp, CmpType, ConstraintUtils, Maximize, Minimize, NumOf},
     version,
 };
 
@@ -147,33 +147,9 @@ fn test_outline() {
     let hpl_outline = PackageOutline {
         name: "hpl".into(),
         constraints: vec![
-            Box::new(Depends::new("blas".into())),
-            Box::new(Depends::new("mpi".into())),
-            Box::new(Depends::new("gcc".into())),
-            // Box::new(Equal {
-            //     lhs: Box::new(SpecOption {
-            //         package_name: "openmpi".into(),
-            //         option_name: "version".into(),
-            //     }),
-            //     rhs: Box::new(Value {
-            //         value: SpecOptionValue::Version(
-            //
-            // zpack::package::version::Version::new("5.0.8").unwrap(),
-            //         ),
-            //     }),
-            // }),
-            // Box::new(Equal {
-            //     lhs: Box::new(SpecOption {
-            //         package_name: "openmpi".into(),
-            //         option_name: "version".into(),
-            //     }),
-            //     rhs: Box::new(Value {
-            //         value: SpecOptionValue::Version(
-            //
-            // zpack::package::version::Version::new("5.0.7").unwrap(),
-            //         ),
-            //     }),
-            // }),
+            Depends::new("blas".into()).into(),
+            Depends::new("mpi".into()).into(),
+            Depends::new("gcc".into()).into(),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
@@ -186,56 +162,66 @@ fn test_outline() {
         name: "blas".into(),
 
         constraints: vec![
-            Box::new(Cmp {
-                lhs: Box::new(NumOf {
+            Cmp {
+                lhs: NumOf {
                     of: vec![
-                        Box::new(Cmp {
-                            lhs: Box::new(SpecOption {
+                        Cmp {
+                            lhs: SpecOption {
                                 package_name: "blas".into(),
                                 option_name: "openblas".into(),
-                            }),
-                            rhs: Box::new(Value {
-                                value: SpecOptionValue::Bool(true),
-                            }),
+                            }
+                            .into(),
+                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                                .into(),
                             op: CmpType::Equal,
-                        }),
-                        Box::new(Cmp {
-                            lhs: Box::new(SpecOption {
+                        }
+                        .into(),
+                        Cmp {
+                            lhs: SpecOption {
                                 package_name: "blas".into(),
                                 option_name: "mkl".into(),
-                            }),
-                            rhs: Box::new(Value {
-                                value: SpecOptionValue::Bool(true),
-                            }),
+                            }
+                            .into(),
+                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                                .into(),
                             op: CmpType::Equal,
-                        }),
+                        }
+                        .into(),
                     ],
-                }),
-                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                }
+                .into(),
+                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
-            }),
-            Box::new(IfThen {
-                cond: Box::new(Cmp {
-                    lhs: Box::new(SpecOption {
+            }
+            .into(),
+            IfThen {
+                cond: Cmp {
+                    lhs: SpecOption {
                         package_name: "blas".into(),
                         option_name: "openblas".into(),
-                    }),
-                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    }
+                    .into(),
+                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
-                }),
-                then: Box::new(Depends::new("openblas".into())),
-            }),
-            Box::new(IfThen {
-                cond: Box::new(Cmp {
-                    lhs: Box::new(SpecOption {
+                }
+                .into(),
+                then: Depends::new("openblas".into()).into(),
+            }
+            .into(),
+            IfThen {
+                cond: Cmp {
+                    lhs: SpecOption {
                         package_name: "blas".into(),
                         option_name: "mkl".into(),
-                    }),
-                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    }
+                    .into(),
+                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
-                }),
-                then: Box::new(Depends::new("mkl".into())),
-            }),
+                }
+                .into(),
+                then: Depends::new("mkl".into()).into(),
+            }
+            .into(),
         ],
 
         set_options: HashMap::from([(
@@ -249,77 +235,91 @@ fn test_outline() {
         name: "mpi".into(),
 
         constraints: vec![
-            Box::new(Cmp {
-                lhs: Box::new(NumOf {
+            Cmp {
+                lhs: NumOf {
                     of: vec![
-                        Box::new(Cmp {
-                            lhs: Box::new(SpecOption {
+                        Cmp {
+                            lhs: SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "openmpi".into(),
-                            }),
-                            rhs: Box::new(Value {
-                                value: SpecOptionValue::Bool(true),
-                            }),
+                            }
+                            .into(),
+                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                                .into(),
                             op: CmpType::Equal,
-                        }),
-                        Box::new(Cmp {
-                            lhs: Box::new(SpecOption {
+                        }
+                        .into(),
+                        Cmp {
+                            lhs: SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "mpich".into(),
-                            }),
-                            rhs: Box::new(Value {
-                                value: SpecOptionValue::Bool(true),
-                            }),
+                            }
+                            .into(),
+                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                                .into(),
                             op: CmpType::Equal,
-                        }),
-                        Box::new(Cmp {
-                            lhs: Box::new(SpecOption {
+                        }
+                        .into(),
+                        Cmp {
+                            lhs: SpecOption {
                                 package_name: "mpi".into(),
                                 option_name: "intelmpi".into(),
-                            }),
-                            rhs: Box::new(Value {
-                                value: SpecOptionValue::Bool(true),
-                            }),
+                            }
+                            .into(),
+                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                                .into(),
                             op: CmpType::Equal,
-                        }),
+                        }
+                        .into(),
                     ],
-                }),
-                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+                }
+                .into(),
+                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
-            }),
-            Box::new(IfThen {
-                cond: Box::new(Cmp {
-                    lhs: Box::new(SpecOption {
+            }
+            .into(),
+            IfThen {
+                cond: Cmp {
+                    lhs: SpecOption {
                         package_name: "mpi".into(),
                         option_name: "openmpi".into(),
-                    }),
-                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    }
+                    .into(),
+                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
-                }),
-                then: Box::new(Depends::new("openmpi".into())),
-            }),
-            Box::new(IfThen {
-                cond: Box::new(Cmp {
-                    lhs: Box::new(SpecOption {
+                }
+                .into(),
+                then: Depends::new("openmpi".into()).into(),
+            }
+            .into(),
+            IfThen {
+                cond: Cmp {
+                    lhs: SpecOption {
                         package_name: "mpi".into(),
                         option_name: "mpich".into(),
-                    }),
-                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    }
+                    .into(),
+                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
-                }),
-                then: Box::new(Depends::new("mpich".into())),
-            }),
-            Box::new(IfThen {
-                cond: Box::new(Cmp {
-                    lhs: Box::new(SpecOption {
+                }
+                .into(),
+                then: Depends::new("mpich".into()).into(),
+            }
+            .into(),
+            IfThen {
+                cond: Cmp {
+                    lhs: SpecOption {
                         package_name: "mpi".into(),
                         option_name: "intelmpi".into(),
-                    }),
-                    rhs: Box::new(Value { value: SpecOptionValue::Bool(true) }),
+                    }
+                    .into(),
+                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
-                }),
-                then: Box::new(Depends::new("intelmpi".into())),
-            }),
+                }
+                .into(),
+                then: Depends::new("intelmpi".into()).into(),
+            }
+            .into(),
         ],
 
         set_options: HashMap::from([(
@@ -331,14 +331,14 @@ fn test_outline() {
 
     let openblas_outline = PackageOutline {
         name: "openblas".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
 
     let mkl_outline = PackageOutline {
         name: "mkl".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
@@ -350,45 +350,53 @@ fn test_outline() {
     ]
     .into_iter()
     .map(|v| {
-        Box::new(Cmp {
-            lhs: Box::new(SpecOption {
+        Cmp {
+            lhs: SpecOption {
                 package_name: "openmpi".into(),
                 option_name: "version".into(),
-            }),
-            rhs: Box::new(Value {
+            }
+            .into(),
+            rhs: Value {
                 value: SpecOptionValue::Version(
                     version::SemVer::new(v).unwrap().into(),
                 ),
-            }),
+            }
+            .into(),
             op: CmpType::Equal,
-        }) as Box<dyn Constraint>
+        }
+        .into()
     })
     .collect();
 
     let openmpi_outline = PackageOutline {
         name: "openmpi".into(),
         constraints: vec![
-            Box::new(Cmp {
-                lhs: Box::new(NumOf { of: openmpi_versions }),
-                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+            Cmp {
+                lhs: NumOf { of: openmpi_versions }.into(),
+                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
                 op: CmpType::LessOrEqual,
-            }),
-            Box::new(Maximize {
-                item: Box::new(SpecOption {
+            }
+            .into(),
+            Maximize {
+                item: SpecOption {
                     package_name: "openmpi".into(),
                     option_name: "version".into(),
-                }),
-            }),
-            Box::new(Minimize {
-                item: Box::new(SpecOption {
+                }
+                .into(),
+            }
+            .into(),
+            Minimize {
+                item: SpecOption {
                     package_name: "openmpi".into(),
                     option_name: "version".into(),
-                }),
-            }),
-            Box::new(Depends::new("openpmix".into())),
-            Box::new(Depends::new("openprrte".into())),
-            Box::new(Depends::new("hwloc".into())),
-            Box::new(Depends::new("gcc".into())),
+                }
+                .into(),
+            }
+            .into(),
+            Depends::new("openpmix".into()).into(),
+            Depends::new("openprrte".into()).into(),
+            Depends::new("hwloc".into()).into(),
+            Depends::new("gcc".into()).into(),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([
@@ -400,42 +408,28 @@ fn test_outline() {
 
     let mpich_outline = PackageOutline {
         name: "mpich".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::new(),
     };
 
     let intelmpi_outline = PackageOutline {
         name: "intelmpi".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::new(),
     };
 
     let openpmix_outline = PackageOutline {
         name: "openpmix".into(),
-        constraints: vec![Box::new(Depends::new("gcc".into()))],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
 
     let openprrte_outline = PackageOutline {
         name: "openprrte".into(),
-        constraints: vec![
-            Box::new(Depends::new("gcc".into())),
-            // Box::new(Equal {
-            //     lhs: Box::new(SpecOption {
-            //         package_name: "hwloc".into(),
-            //         option_name: "version".into(),
-            //     }),
-            //     rhs: Box::new(Value {
-            //         value: SpecOptionValue::Version(
-            //             zpack::package::version::Version::new("2.12.2")
-            //                 .unwrap(),
-            //         ),
-            //     }),
-            // }),
-        ],
+        constraints: vec![Depends::new("gcc".into()).into()],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),
     };
@@ -443,30 +437,34 @@ fn test_outline() {
     let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
         .into_iter()
         .map(|v| {
-            Box::new(Cmp {
-                lhs: Box::new(SpecOption {
+            Cmp {
+                lhs: SpecOption {
                     package_name: "hwloc".into(),
                     option_name: "version".into(),
-                }),
-                rhs: Box::new(Value {
+                }
+                .into(),
+                rhs: Value {
                     value: SpecOptionValue::Version(
                         version::SemVer::new(v).unwrap().into(),
                     ),
-                }),
+                }
+                .into(),
                 op: CmpType::Equal,
-            }) as Box<dyn Constraint>
+            }
+            .into()
         })
         .collect();
 
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
         constraints: vec![
-            Box::new(Cmp {
-                lhs: Box::new(NumOf { of: hwloc_versions }),
-                rhs: Box::new(Value { value: SpecOptionValue::Int(1) }),
+            Cmp {
+                lhs: NumOf { of: hwloc_versions }.into(),
+                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
-            }),
-            Box::new(Depends::new("gcc".into())),
+            }
+            .into(),
+            Depends::new("gcc".into()).into(),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::default(),

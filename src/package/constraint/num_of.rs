@@ -1,18 +1,14 @@
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::ast::{Bool, Int};
+use z3::ast::Int;
 
-use super::Constraint;
+use super::ConstraintUtils;
 use crate::{
     package::{
         self,
-        constraint::{ConstraintType, IfThen},
+        constraint::{CmpType, Constraint, ConstraintType, IfThen},
         outline::SolverError,
-        registry::Registry,
     },
     spec::{self, SpecOption},
 };
@@ -21,10 +17,10 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct NumOf {
     #[pyo3(get, set)]
-    pub of: Vec<Box<dyn Constraint>>,
+    pub of: Vec<Constraint>,
 }
 
-impl Constraint for NumOf {
+impl ConstraintUtils for NumOf {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -58,6 +54,26 @@ impl Constraint for NumOf {
         self.of.iter().flat_map(|b| b.extract_dependencies()).collect()
     }
 
+    fn cmp_to_z3<'a>(
+        &self,
+        other: &Constraint,
+        op: CmpType,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        // Safe to unwrap since we've already type checked everything
+        let s = self.to_z3_clause(registry)?.as_int().unwrap();
+        let o = other.to_z3_clause(registry)?.as_int().unwrap();
+
+        Ok(match op {
+            CmpType::Less => s.lt(o).into(),
+            CmpType::LessOrEqual => s.le(o).into(),
+            CmpType::NotEqual => s.ne(o).into(),
+            CmpType::Equal => s.eq(o).into(),
+            CmpType::GreaterOrEqual => s.ge(o).into(),
+            CmpType::Greater => s.gt(o).into(),
+        })
+    }
+
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
@@ -66,7 +82,7 @@ impl Constraint for NumOf {
 
         // TODO: Move this to type_check
         for constraint in &self.of {
-            if (**constraint).as_any().is::<IfThen>() {
+            if matches!(constraint, Constraint::IfThen(_)) {
                 tracing::error!("IfThen inside NumOf; this does nothing");
             }
 
@@ -95,9 +111,11 @@ impl Constraint for NumOf {
     ) -> PyResult<Bound<'py, PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
+impl From<NumOf> for Constraint {
+    fn from(val: NumOf) -> Self {
+        Constraint::NumOf(Box::new(val))
     }
 }
 

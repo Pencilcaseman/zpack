@@ -13,11 +13,14 @@ use petgraph::{algo::Cycle, graph::DiGraph, visit::EdgeRef};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use z3::{Optimize, SortKind};
 
-use super::constraint::Constraint;
+use super::constraint::ConstraintUtils;
 use crate::{
     package::{
         self,
-        constraint::{self, ConstraintType, SOFT_PACKAGE_WEIGHT},
+        constraint::{
+            self, Constraint, ConstraintType, SOFT_PACKAGE_WEIGHT, SpecOption,
+            Value,
+        },
     },
     spec,
 };
@@ -32,7 +35,7 @@ pub struct PackageOutline {
     pub name: String,
 
     #[pyo3(get, set)]
-    pub constraints: Vec<Box<dyn Constraint>>,
+    pub constraints: Vec<Constraint>,
 
     #[pyo3(get, set)]
     pub set_options: HashMap<String, spec::SpecOptionValue>,
@@ -368,16 +371,17 @@ impl SpecOutline {
                     package.name
                 );
 
-                let eq: Box<dyn Constraint> = Box::new(constraint::Cmp {
-                    lhs: Box::new(constraint::SpecOption {
+                let eq = constraint::Cmp {
+                    lhs: SpecOption {
                         package_name: package.name.clone(),
                         option_name: name.clone(),
-                    }),
+                    }
+                    .into(),
 
-                    rhs: Box::new(constraint::Value { value: value.clone() }),
+                    rhs: Value { value: value.clone() }.into(),
 
                     op: constraint::CmpType::Equal,
-                });
+                };
 
                 let Some(idx) = registry.lookup_option(&package.name, None)
                 else {
@@ -538,7 +542,7 @@ impl PackageOutline {
     #[pyo3(signature = (name, constraints=None, set_options=None, set_defaults=None, **kwargs))]
     pub fn py_new(
         name: &str,
-        constraints: Option<Vec<Box<dyn Constraint>>>,
+        constraints: Option<Vec<Constraint>>,
         set_options: Option<HashMap<String, spec::SpecOptionValue>>,
         set_defaults: Option<HashMap<String, Option<spec::SpecOptionValue>>>,
         kwargs: Option<&Bound<'_, PyDict>>,

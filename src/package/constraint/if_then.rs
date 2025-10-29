@@ -6,11 +6,12 @@ use std::{
 use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::SortKind;
 
-use super::Constraint;
+use super::ConstraintUtils;
 use crate::{
     package::{
-        self, constraint::ConstraintType, outline::SolverError,
-        registry::Registry,
+        self,
+        constraint::{Constraint, ConstraintType},
+        outline::SolverError,
     },
     spec,
 };
@@ -19,13 +20,13 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct IfThen {
     #[pyo3(get, set)]
-    pub cond: Box<dyn Constraint>,
+    pub cond: Constraint,
 
     #[pyo3(get, set)]
-    pub then: Box<dyn Constraint>,
+    pub then: Constraint,
 }
 
-impl Constraint for IfThen {
+impl ConstraintUtils for IfThen {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -135,9 +136,11 @@ impl Constraint for IfThen {
     ) -> PyResult<Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+impl Into<Constraint> for IfThen {
+    fn into(self) -> Constraint {
+        Constraint::IfThen(Box::new(self))
     }
 }
 

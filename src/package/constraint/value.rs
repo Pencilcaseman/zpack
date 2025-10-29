@@ -5,7 +5,7 @@ use pyo3::{IntoPyObjectExt, prelude::*};
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintType},
+        constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
     },
     spec::{self, SpecOptionValue},
@@ -18,7 +18,7 @@ pub struct Value {
     pub value: SpecOptionValue,
 }
 
-impl Constraint for Value {
+impl ConstraintUtils for Value {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -59,6 +59,15 @@ impl Constraint for Value {
         HashSet::default()
     }
 
+    fn cmp_to_z3<'a>(
+        &self,
+        other: &Constraint,
+        op: CmpType,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        todo!()
+    }
+
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
@@ -72,9 +81,11 @@ impl Constraint for Value {
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+impl Into<Constraint> for Value {
+    fn into(self) -> Constraint {
+        Constraint::Value(Box::new(self))
     }
 }
 

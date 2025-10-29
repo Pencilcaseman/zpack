@@ -3,10 +3,12 @@ use std::{any::Any, collections::HashSet};
 use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::{Optimize, ast::Bool};
 
-use super::Constraint;
+use super::ConstraintUtils;
 use crate::{
     package::{
-        self, BuiltRegistry, constraint::ConstraintType, outline::SolverError,
+        self, BuiltRegistry,
+        constraint::{Constraint, ConstraintType},
+        outline::SolverError,
     },
     spec::SpecOption,
 };
@@ -15,10 +17,10 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Maximize {
     #[pyo3(get, set)]
-    pub item: Box<dyn Constraint>,
+    pub item: Constraint,
 }
 
-impl Constraint for Maximize {
+impl ConstraintUtils for Maximize {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -89,9 +91,11 @@ impl Constraint for Maximize {
     ) -> PyResult<Bound<'py, PyAny>> {
         self.clone().into_bound_py_any(py)
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
+impl Into<Constraint> for Maximize {
+    fn into(self) -> Constraint {
+        Constraint::Maximize(Box::new(self))
     }
 }
 

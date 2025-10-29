@@ -2,8 +2,12 @@ use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
-use super::Constraint;
-use crate::package::{self, constraint::ConstraintType, outline::SolverError};
+use super::{CmpType, ConstraintUtils};
+use crate::package::{
+    self,
+    constraint::{Constraint, ConstraintType},
+    outline::SolverError,
+};
 
 #[pyclass]
 #[derive(Clone, Debug)]
@@ -18,7 +22,7 @@ impl Depends {
     }
 }
 
-impl Constraint for Depends {
+impl ConstraintUtils for Depends {
     fn get_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
@@ -83,10 +87,6 @@ impl Constraint for Depends {
     ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
         self.clone().into_bound_py_any(py)
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 #[pymethods]
@@ -94,6 +94,12 @@ impl Depends {
     #[new]
     pub fn py_new(name: String) -> PyResult<Self> {
         Ok(Self::new(name))
+    }
+}
+
+impl Into<Constraint> for Depends {
+    fn into(self) -> Constraint {
+        Constraint::Depends(Box::new(self))
     }
 }
 
