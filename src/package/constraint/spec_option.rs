@@ -1,15 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use chumsky::container::Seq;
 use pyo3::{IntoPyObjectExt, prelude::*};
-use tracing_subscriber::registry;
 
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintType, ConstraintUtils},
+        constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
-        registry::Registry,
     },
     spec,
 };
@@ -26,6 +23,17 @@ pub struct SpecOption {
 
 impl ConstraintUtils for SpecOption {
     fn get_type<'a>(
+        &'a self,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        let idx = registry
+            .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
+            .expect("option missing type");
+
+        ConstraintType::Value(registry.spec_options()[idx].0)
+    }
+
+    fn try_get_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
@@ -49,12 +57,14 @@ impl ConstraintUtils for SpecOption {
             panic!("TODO: Improve error handling here");
         };
 
-        wip_registry.insert_option(
-            &self.package_name,
-            Some(self.option_name.as_ref()),
-            option_type,
-            None,
-        );
+        wip_registry
+            .insert_option(
+                &self.package_name,
+                Some(self.option_name.as_ref()),
+                option_type,
+                None,
+            )
+            .unwrap();
     }
 
     fn type_check<'a>(
@@ -78,6 +88,75 @@ impl ConstraintUtils for SpecOption {
         HashSet::default()
     }
 
+    fn cmp_to_z3<'a>(
+        &self,
+        other: &Constraint,
+        op: CmpType,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        let ConstraintType::Value(value_type) = self.get_type(registry) else {
+            panic!("spec option is not a Value");
+        };
+
+        // tracing::error!("Information: {this_type:?}");
+
+        let t = self.to_z3_clause(registry)?;
+        let o = other.to_z3_clause(registry)?;
+
+        macro_rules! conv_op {
+            ($in:ident $op:ident $out:ident, $conv:ident) => {
+                Ok($in.$conv().unwrap().$op(o.$conv().unwrap()).into())
+            };
+        }
+
+        match value_type {
+            spec::SpecOptionType::Bool => match op {
+                CmpType::Less
+                | CmpType::LessOrEqual
+                | CmpType::GreaterOrEqual
+                | CmpType::Greater => unreachable!(),
+
+                CmpType::NotEqual => conv_op!(t ne o, as_bool),
+                CmpType::Equal => conv_op!(t eq o, as_bool),
+            },
+
+            spec::SpecOptionType::Int => match op {
+                CmpType::Less => conv_op!(t lt o, as_int),
+                CmpType::LessOrEqual => conv_op!(t le o, as_int),
+                CmpType::NotEqual => conv_op!(t ne o, as_int),
+                CmpType::Equal => conv_op!(t eq o, as_int),
+                CmpType::GreaterOrEqual => conv_op!(t ge o, as_int),
+                CmpType::Greater => conv_op!(t gt o, as_int),
+            },
+
+            spec::SpecOptionType::Float => match op {
+                CmpType::Less => conv_op!(t lt o, as_float),
+                CmpType::LessOrEqual => conv_op!(t le o, as_float),
+                CmpType::NotEqual => conv_op!(t ne o, as_float),
+                CmpType::Equal => conv_op!(t eq o, as_float),
+                CmpType::GreaterOrEqual => conv_op!(t ge o, as_float),
+                CmpType::Greater => conv_op!(t gt o, as_float),
+            },
+
+            spec::SpecOptionType::Str => match op {
+                CmpType::Less => conv_op!(t str_lt o, as_string),
+                CmpType::LessOrEqual => conv_op!(t str_le o, as_string),
+                CmpType::NotEqual => conv_op!(t ne o, as_string),
+                CmpType::Equal => conv_op!(t eq o, as_string),
+                CmpType::GreaterOrEqual => conv_op!(t str_ge o, as_string),
+                CmpType::Greater => conv_op!(t str_gt o, as_string),
+            },
+
+            spec::SpecOptionType::Version => {
+                println!("This: {self}");
+                println!("Other: {other}");
+                println!("other type = {:?}", other.get_type(registry));
+
+                todo!()
+            }
+        }
+    }
+
     fn to_z3_clause<'a>(
         &self,
         registry: &package::BuiltRegistry<'a>,
@@ -87,8 +166,7 @@ impl ConstraintUtils for SpecOption {
         let Some(idx) = registry
             .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
         else {
-            return if let Some(_) =
-                registry.lookup_option(&self.package_name, None)
+            return if registry.lookup_option(&self.package_name, None).is_some()
             {
                 tracing::error!(
                     "missing variable {}:{}",
@@ -129,9 +207,9 @@ impl ConstraintUtils for SpecOption {
     }
 }
 
-impl Into<Constraint> for SpecOption {
-    fn into(self) -> Constraint {
-        Constraint::SpecOption(Box::new(self))
+impl From<SpecOption> for Constraint {
+    fn from(val: SpecOption) -> Self {
+        Constraint::SpecOption(Box::new(val))
     }
 }
 

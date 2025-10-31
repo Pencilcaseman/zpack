@@ -23,6 +23,13 @@ pub struct NumOf {
 impl ConstraintUtils for NumOf {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        ConstraintType::Value(spec::SpecOptionType::Int)
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Value(spec::SpecOptionType::Int))

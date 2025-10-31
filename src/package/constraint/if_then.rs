@@ -1,18 +1,11 @@
-use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::SortKind;
 
-use super::ConstraintUtils;
+use super::{ConstraintType, ConstraintUtils};
 use crate::{
-    package::{
-        self,
-        constraint::{Constraint, ConstraintType},
-        outline::SolverError,
-    },
+    package::{self, constraint::Constraint, outline::SolverError},
     spec,
 };
 
@@ -29,8 +22,15 @@ pub struct IfThen {
 impl ConstraintUtils for IfThen {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        ConstraintType::IfThen
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<super::ConstraintType> {
+    ) -> Option<ConstraintType> {
         Some(ConstraintType::IfThen)
     }
 
@@ -48,7 +48,7 @@ impl ConstraintUtils for IfThen {
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        let Some(cond_type) = self.cond.get_type(wip_registry) else {
+        let Some(cond_type) = self.cond.try_get_type(wip_registry) else {
             self.cond.set_type(
                 wip_registry,
                 ConstraintType::Value(spec::SpecOptionType::Bool),

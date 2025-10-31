@@ -2,7 +2,7 @@ use std::{hash::Hash, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::package::{self, version};
+use crate::package::{self, Version};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
@@ -20,7 +20,7 @@ pub enum SpecOptionValue {
     Int(i64),
     Float(f64),
     Str(String),
-    Version(version::Version),
+    Version(Version),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -192,7 +192,7 @@ impl<'py> FromPyObject<'py> for SpecOptionValue {
             Ok(Self::Float(f))
         } else if let Ok(s) = ob.extract::<&str>() {
             Ok(Self::Str(s.to_string()))
-        } else if let Ok(v) = ob.extract::<version::Version>() {
+        } else if let Ok(v) = ob.extract::<Version>() {
             Ok(Self::Version(v))
         } else {
             let msg = format!(

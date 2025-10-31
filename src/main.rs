@@ -16,8 +16,8 @@ use syntect::{
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
 use zpack::package::{
-    constraint::{Cmp, CmpType, ConstraintUtils, Maximize, Minimize, NumOf},
-    version,
+    self,
+    constraint::{Cmp, CmpType, Maximize, Minimize, NumOf},
 };
 
 fn build_cli() -> Command {
@@ -150,12 +150,27 @@ fn test_outline() {
             Depends::new("blas".into()).into(),
             Depends::new("mpi".into()).into(),
             Depends::new("gcc".into()).into(),
+            Cmp {
+                lhs: SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }
+                .into(),
+                rhs: Value {
+                    value: SpecOptionValue::Version(
+                        package::Version::new("5.0.0").unwrap(),
+                    ),
+                }
+                .into(),
+                op: CmpType::GreaterOrEqual,
+            }
+            .into(),
         ],
         set_options: HashMap::default(),
-        set_defaults: HashMap::from([
-            ("static".into(), Some(SpecOptionValue::Bool(true))),
-            // ("something".into(), None),
-        ]),
+        set_defaults: HashMap::from([(
+            "static".into(),
+            Some(SpecOptionValue::Bool(true)),
+        )]),
     };
 
     let blas_outline = PackageOutline {
@@ -358,7 +373,7 @@ fn test_outline() {
             .into(),
             rhs: Value {
                 value: SpecOptionValue::Version(
-                    version::SemVer::new(v).unwrap().into(),
+                    package::Version::new(v).unwrap().into(),
                 ),
             }
             .into(),
@@ -445,7 +460,7 @@ fn test_outline() {
                 .into(),
                 rhs: Value {
                     value: SpecOptionValue::Version(
-                        version::SemVer::new(v).unwrap().into(),
+                        package::Version::new(v).unwrap().into(),
                     ),
                 }
                 .into(),
@@ -717,7 +732,7 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    println!("{:?}", zpack::package::version::SemVer::new("1.2.3-4321")?);
+    println!("{:?}", package::Version::new("1..2.3-4321+alpha.*.>"));
 
     let test_graph = petgraph::graph::DiGraph::<i32, ()>::from_edges([
         (0, 1),
@@ -734,8 +749,8 @@ fn main() -> Result<()> {
     test_z3();
 
     // TODO: Fix version comparison
-    let a = zpack::package::version::Version::new("3.2.3").unwrap();
-    let b = zpack::package::version::Version::new("2.3.4.4").unwrap();
+    let a = package::Version::new("3.2.3").unwrap();
+    let b = package::Version::new("2.3.4.4").unwrap();
 
     if a > b {
         tracing::info!("Correct");

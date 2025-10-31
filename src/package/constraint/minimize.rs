@@ -23,6 +23,13 @@ pub struct Minimize {
 impl ConstraintUtils for Minimize {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        ConstraintType::Minimize
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Minimize)
@@ -42,7 +49,7 @@ impl ConstraintUtils for Minimize {
     ) -> Result<(), Box<SolverError>> {
         self.item.type_check(wip_registry)?;
 
-        if let Some(known) = self.item.get_type(wip_registry)
+        if let Some(known) = self.item.try_get_type(wip_registry)
             && !matches!(
                 known,
                 ConstraintType::SpecOption | ConstraintType::Value(_)

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use pyo3::{exceptions::PyTypeError, prelude::*};
-use tracing_subscriber::registry;
 use z3::{Optimize, ast::Bool};
 
 use crate::{
@@ -76,9 +75,16 @@ impl std::fmt::Display for Constraint {
 impl ConstraintUtils for Constraint {
     fn get_type<'a>(
         &'a self,
+        registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        constraint_inner!(self, inner => { inner.get_type(registry) })
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
-        constraint_inner!(self, inner => { inner.get_type(wip_registry) })
+        constraint_inner!(self, inner => { inner.try_get_type(wip_registry) })
     }
 
     fn set_type<'a>(
@@ -147,6 +153,11 @@ pub trait ConstraintUtils:
     Send + Sync + std::fmt::Debug + std::fmt::Display + Into<Constraint>
 {
     fn get_type<'a>(
+        &'a self,
+        registry: &package::BuiltRegistry,
+    ) -> ConstraintType;
+
+    fn try_get_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType>;

@@ -58,6 +58,7 @@ dyn-clone = "1.0.20"
 either = "1.15.0"
 itertools = "0.14.0"
 mpi = { version = "0.8.0", optional=true, features = ["user-operations", "derive", "complex"] }
+num-traits = { version = "0.2.19", features = ["i128"] }
 petgraph = { version = "0.8.3", features = ["serde-1", "rayon", "generate"] }
 pyo3 = { version = "0.26.0", features = ["full"] }
 saphyr = "0.0.6"

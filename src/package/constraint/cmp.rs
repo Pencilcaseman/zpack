@@ -51,6 +51,13 @@ pub struct Cmp {
 impl ConstraintUtils for Cmp {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry,
+    ) -> ConstraintType {
+        ConstraintType::Cmp
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Cmp)
@@ -73,8 +80,8 @@ impl ConstraintUtils for Cmp {
         // Types must be the same
         // Propagate types from known to unknown
 
-        let lhs_type = self.lhs.get_type(wip_registry);
-        let rhs_type = self.rhs.get_type(wip_registry);
+        let lhs_type = self.lhs.try_get_type(wip_registry);
+        let rhs_type = self.rhs.try_get_type(wip_registry);
 
         match (lhs_type, rhs_type) {
             (None, None) => Ok(()),
@@ -113,7 +120,7 @@ impl ConstraintUtils for Cmp {
         // one of lhs and rhs
 
         // For each operation type, ensure the operation is valid
-        let Some(lhs_type) = self.lhs.get_type(wip_registry) else {
+        let Some(lhs_type) = self.lhs.try_get_type(wip_registry) else {
             return Ok(());
         };
 

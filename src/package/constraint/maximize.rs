@@ -23,6 +23,13 @@ pub struct Maximize {
 impl ConstraintUtils for Maximize {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry<'a>,
+    ) -> ConstraintType {
+        ConstraintType::Maximize
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Maximize)
@@ -42,7 +49,7 @@ impl ConstraintUtils for Maximize {
     ) -> Result<(), Box<SolverError>> {
         self.item.type_check(wip_registry)?;
 
-        if let Some(known) = self.item.get_type(wip_registry)
+        if let Some(known) = self.item.try_get_type(wip_registry)
             && !matches!(
                 known,
                 ConstraintType::SpecOption | ConstraintType::Value(_)

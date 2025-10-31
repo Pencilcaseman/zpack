@@ -30,7 +30,9 @@
 pub mod constraint;
 pub mod outline;
 pub mod registry;
-pub mod version;
+mod version;
+
+pub use version::Version;
 
 pub type WipRegistry<'a> = registry::Registry<'a, registry::WipVersionRegistry>;
 pub type BuiltRegistry<'a> =

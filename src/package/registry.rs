@@ -3,11 +3,7 @@ use std::collections::HashMap;
 use z3::Model;
 
 use crate::{
-    package::{
-        BuiltRegistry,
-        outline::SolverError,
-        version::{Other, Version},
-    },
+    package::{BuiltRegistry, outline::SolverError, version::Version},
     spec,
 };
 
@@ -51,7 +47,7 @@ impl WipVersionRegistry {
     }
 
     pub fn build(mut self) -> BuiltVersionRegistry {
-        self.versions.sort();
+        // self.versions.sort();
 
         let mut versions = HashMap::with_capacity(self.versions.len());
         let mut ids = HashMap::with_capacity(self.versions.len());

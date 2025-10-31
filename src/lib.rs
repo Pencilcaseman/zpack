@@ -21,22 +21,6 @@ fn register_submodule(
     Ok(())
 }
 
-fn register_module_package_version(
-    parent_module: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-    let child_module = PyModule::new(parent_module.py(), "version")?;
-    use package::version;
-
-    child_module.add_class::<version::Version>()?;
-    child_module.add_class::<version::SemVer>()?;
-    child_module.add_class::<version::DotSeparated>()?;
-    child_module.add_class::<version::Other>()?;
-
-    register_submodule(parent_module, &child_module, "zpack.package.version")?;
-
-    Ok(())
-}
-
 fn register_module_package_outline(
     parent_module: &Bound<'_, PyModule>,
 ) -> PyResult<()> {
@@ -75,11 +59,11 @@ fn register_module_package(
 ) -> PyResult<()> {
     let child_module = PyModule::new(parent_module.py(), "package")?;
 
-    register_module_package_version(&child_module)?;
+    child_module.add_class::<package::Version>()?;
+
     register_module_package_outline(&child_module)?;
     register_module_package_constraint(&child_module)?;
 
-    // parent_module.add_submodule(&child_module)?;
     register_submodule(parent_module, &child_module, "zpack.package")?;
 
     Ok(())

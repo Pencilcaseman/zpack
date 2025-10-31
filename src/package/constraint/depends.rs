@@ -25,6 +25,13 @@ impl Depends {
 impl ConstraintUtils for Depends {
     fn get_type<'a>(
         &'a self,
+        _registry: &package::BuiltRegistry,
+    ) -> ConstraintType {
+        ConstraintType::Depends
+    }
+
+    fn try_get_type<'a>(
+        &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
     ) -> Option<ConstraintType> {
         Some(ConstraintType::Depends)
