@@ -156,41 +156,11 @@ impl ConstraintUtils for Cmp {
         Default::default()
     }
 
-    fn cmp_to_z3<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        other: &Constraint,
-        op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        match op {
-            CmpType::Less
-            | CmpType::LessOrEqual
-            | CmpType::GreaterOrEqual
-            | CmpType::Greater => {
-                let msg = format!(
-                    "only Equal and NotEqual are valid comparison types for Cmp constraint. Received '{op:?}'"
-                );
-                tracing::error!("{msg}");
-                Err(Box::new(SolverError::InvalidConstraint(msg)))
-            }
-
-            CmpType::Equal => Ok(self
-                .to_z3_clause(registry)?
-                .eq(other.to_z3_clause(registry)?)
-                .into()),
-
-            CmpType::NotEqual => Ok(self
-                .to_z3_clause(registry)?
-                .ne(other.to_z3_clause(registry)?)
-                .into()),
-        }
-    }
-
-    fn to_z3_clause<'a>(
-        &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        self.lhs.cmp_to_z3(&self.rhs, self.op, registry)
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
+        Ok(vec![self.lhs.cmp_to_z3(&self.rhs, self.op, registry)?])
     }
 
     fn to_python_any<'py>(

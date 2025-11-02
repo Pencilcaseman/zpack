@@ -54,15 +54,26 @@ fn register_module_package_constraint(
     Ok(())
 }
 
+fn register_module_package_version(
+    parent_module: &Bound<'_, PyModule>,
+) -> PyResult<()> {
+    let child_module = PyModule::new(parent_module.py(), "version")?;
+
+    child_module.add_class::<package::version::Version>()?;
+
+    register_submodule(parent_module, &child_module, "zpack.package.version")?;
+
+    Ok(())
+}
+
 fn register_module_package(
     parent_module: &Bound<'_, PyModule>,
 ) -> PyResult<()> {
     let child_module = PyModule::new(parent_module.py(), "package")?;
 
-    child_module.add_class::<package::Version>()?;
-
     register_module_package_outline(&child_module)?;
     register_module_package_constraint(&child_module)?;
+    register_module_package_version(&child_module)?;
 
     register_submodule(parent_module, &child_module, "zpack.package")?;
 

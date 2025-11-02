@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashSet};
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::{Optimize, ast::Bool};
+use z3::{Optimize, SortKind, ast::Bool};
 
 use super::ConstraintUtils;
 use crate::{
@@ -72,10 +72,10 @@ impl ConstraintUtils for Maximize {
         self.item.extract_dependencies()
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        _registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let msg = "cannot convert Maximize constraint into Z3 clause";
         tracing::error!(msg);
         Err(Box::new(SolverError::InvalidConstraint(msg.to_string())))
@@ -87,8 +87,15 @@ impl ConstraintUtils for Maximize {
         optimizer: &Optimize,
         registry: &mut BuiltRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        let item = self.item.to_z3_clause(registry)?;
-        optimizer.maximize(&item);
+        for item in self.item.to_z3_clauses(registry)? {
+            if matches!(
+                item.sort_kind(),
+                SortKind::Int | SortKind::Real | SortKind::BV
+            ) {
+                optimizer.maximize(&item);
+            }
+        }
+
         Ok(())
     }
 
@@ -100,9 +107,9 @@ impl ConstraintUtils for Maximize {
     }
 }
 
-impl Into<Constraint> for Maximize {
-    fn into(self) -> Constraint {
-        Constraint::Maximize(Box::new(self))
+impl From<Maximize> for Constraint {
+    fn from(val: Maximize) -> Self {
+        Constraint::Maximize(Box::new(val))
     }
 }
 

@@ -1,34 +1,120 @@
-use std::fmt::Write;
+//! Generic Version implementation.
+//!
+//! The [`Version`] struct does not implement any single version specification
+//! standard, but aims to encompass as many common ones as possible.
+//!
+//! A version is stored as a list of [`Part`]s, which include integers, strings,
+//! wildcards and separators.
+//!
+//! To operate within the bounds of the solver, we specify some comparison rules
+//! that are logically consistent and have beneficial properties:
+//!
+//! - Shorter versions are bigger => 1 > 1.2 > 1.2.3 > 1.2.3.4
+//! - Strings are smaller than numbers => 1.alpha < 1.2
+//! - Numbers are sorted by value => 1.2.3 < 1.2.4 < 1.3.2 < 2.3 < 3
+//! - Strings are sorted lexicographically with a few exceptions:
+//!     - git > dev > devel > main > master > alpha > beta > latest > stable >
+//!       everything else (see [`STATIC_STRING_VERSIONS`])
+//! - Separators must match
+//! - Wildcards => 1.2.3 == 1.*.3 == 1.> == 1.2.> == 1.*.*
+//!     - Single matches any string or number
+//!     - Rest matches the rest of a version
+//!         - Regardless of remaining separators
+//!
+//! Before adding versions to the solver, we track them in a
+//! [`WipVersionRegistry`]. Explicit string version orderings will all be added
+//! by default, and any other strings found during the outlining phase will also
+//! be added.
+//!
+//! String version parts are mapped to indices and treated as integers. Integer
+//! version parts are also treated as integers, but are offset by the number of
+//! string versions in the registry. This may lead to some slightly strange
+//! errors in cases where the specification is unsatisfiable, but the UNSAT core
+//! should provide enough context to identify the cause of the issue.
+
+use std::{fmt::Write, str::FromStr};
 
 use pyo3::prelude::*;
 
+use crate::package::registry::BuiltVersionRegistry;
+
+/// Version strings with a specified, non-lexicographic order
+pub const STATIC_STRING_VERSIONS: [&str; 9] = [
+    "stable", "latest", "beta", "alpha", "master", "main", "devel", "dev",
+    "git",
+];
+
+/// Wildcard specifier in a version.
+///
+/// - [`WildcardType::Single`] is an asterisk ('*') and represents any value
+/// - [`WildcardType::Rest`] is a right chevron ('>') and matches any remaining
+///   version components. This must be the final part of a version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WildcardType {
     Single,
     Rest,
 }
 
+/// Parts of a version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Part {
-    Int(u64),
+    /// An integer component
+    Int(usize),
+
+    /// An alphanumeric component
     Str(String),
-    Sep(char),
+
+    /// A wildcard component
     Wildcard(WildcardType),
+
+    /// A separator component
+    Sep(char),
 }
 
+/// A generic version.
+///
+/// See the documentation for this module for more information.
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
-    segments: Vec<Part>,
+    parts: Vec<Part>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ParseError {
     TrailingSeparator,
     InvalidCharacter(char),
-    InvalidSegment(String),
-    EmptySegment,
-    SegmentAfterRest,
+    InvalidPart(String),
+    EmptyPart,
+    PartAfterRest,
+}
+
+impl Part {
+    pub fn to_z3_dynamic(
+        &self,
+        version_registry: &BuiltVersionRegistry,
+    ) -> Option<z3::ast::Dynamic> {
+        use z3::ast::{Int, String};
+
+        match self {
+            Part::Int(v) => Some(
+                Int::from_u64((*v + version_registry.offset()) as u64).into(),
+            ),
+
+            Part::Str(v) => {
+                let idx = version_registry
+                    .lookup_str(v)
+                    .expect("Internal solver error");
+                Some(Int::from_u64(*idx as u64).into())
+            }
+
+            Part::Sep(v) => {
+                Some(String::from_str(&v.to_string()).unwrap().into())
+            }
+
+            Part::Wildcard(_) => None,
+        }
+    }
 }
 
 impl Version {
@@ -39,22 +125,22 @@ impl Version {
 
         let mut parse_seg = |seg: &str| -> Result<Part, ParseError> {
             if seen_rest {
-                Err(ParseError::SegmentAfterRest)
+                Err(ParseError::PartAfterRest)
             } else if seg == "*" {
                 Ok(Part::Wildcard(WildcardType::Single))
             } else if seg == ">" {
                 seen_rest = true;
                 Ok(Part::Wildcard(WildcardType::Rest))
-            } else if let Ok(num) = seg.parse::<u64>() {
+            } else if let Ok(num) = seg.parse::<usize>() {
                 Ok(Part::Int(num))
             } else if seg.chars().all(|c| c.is_ascii_alphanumeric()) {
                 if !seg.is_empty() {
                     Ok(Part::Str(seg.to_string()))
                 } else {
-                    Err(ParseError::EmptySegment)
+                    Err(ParseError::EmptyPart)
                 }
             } else {
-                Err(ParseError::InvalidSegment(seg.to_string()))
+                Err(ParseError::InvalidPart(seg.to_string()))
             }
         };
 
@@ -73,11 +159,31 @@ impl Version {
 
         segments.push(parse_seg(&txt[last..])?);
 
-        Ok(Self { segments })
+        Ok(Self { parts: segments })
     }
 
-    pub fn segments(&self) -> &[Part] {
-        &self.segments
+    pub fn empty() -> Version {
+        Self { parts: Vec::new() }
+    }
+
+    /// # Safety
+    /// `part` must be valid and ensure alternating values and separators
+    pub unsafe fn push(&mut self, part: Part) {
+        self.parts.push(part);
+    }
+
+    pub fn parts(&self) -> &[Part] {
+        &self.parts
+    }
+
+    pub fn num_segments(&self) -> usize {
+        assert!(self.parts.len() & 1 == 1);
+        self.parts.len() / 2 + 1
+    }
+
+    pub fn num_separators(&self) -> usize {
+        assert!(self.parts.len() & 1 == 1);
+        self.parts.len() / 2
     }
 }
 
@@ -129,7 +235,7 @@ impl std::fmt::Display for Part {
 
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for part in &self.segments {
+        for part in &self.parts {
             f.write_str(&part.to_string())?
         }
 

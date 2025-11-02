@@ -106,14 +106,23 @@ impl ConstraintUtils for IfThen {
             .collect()
     }
 
-    fn to_z3_clause<'a>(
+    #[tracing::instrument]
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        tracing::info!("(if '{:?}' then '{:?}')", self.cond, self.then);
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
+        tracing::info!("(If '{:?}' then '{:?}')", self.cond, self.then);
 
-        let cond = self.cond.to_z3_clause(registry)?.as_bool().unwrap();
-        let var = self.then.to_z3_clause(registry)?;
+        let cond = self.cond.to_z3_clauses(registry)?;
+        let var = self.then.to_z3_clauses(registry)?;
+
+        if cond.len() != 1 || var.len() != 1 {
+            tracing::error!("Cannot operate on multiple solver variables");
+            panic!("Internal solver error");
+        }
+
+        let cond = cond[0].as_bool().unwrap();
+        let var = &var[0];
 
         let then = match var.sort_kind() {
             SortKind::Bool => Ok(var.as_bool().unwrap()),
@@ -127,7 +136,7 @@ impl ConstraintUtils for IfThen {
             }
         }?;
 
-        Ok(cond.implies(then).into())
+        Ok(vec![cond.implies(then).into()])
     }
 
     fn to_python_any<'py>(

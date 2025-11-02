@@ -2,7 +2,7 @@ use std::{hash::Hash, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::package::{self, Version};
+use crate::package::{self, version, version::Version};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
@@ -58,33 +58,30 @@ impl SpecOptionValue {
     pub fn to_z3_dynamic(
         &self,
         registry: &package::BuiltRegistry,
-    ) -> z3::ast::Dynamic {
+    ) -> Vec<z3::ast::Dynamic> {
         use z3::ast::{Bool, Float, Int, String};
 
         match self {
-            Self::Bool(b) => Bool::from_bool(*b).into(),
-            Self::Int(i) => Int::from_i64(*i).into(),
-            Self::Float(f) => Float::from_f64(*f).into(),
-            Self::Str(s) => String::from_str(s).unwrap().into(),
-            Self::Version(v) => {
-                let idx = match registry.version_registry().lookup(v) {
-                    Some(found) => found as u64,
-                    None => {
-                        tracing::error!(
-                            "encountered version not in Registry: {v}"
-                        );
-                        u64::MAX
-                    }
-                };
-
-                Int::from_u64(idx).into()
-            }
+            Self::Bool(b) => vec![Bool::from_bool(*b).into()],
+            Self::Int(i) => vec![Int::from_i64(*i).into()],
+            Self::Float(f) => vec![Float::from_f64(*f).into()],
+            Self::Str(s) => vec![String::from_str(s).unwrap().into()],
+            Self::Version(v) => v
+                .parts()
+                .iter()
+                .filter_map(|part| {
+                    part.to_z3_dynamic(registry.version_registry())
+                })
+                .collect(),
         }
     }
 
     pub fn from_z3_dynamic(
+        package: &str,
+        option: Option<&str>,
         dtype: SpecOptionType,
         dynamic: &z3::ast::Dynamic,
+        model: &z3::Model,
         registry: &package::BuiltRegistry,
     ) -> Self {
         match dtype {
@@ -101,12 +98,41 @@ impl SpecOptionValue {
                 Self::Str(dynamic.as_string().unwrap().as_string().unwrap())
             }
             SpecOptionType::Version => {
-                let idx = dynamic.as_int().unwrap().as_u64().unwrap();
-                let v = registry
-                    .version_registry()
-                    .lookup_id(&usize::try_from(idx).unwrap())
-                    .unwrap();
-                Self::Version(v.clone())
+                let mut version = Version::empty();
+
+                let solved = registry
+                    .lookup_version_solver_vars(package, option)
+                    .expect("Why is there nothing here???");
+
+                for (i, s) in solved.iter().enumerate() {
+                    let dynamic = model.eval(s, true).unwrap();
+
+                    if i % 2 == 0 {
+                        unsafe {
+                            version.push(
+                                registry.version_registry().int_to_part(
+                                    dynamic.as_int().unwrap().as_u64().unwrap()
+                                        as usize,
+                                ),
+                            );
+                        }
+                    } else {
+                        unsafe {
+                            version.push(version::Part::Sep(
+                                dynamic
+                                    .as_string()
+                                    .unwrap()
+                                    .as_string()
+                                    .unwrap()
+                                    .chars()
+                                    .next()
+                                    .unwrap(),
+                            ));
+                        };
+                    }
+                }
+
+                Self::Version(version)
             }
         }
     }

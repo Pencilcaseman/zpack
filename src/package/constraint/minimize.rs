@@ -72,10 +72,10 @@ impl ConstraintUtils for Minimize {
         self.item.extract_dependencies()
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        _registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let msg = "cannot convert Minimize constraint into Z3 clause";
         tracing::error!(msg);
         Err(Box::new(SolverError::InvalidConstraint(msg.to_string())))
@@ -87,8 +87,10 @@ impl ConstraintUtils for Minimize {
         optimizer: &Optimize,
         registry: &mut BuiltRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        let item = self.item.to_z3_clause(registry)?;
-        optimizer.minimize(&item);
+        for item in self.item.to_z3_clauses(registry)? {
+            optimizer.minimize(&item);
+        }
+
         Ok(())
     }
 

@@ -68,17 +68,17 @@ impl ConstraintUtils for Value {
 
     fn cmp_to_z3<'a>(
         &self,
-        other: &Constraint,
-        op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
+        _other: &Constraint,
+        _op: CmpType,
+        _registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         todo!()
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         Ok(self.value.to_z3_dynamic(registry))
     }
 
@@ -90,9 +90,9 @@ impl ConstraintUtils for Value {
     }
 }
 
-impl Into<Constraint> for Value {
-    fn into(self) -> Constraint {
-        Constraint::Value(Box::new(self))
+impl From<Value> for Constraint {
+    fn from(val: Value) -> Self {
+        Constraint::Value(Box::new(val))
     }
 }
 

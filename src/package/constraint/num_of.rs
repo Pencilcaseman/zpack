@@ -7,7 +7,7 @@ use super::ConstraintUtils;
 use crate::{
     package::{
         self,
-        constraint::{CmpType, Constraint, ConstraintType, IfThen},
+        constraint::{CmpType, Constraint, ConstraintType},
         outline::SolverError,
     },
     spec::{self, SpecOption},
@@ -65,11 +65,21 @@ impl ConstraintUtils for NumOf {
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         // Safe to unwrap since we've already type checked everything
-        let s = self.to_z3_clause(registry)?.as_int().unwrap();
-        let o = other.to_z3_clause(registry)?.as_int().unwrap();
+        // Self to index on `s` as this always returns one clause
+        let s = self.to_z3_clauses(registry)?[0].as_int().unwrap();
+
+        let other_clauses = other.to_z3_clauses(registry)?;
+
+        if other_clauses.len() != 1 {
+            return Err(Box::new(SolverError::InvalidNumberOfClauses(
+                other_clauses.len(),
+            )));
+        }
+
+        let o = other_clauses[0].as_int().unwrap();
 
         Ok(match op {
             CmpType::Less => s.lt(o).into(),
@@ -81,19 +91,24 @@ impl ConstraintUtils for NumOf {
         })
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let mut clauses = Vec::new();
 
         // TODO: Move this to type_check
         for constraint in &self.of {
-            if matches!(constraint, Constraint::IfThen(_)) {
-                tracing::error!("IfThen inside NumOf; this does nothing");
+            let conds = constraint.to_z3_clauses(registry)?;
+
+            if conds.len() != 1 {
+                return Err(Box::new(SolverError::InvalidNumberOfClauses(
+                    conds.len(),
+                )));
             }
 
-            let cond = constraint.to_z3_clause(registry)?;
+            let cond = &conds[0];
+
             let Some(cond) = cond.as_bool() else {
                 let msg =
                     format!("expected Bool; received {:?}", cond.sort_kind());
@@ -109,7 +124,7 @@ impl ConstraintUtils for NumOf {
             .map(|b| b.ite(&Int::from_i64(1), &Int::from_i64(0)))
             .collect::<Vec<_>>();
 
-        Ok(Int::add(&refs).into())
+        Ok(vec![Int::add(&refs).into()])
     }
 
     fn to_python_any<'py>(

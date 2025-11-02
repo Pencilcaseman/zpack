@@ -116,18 +116,18 @@ impl ConstraintUtils for Constraint {
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         constraint_inner!(self, inner => {
             inner.cmp_to_z3(other, op, registry)
         })
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        constraint_inner!(self, inner => { inner.to_z3_clause(registry)})
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
+        constraint_inner!(self, inner => { inner.to_z3_clauses(registry)})
     }
 
     fn to_python_any<'py>(
@@ -183,36 +183,57 @@ pub trait ConstraintUtils:
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        let s = self.to_z3_clauses(registry)?;
+        let o = other.to_z3_clauses(registry)?;
+
         match op {
             CmpType::Less
             | CmpType::LessOrEqual
             | CmpType::GreaterOrEqual
             | CmpType::Greater => {
                 let msg = format!(
-                    "only Equal and NotEqual are valid comparision operations for this constraint type; received {op:?}"
+                    "Only Equal and NotEqual are valid comparision operations for this constraint type; received {op:?}"
                 );
                 tracing::error!("{msg}");
                 Err(Box::new(SolverError::InvalidConstraint(msg)))
             }
 
-            CmpType::Equal => Ok(self
-                .to_z3_clause(registry)?
-                .eq(other.to_z3_clause(registry)?)
-                .into()),
+            CmpType::Equal => {
+                if s.len() != o.len() {
+                    Ok(Bool::from_bool(false).into())
+                } else {
+                    let conds: Vec<Bool> = s
+                        .into_iter()
+                        .zip(o.into_iter())
+                        .map(|(s, o)| s.eq(o))
+                        .collect();
 
-            CmpType::NotEqual => Ok(self
-                .to_z3_clause(registry)?
-                .ne(other.to_z3_clause(registry)?)
-                .into()),
+                    Ok(Bool::and(&conds).into())
+                }
+            }
+
+            CmpType::NotEqual => {
+                if s.len() != o.len() {
+                    Ok(Bool::from_bool(true).into())
+                } else {
+                    let conds: Vec<Bool> = s
+                        .into_iter()
+                        .zip(o.into_iter())
+                        .map(|(s, o)| s.ne(o))
+                        .collect();
+
+                    Ok(Bool::or(&conds).into())
+                }
+            }
         }
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>>;
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>>;
 
     fn add_to_solver<'a>(
         &self,
@@ -220,14 +241,15 @@ pub trait ConstraintUtils:
         optimizer: &Optimize,
         registry: &mut BuiltRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        let clause = self.to_z3_clause(registry)?;
-        let assertion = toggle.implies(clause.as_bool().unwrap());
+        for clause in self.to_z3_clauses(registry)? {
+            let assertion = toggle.implies(clause.as_bool().unwrap());
 
-        let boolean = z3::ast::Bool::new_const(
-            registry.new_constraint_id(self.to_string()),
-        );
+            let boolean = z3::ast::Bool::new_const(
+                registry.new_constraint_id(self.to_string()),
+            );
 
-        optimizer.assert_and_track(&assertion, &boolean);
+            optimizer.assert_and_track(&assertion, &boolean);
+        }
 
         Ok(())
     }

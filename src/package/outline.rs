@@ -116,6 +116,8 @@ pub enum SolverError {
         conflict_setter: String,
         conflict_value: spec::SpecOptionValue,
     },
+
+    InvalidNumberOfClauses(usize),
 }
 
 impl SpecOutline {
@@ -395,16 +397,14 @@ impl SpecOutline {
                     );
                 };
 
+                // Safe because package toggle guaranteed to exist and `eq` will
+                // only return a single clause
                 optimizer.assert_and_track(
-                    &dynamic
-                        .as_bool()
-                        .unwrap() // Safe because package toggle guaranteed to exist
-                        .implies(
-                            eq.to_z3_clause(registry)
-                                .unwrap()
-                                .as_bool()
-                                .unwrap(),
-                        ),
+                    &dynamic.as_bool().unwrap().implies(
+                        eq.to_z3_clauses(registry).unwrap()[0]
+                            .as_bool()
+                            .unwrap(),
+                    ),
                     &z3::ast::Bool::new_const(
                         registry.new_constraint_id(eq.to_string()),
                     ),
@@ -517,20 +517,23 @@ impl SpecOutline {
         self.require_packages(&optimizer, &mut registry)?;
         self.add_constraints(&optimizer, &mut registry)?;
 
-        // Ensure that all version types are valid
-        for (kind, value) in registry.spec_options() {
-            let Some(dynamic) = value else {
-                continue;
-            };
+        // TODO: Do we still need to do something like this?
+        // // Ensure that all version types are valid
+        // for (kind, value) in registry.spec_options() {
+        //     let Some(dynamic) = value else {
+        //         continue;
+        //     };
+        //
+        //     if matches!(kind, spec::SpecOptionType::Version) {
+        //         optimizer.assert(&dynamic.as_int().unwrap().lt(
+        //             z3::ast::Int::from_u64(
+        //                 registry.version_registry().num_version() as u64,
+        //             ),
+        //         ))
+        //     }
+        // }
 
-            if matches!(kind, spec::SpecOptionType::Version) {
-                optimizer.assert(&dynamic.as_int().unwrap().lt(
-                    z3::ast::Int::from_u64(
-                        registry.version_registry().num_version() as u64,
-                    ),
-                ))
-            }
-        }
+        println!("optimizer: {optimizer}");
 
         Ok((optimizer, registry))
     }

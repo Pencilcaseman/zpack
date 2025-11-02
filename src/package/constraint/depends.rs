@@ -64,10 +64,10 @@ impl ConstraintUtils for Depends {
         HashSet::from([self.on.clone()])
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let Some(idx) = registry.lookup_option(&self.on, None) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
@@ -85,7 +85,7 @@ impl ConstraintUtils for Depends {
             panic!();
         };
 
-        Ok(dynamic.clone())
+        Ok(vec![dynamic.clone()])
     }
 
     fn to_python_any<'py>(

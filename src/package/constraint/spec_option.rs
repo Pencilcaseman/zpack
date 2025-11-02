@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
@@ -92,21 +95,33 @@ impl ConstraintUtils for SpecOption {
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let ConstraintType::Value(value_type) = self.get_type(registry) else {
             panic!("spec option is not a Value");
         };
 
-        // tracing::error!("Information: {this_type:?}");
-
-        let t = self.to_z3_clause(registry)?;
-        let o = other.to_z3_clause(registry)?;
+        let t = self.to_z3_clauses(registry)?;
+        let o = other.to_z3_clauses(registry)?;
 
         macro_rules! conv_op {
-            ($in:ident $op:ident $out:ident, $conv:ident) => {
-                Ok($in.$conv().unwrap().$op(o.$conv().unwrap()).into())
-            };
+            ($in:ident $op:ident $out:ident, $conv:ident) => {{
+                if $in.len() != 1 || $out.len() != 1 {
+                    Err(Box::new(SolverError::InvalidNumberOfClauses(
+                        match ($in.len(), $out.len()) {
+                            (any, 1) => any,
+                            (1, any) => any,
+                            (any, _) => any,
+                        },
+                    )))
+                } else {
+                    Ok($in[0]
+                        .$conv()
+                        .unwrap()
+                        .$op($out[0].$conv().unwrap())
+                        .into())
+                }
+            }};
         }
 
         match value_type {
@@ -148,55 +163,154 @@ impl ConstraintUtils for SpecOption {
             },
 
             spec::SpecOptionType::Version => {
-                println!("This: {self}");
+                println!("This: {self} -> {:?}", self.to_z3_clauses(registry));
                 println!("Other: {other}");
                 println!("other type = {:?}", other.get_type(registry));
 
-                todo!()
+                let Constraint::Value(boxed) = other else {
+                    panic!(
+                        "Expected a Value. This is likely an internal solver error"
+                    );
+                };
+
+                let spec::SpecOptionValue::Version(version) = &boxed.value
+                else {
+                    panic!(
+                        "Expected a Version. This is likely an internal solver error"
+                    );
+                };
+
+                // Ensure there is room
+                registry.expand_version_to_fit(
+                    &self.package_name,
+                    Some(self.option_name.as_ref()),
+                    version.num_segments(),
+                )?;
+
+                match op {
+                    CmpType::Less => todo!(),
+                    CmpType::LessOrEqual => todo!(),
+                    CmpType::NotEqual => todo!(),
+                    CmpType::Equal => {
+                        let Some(vars) = registry.lookup_version_solver_vars(
+                            &self.package_name,
+                            Some(self.option_name.as_ref()),
+                        ) else {
+                            return Err(Box::new(
+                                SolverError::MissingVariable {
+                                    package: self.package_name.clone(),
+                                    name: self.option_name.clone(),
+                                },
+                            ));
+                        };
+
+                        let bools: Vec<z3::ast::Bool> = vars
+                            .iter()
+                            .zip(version.parts())
+                            .filter_map(|(var, val)| {
+                                println!("var = {var} ~ val = {val}");
+
+                                match val {
+                                    package::version::Part::Int(i) => Some(
+                                        var.as_int().unwrap().eq(
+                                            z3::ast::Int::from_u64(
+                                                (registry
+                                                    .version_registry()
+                                                    .offset()
+                                                    + *i)
+                                                    as u64,
+                                            ),
+                                        ),
+                                    ),
+
+                                    package::version::Part::Str(s) => Some(
+                                        var.as_int().unwrap().eq(
+                                            z3::ast::Int::from_u64(
+                                                *registry
+                                                    .version_registry()
+                                                    .lookup_str(s)
+                                                    .expect("AAAAAAAAA")
+                                                    as u64,
+                                            ),
+                                        ),
+                                    ),
+
+                                    package::version::Part::Sep(c) => Some(
+                                        var.as_string().unwrap().eq(
+                                            z3::ast::String::from_str(
+                                                &c.to_string(),
+                                            )
+                                            .unwrap(),
+                                        ),
+                                    ),
+
+                                    package::version::Part::Wildcard(_) => None,
+                                }
+                            })
+                            .collect();
+
+                        Ok(z3::ast::Bool::and(&bools).into())
+                    }
+                    CmpType::GreaterOrEqual => todo!(),
+                    CmpType::Greater => todo!(),
+                }
             }
         }
     }
 
-    fn to_z3_clause<'a>(
+    fn to_z3_clauses<'a>(
         &self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         tracing::info!("{}:{}", self.package_name, self.option_name);
+
+        println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
         let Some(idx) = registry
             .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
         else {
-            return if registry.lookup_option(&self.package_name, None).is_some()
-            {
+            if registry.lookup_option(&self.package_name, None).is_some() {
                 tracing::error!(
                     "missing variable {}:{}",
                     self.package_name,
                     self.option_name
                 );
 
-                Err(Box::new(SolverError::MissingVariable {
+                return Err(Box::new(SolverError::MissingVariable {
                     package: self.package_name.clone(),
                     name: self.option_name.clone(),
-                }))
+                }));
             } else {
-                tracing::error!("missing package {}", self.package_name);
+                tracing::error!("Missing package {}", self.package_name);
 
-                Err(Box::new(SolverError::MissingPackage {
+                return Err(Box::new(SolverError::MissingPackage {
                     dep: self.package_name.clone(),
-                }))
+                }));
             };
         };
 
-        let Some(dynamic) = &registry.spec_options()[idx].1 else {
-            tracing::error!(
-                "{}:{} not initialized in solver",
-                self.package_name,
-                self.option_name
-            );
-            panic!();
+        let ConstraintType::Value(value_type) = self.get_type(registry) else {
+            panic!("Expected Value");
         };
 
-        Ok(dynamic.clone())
+        if matches!(value_type, spec::SpecOptionType::Version) {
+            Ok(registry
+                .version_registry()
+                .lookup_solver_vars(idx)
+                .map(|vars| vars.to_vec())
+                .unwrap())
+        } else {
+            let Some(dynamic) = &registry.spec_options()[idx].1 else {
+                tracing::error!(
+                    "{}:{} not initialized in solver",
+                    self.package_name,
+                    self.option_name
+                );
+                panic!("Internal solver error");
+            };
+
+            Ok(vec![dynamic.clone()])
+        }
     }
 
     fn to_python_any<'py>(

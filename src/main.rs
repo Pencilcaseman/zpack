@@ -150,21 +150,36 @@ fn test_outline() {
             Depends::new("blas".into()).into(),
             Depends::new("mpi".into()).into(),
             Depends::new("gcc".into()).into(),
-            Cmp {
-                lhs: SpecOption {
-                    package_name: "openmpi".into(),
-                    option_name: "version".into(),
-                }
-                .into(),
-                rhs: Value {
-                    value: SpecOptionValue::Version(
-                        package::Version::new("5.0.0").unwrap(),
-                    ),
-                }
-                .into(),
-                op: CmpType::GreaterOrEqual,
-            }
-            .into(),
+            // Cmp {
+            //     lhs: SpecOption {
+            //         package_name: "openmpi".into(),
+            //         option_name: "version".into(),
+            //     }
+            //     .into(),
+            //     rhs: Value {
+            //         value: SpecOptionValue::Version(
+            //             package::version::Version::new("1.0.*").unwrap(),
+            //         ),
+            //     }
+            //     .into(),
+            //     op: CmpType::Equal,
+            // }
+            // .into(),
+            // Cmp {
+            //     lhs: SpecOption {
+            //         package_name: "openmpi".into(),
+            //         option_name: "version".into(),
+            //     }
+            //     .into(),
+            //     rhs: Value {
+            //         value: SpecOptionValue::Version(
+            //             package::version::Version::new("*.0.49").unwrap(),
+            //         ),
+            //     }
+            //     .into(),
+            //     op: CmpType::Equal,
+            // }
+            // .into(),
         ],
         set_options: HashMap::default(),
         set_defaults: HashMap::from([(
@@ -373,7 +388,7 @@ fn test_outline() {
             .into(),
             rhs: Value {
                 value: SpecOptionValue::Version(
-                    package::Version::new(v).unwrap().into(),
+                    package::version::Version::new(v).unwrap(),
                 ),
             }
             .into(),
@@ -389,18 +404,10 @@ fn test_outline() {
             Cmp {
                 lhs: NumOf { of: openmpi_versions }.into(),
                 rhs: Value { value: SpecOptionValue::Int(1) }.into(),
-                op: CmpType::LessOrEqual,
+                op: CmpType::Equal,
             }
             .into(),
             Maximize {
-                item: SpecOption {
-                    package_name: "openmpi".into(),
-                    option_name: "version".into(),
-                }
-                .into(),
-            }
-            .into(),
-            Minimize {
                 item: SpecOption {
                     package_name: "openmpi".into(),
                     option_name: "version".into(),
@@ -460,7 +467,7 @@ fn test_outline() {
                 .into(),
                 rhs: Value {
                     value: SpecOptionValue::Version(
-                        package::Version::new(v).unwrap().into(),
+                        package::version::Version::new(v).unwrap().into(),
                     ),
                 }
                 .into(),
@@ -732,7 +739,7 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    println!("{:?}", package::Version::new("1..2.3-4321+alpha.*.>"));
+    println!("{:?}", package::version::Version::new("1..2.3-4321+alpha.*.>"));
 
     let test_graph = petgraph::graph::DiGraph::<i32, ()>::from_edges([
         (0, 1),
@@ -749,8 +756,8 @@ fn main() -> Result<()> {
     test_z3();
 
     // TODO: Fix version comparison
-    let a = package::Version::new("3.2.3").unwrap();
-    let b = package::Version::new("2.3.4.4").unwrap();
+    let a = package::version::Version::new("3.2.3").unwrap();
+    let b = package::version::Version::new("2.3.4.4").unwrap();
 
     if a > b {
         tracing::info!("Correct");
