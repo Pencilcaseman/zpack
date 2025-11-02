@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashSet};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
@@ -49,10 +49,7 @@ pub struct Cmp {
 }
 
 impl ConstraintUtils for Cmp {
-    fn get_type<'a>(
-        &'a self,
-        _registry: &package::BuiltRegistry,
-    ) -> ConstraintType {
+    fn get_type(&self, _registry: &package::BuiltRegistry) -> ConstraintType {
         ConstraintType::Cmp
     }
 
@@ -171,9 +168,9 @@ impl ConstraintUtils for Cmp {
     }
 }
 
-impl Into<Constraint> for Cmp {
-    fn into(self) -> Constraint {
-        Constraint::Cmp(Box::new(self))
+impl From<Cmp> for Constraint {
+    fn from(val: Cmp) -> Self {
+        Constraint::Cmp(Box::new(val))
     }
 }
 

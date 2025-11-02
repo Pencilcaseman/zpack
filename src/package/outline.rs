@@ -517,24 +517,6 @@ impl SpecOutline {
         self.require_packages(&optimizer, &mut registry)?;
         self.add_constraints(&optimizer, &mut registry)?;
 
-        // TODO: Do we still need to do something like this?
-        // // Ensure that all version types are valid
-        // for (kind, value) in registry.spec_options() {
-        //     let Some(dynamic) = value else {
-        //         continue;
-        //     };
-        //
-        //     if matches!(kind, spec::SpecOptionType::Version) {
-        //         optimizer.assert(&dynamic.as_int().unwrap().lt(
-        //             z3::ast::Int::from_u64(
-        //                 registry.version_registry().num_version() as u64,
-        //             ),
-        //         ))
-        //     }
-        // }
-
-        println!("optimizer: {optimizer}");
-
         Ok((optimizer, registry))
     }
 }

@@ -208,22 +208,24 @@ impl SpecOption {
     }
 }
 
-impl<'py> FromPyObject<'py> for SpecOptionValue {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
-        if let Ok(b) = ob.extract::<bool>() {
+impl<'a, 'py> FromPyObject<'a, 'py> for SpecOptionValue {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        if let Ok(b) = obj.extract::<bool>() {
             Ok(Self::Bool(b))
-        } else if let Ok(i) = ob.extract::<i64>() {
+        } else if let Ok(i) = obj.extract::<i64>() {
             Ok(Self::Int(i))
-        } else if let Ok(f) = ob.extract::<f64>() {
+        } else if let Ok(f) = obj.extract::<f64>() {
             Ok(Self::Float(f))
-        } else if let Ok(s) = ob.extract::<&str>() {
+        } else if let Ok(s) = obj.extract::<&str>() {
             Ok(Self::Str(s.to_string()))
-        } else if let Ok(v) = ob.extract::<Version>() {
+        } else if let Ok(v) = obj.extract::<Version>() {
             Ok(Self::Version(v))
         } else {
             let msg = format!(
                 "cannot cast Python type '{}' to SpecOptionValue",
-                ob.get_type()
+                obj.get_type()
             );
 
             tracing::error!("{msg}");

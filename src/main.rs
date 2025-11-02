@@ -17,7 +17,7 @@ use syntect::{
 };
 use zpack::package::{
     self,
-    constraint::{Cmp, CmpType, Maximize, Minimize, NumOf},
+    constraint::{Cmp, CmpType, Maximize, NumOf},
 };
 
 fn build_cli() -> Command {

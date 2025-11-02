@@ -31,12 +31,12 @@ z3_gh_release = ["z3/gh-release"]
 z3_bundled = ["z3/bundled"]
 z3_vcpkg = ["z3/vcpkg"]
 
-tracing_max_level_off = ["tracing/max_level_off"]
-tracing_max_level_error = ["tracing/max_level_error"]
-tracing_max_level_warn = ["tracing/max_level_warn"]
-tracing_max_level_info = ["tracing/max_level_info"]
-tracing_max_level_debug = ["tracing/max_level_debug"]
-tracing_max_level_trace = ["tracing/max_level_trace"]
+tracing_max_level_off = ["tracing/max_level_off", "tracing_release_max_level_off"]
+tracing_max_level_error = ["tracing/max_level_error", "tracing_release_max_level_error"]
+tracing_max_level_warn = ["tracing/max_level_warn", "tracing_release_max_level_warn"]
+tracing_max_level_info = ["tracing/max_level_info", "tracing_release_max_level_info"]
+tracing_max_level_debug = ["tracing/max_level_debug", "tracing_release_max_level_debug"]
+tracing_max_level_trace = ["tracing/max_level_trace", "tracing_release_max_level_trace"]
 
 tracing_release_max_level_off = ["tracing/release_max_level_off"]
 tracing_release_max_level_error = ["tracing/release_max_level_error"]
@@ -49,10 +49,10 @@ mpi = ["dep:mpi"]
 
 [dependencies]
 anyhow = { version = "1.0.100" }
-ariadne = { version = "0.5.1", features = ["auto-color"] }
+ariadne = { version = "0.6.0", features = ["auto-color"] }
 chumsky = { version = "0.11.1", features = [] }
-clap = { version = "4.5.48", features = ["deprecated", "derive", "cargo", "env", "unicode", "wrap_help", "string"] }
-clap_complete = { version = "4.5.58", features = [] }
+clap = { version = "4.5.51", features = ["deprecated", "derive", "cargo", "env", "unicode", "wrap_help", "string"] }
+clap_complete = { version = "4.5.60", features = [] }
 config-rs = "0.1.3"
 dyn-clone = "1.0.20"
 either = "1.15.0"
@@ -60,14 +60,14 @@ itertools = "0.14.0"
 mpi = { version = "0.8.0", optional=true, features = ["user-operations", "derive", "complex"] }
 num-traits = { version = "0.2.19", features = ["i128"] }
 petgraph = { version = "0.8.3", features = ["serde-1", "rayon", "generate"] }
-pyo3 = { version = "0.26.0", features = ["full"] }
+pyo3 = { version = "0.27.1", features = ["full"] }
 saphyr = "0.0.6"
 smallvec = "1.15.1"
 syntect = { version = "5.3.0", features = ["default-fancy"] }
 tempfile = "3.23.0"
 tracing = {version = "0.1.41", features = [] }
 tracing-subscriber = "0.3.20"
-z3 = "0.19.1"
+z3 = "0.19.2"
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports", "real_blackbox"] }

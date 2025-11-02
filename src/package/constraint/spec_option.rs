@@ -163,10 +163,6 @@ impl ConstraintUtils for SpecOption {
             },
 
             spec::SpecOptionType::Version => {
-                println!("This: {self} -> {:?}", self.to_z3_clauses(registry));
-                println!("Other: {other}");
-                println!("other type = {:?}", other.get_type(registry));
-
                 let Constraint::Value(boxed) = other else {
                     panic!(
                         "Expected a Value. This is likely an internal solver error"
@@ -207,45 +203,41 @@ impl ConstraintUtils for SpecOption {
                         let bools: Vec<z3::ast::Bool> = vars
                             .iter()
                             .zip(version.parts())
-                            .filter_map(|(var, val)| {
-                                println!("var = {var} ~ val = {val}");
-
-                                match val {
-                                    package::version::Part::Int(i) => Some(
-                                        var.as_int().unwrap().eq(
-                                            z3::ast::Int::from_u64(
-                                                (registry
-                                                    .version_registry()
-                                                    .offset()
-                                                    + *i)
-                                                    as u64,
-                                            ),
+                            .filter_map(|(var, val)| match val {
+                                package::version::Part::Int(i) => Some(
+                                    var.as_int().unwrap().eq(
+                                        z3::ast::Int::from_u64(
+                                            (registry
+                                                .version_registry()
+                                                .offset()
+                                                + *i)
+                                                as u64,
                                         ),
                                     ),
+                                ),
 
-                                    package::version::Part::Str(s) => Some(
-                                        var.as_int().unwrap().eq(
-                                            z3::ast::Int::from_u64(
-                                                *registry
-                                                    .version_registry()
-                                                    .lookup_str(s)
-                                                    .expect("AAAAAAAAA")
-                                                    as u64,
-                                            ),
+                                package::version::Part::Str(s) => Some(
+                                    var.as_int().unwrap().eq(
+                                        z3::ast::Int::from_u64(
+                                            *registry
+                                                .version_registry()
+                                                .lookup_str(s)
+                                                .expect("AAAAAAAAA")
+                                                as u64,
                                         ),
                                     ),
+                                ),
 
-                                    package::version::Part::Sep(c) => Some(
-                                        var.as_string().unwrap().eq(
-                                            z3::ast::String::from_str(
-                                                &c.to_string(),
-                                            )
-                                            .unwrap(),
-                                        ),
+                                package::version::Part::Sep(c) => Some(
+                                    var.as_string().unwrap().eq(
+                                        z3::ast::String::from_str(
+                                            &c.to_string(),
+                                        )
+                                        .unwrap(),
                                     ),
+                                ),
 
-                                    package::version::Part::Wildcard(_) => None,
-                                }
+                                package::version::Part::Wildcard(_) => None,
                             })
                             .collect();
 
@@ -263,8 +255,6 @@ impl ConstraintUtils for SpecOption {
         registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         tracing::info!("{}:{}", self.package_name, self.option_name);
-
-        println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
         let Some(idx) = registry
             .lookup_option(&self.package_name, Some(self.option_name.as_ref()))

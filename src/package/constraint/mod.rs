@@ -260,30 +260,37 @@ pub trait ConstraintUtils:
     ) -> PyResult<Bound<'py, PyAny>>;
 }
 
-impl<'py> FromPyObject<'py> for Constraint {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
-        fn extract<'py2, T, F>(
-            ob: &Bound<'py2, PyAny>,
+impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        fn extract<'a2, 'py2, T, F, E>(
+            obj: &Borrowed<'a2, 'py2, PyAny>,
             to: F,
-        ) -> PyResult<Constraint>
+        ) -> Result<Constraint, E>
         where
-            T: ConstraintUtils + FromPyObject<'py2> + 'static,
+            T: ConstraintUtils + FromPyObject<'a2, 'py2, Error = E> + 'static,
             F: FnOnce(Box<T>) -> Constraint,
+            E: Into<<Constraint as FromPyObject<'a2, 'py2>>::Error>,
         {
-            Ok((to)(Box::new(ob.extract::<T>()?)))
+            Ok((to)(Box::new(obj.extract::<T>()?)))
         }
 
-        extract::<Cmp, _>(ob, Constraint::Cmp)
-            .or_else(|_| extract::<Depends, _>(ob, Constraint::Depends))
-            .or_else(|_| extract::<IfThen, _>(ob, Constraint::IfThen))
-            .or_else(|_| extract::<Maximize, _>(ob, Constraint::Maximize))
-            .or_else(|_| extract::<Minimize, _>(ob, Constraint::Minimize))
-            .or_else(|_| extract::<NumOf, _>(ob, Constraint::NumOf))
-            .or_else(|_| extract::<SpecOption, _>(ob, Constraint::SpecOption))
-            .or_else(|_| extract::<Value, _>(ob, Constraint::Value))
+        extract::<Cmp, _, _>(&obj, Constraint::Cmp)
+            .or_else(|_| extract::<Depends, _, _>(&obj, Constraint::Depends))
+            .or_else(|_| extract::<IfThen, _, _>(&obj, Constraint::IfThen))
+            .or_else(|_| extract::<Maximize, _, _>(&obj, Constraint::Maximize))
+            .or_else(|_| extract::<Minimize, _, _>(&obj, Constraint::Minimize))
+            .or_else(|_| extract::<NumOf, _, _>(&obj, Constraint::NumOf))
+            .or_else(|_| {
+                extract::<SpecOption, _, _>(&obj, Constraint::SpecOption)
+            })
+            .or_else(|_| extract::<Value, _, _>(&obj, Constraint::Value))
             .map_err(|_| {
-                let msg =
-                    format!("cannot convert '{}' to Constraint", ob.get_type());
+                let msg = format!(
+                    "cannot convert '{}' to Constraint",
+                    obj.get_type()
+                );
 
                 tracing::error!("{msg}");
                 PyTypeError::new_err(msg)
