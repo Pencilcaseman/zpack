@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::{collections::HashSet, str::FromStr};
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
@@ -10,6 +7,7 @@ use crate::{
         self,
         constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
+        version::Part,
     },
     spec,
 };
@@ -98,7 +96,7 @@ impl ConstraintUtils for SpecOption {
         registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let ConstraintType::Value(value_type) = self.get_type(registry) else {
-            panic!("spec option is not a Value");
+            panic!("Internal solver error");
         };
 
         let t = self.to_z3_clauses(registry)?;
@@ -164,16 +162,12 @@ impl ConstraintUtils for SpecOption {
 
             spec::SpecOptionType::Version => {
                 let Constraint::Value(boxed) = other else {
-                    panic!(
-                        "Expected a Value. This is likely an internal solver error"
-                    );
+                    panic!("Internal solver error");
                 };
 
                 let spec::SpecOptionValue::Version(version) = &boxed.value
                 else {
-                    panic!(
-                        "Expected a Version. This is likely an internal solver error"
-                    );
+                    panic!("Internal solver error");
                 };
 
                 // Ensure there is room
@@ -183,69 +177,20 @@ impl ConstraintUtils for SpecOption {
                     version.num_segments(),
                 )?;
 
-                match op {
-                    CmpType::Less => todo!(),
-                    CmpType::LessOrEqual => todo!(),
-                    CmpType::NotEqual => todo!(),
-                    CmpType::Equal => {
-                        let Some(vars) = registry.lookup_version_solver_vars(
-                            &self.package_name,
-                            Some(self.option_name.as_ref()),
-                        ) else {
-                            return Err(Box::new(
-                                SolverError::MissingVariable {
-                                    package: self.package_name.clone(),
-                                    name: self.option_name.clone(),
-                                },
-                            ));
-                        };
+                let v_reg = registry.version_registry();
 
-                        let bools: Vec<z3::ast::Bool> = vars
-                            .iter()
-                            .zip(version.parts())
-                            .filter_map(|(var, val)| match val {
-                                package::version::Part::Int(i) => Some(
-                                    var.as_int().unwrap().eq(
-                                        z3::ast::Int::from_u64(
-                                            (registry
-                                                .version_registry()
-                                                .offset()
-                                                + *i)
-                                                as u64,
-                                        ),
-                                    ),
-                                ),
+                let Some(vars) = registry.lookup_version_solver_vars(
+                    &self.package_name,
+                    Some(self.option_name.as_ref()),
+                ) else {
+                    return Err(Box::new(SolverError::MissingVariable {
+                        package: self.package_name.clone(),
+                        name: self.option_name.clone(),
+                    }));
+                };
 
-                                package::version::Part::Str(s) => Some(
-                                    var.as_int().unwrap().eq(
-                                        z3::ast::Int::from_u64(
-                                            *registry
-                                                .version_registry()
-                                                .lookup_str(s)
-                                                .expect("AAAAAAAAA")
-                                                as u64,
-                                        ),
-                                    ),
-                                ),
-
-                                package::version::Part::Sep(c) => Some(
-                                    var.as_string().unwrap().eq(
-                                        z3::ast::String::from_str(
-                                            &c.to_string(),
-                                        )
-                                        .unwrap(),
-                                    ),
-                                ),
-
-                                package::version::Part::Wildcard(_) => None,
-                            })
-                            .collect();
-
-                        Ok(z3::ast::Bool::and(&bools).into())
-                    }
-                    CmpType::GreaterOrEqual => todo!(),
-                    CmpType::Greater => todo!(),
-                }
+                let res = version.cmp_dynamic(op, vars, v_reg);
+                Ok(res.into())
             }
         }
     }

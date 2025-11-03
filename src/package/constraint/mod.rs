@@ -152,10 +152,7 @@ impl ConstraintUtils for Constraint {
 pub trait ConstraintUtils:
     Send + Sync + std::fmt::Debug + std::fmt::Display + Into<Constraint>
 {
-    fn get_type<'a>(
-        &'a self,
-        registry: &package::BuiltRegistry,
-    ) -> ConstraintType;
+    fn get_type(&self, registry: &package::BuiltRegistry) -> ConstraintType;
 
     fn try_get_type<'a>(
         &'a self,

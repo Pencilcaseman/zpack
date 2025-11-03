@@ -17,7 +17,8 @@ use syntect::{
 };
 use zpack::package::{
     self,
-    constraint::{Cmp, CmpType, Maximize, NumOf},
+    constraint::{Cmp, CmpType, Maximize, Minimize, NumOf},
+    version,
 };
 
 fn build_cli() -> Command {
@@ -374,9 +375,25 @@ fn test_outline() {
     };
 
     let openmpi_versions = [
-        "5.0.8", "5.0.7", "5.0.6", "5.0.5", "5.0.4", "5.0.3", "5.0.2", "5.0.1",
-        "5.0.0", "4.1.8", "4.1.7", "4.1.6", "4.1.5", "4.1.4", "4.1.3", "4.1.2",
-        "4.1.1", "4.1.0",
+        "5.0.8",
+        "5.0.7",
+        "5.0.6",
+        "5.0.5",
+        "5.0.4",
+        "5.0.3",
+        "5.0.2",
+        "5.0.1",
+        "5.0.0",
+        "4.1.8",
+        "4.1.7",
+        "4.1.6",
+        "4.1.5",
+        "4.1.4",
+        "4.1.3",
+        "4.1.2",
+        "4.1.1",
+        "4.1.0",
+        "10.2.3.4.5.6.7.8.9.10",
     ]
     .into_iter()
     .map(|v| {
@@ -388,7 +405,7 @@ fn test_outline() {
             .into(),
             rhs: Value {
                 value: SpecOptionValue::Version(
-                    package::version::Version::new(v).unwrap(),
+                    version::Version::new(v).unwrap(),
                 ),
             }
             .into(),
@@ -405,6 +422,36 @@ fn test_outline() {
                 lhs: NumOf { of: openmpi_versions }.into(),
                 rhs: Value { value: SpecOptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
+            }
+            .into(),
+            Cmp {
+                lhs: SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }
+                .into(),
+                rhs: Value {
+                    value: SpecOptionValue::Version(
+                        version::Version::new("*.2.>").unwrap(),
+                    ),
+                }
+                .into(),
+                op: CmpType::Less,
+            }
+            .into(),
+            Cmp {
+                lhs: SpecOption {
+                    package_name: "openmpi".into(),
+                    option_name: "version".into(),
+                }
+                .into(),
+                rhs: Value {
+                    value: SpecOptionValue::Version(
+                        version::Version::new("*.*.8").unwrap(),
+                    ),
+                }
+                .into(),
+                op: CmpType::NotEqual,
             }
             .into(),
             Maximize {
@@ -467,7 +514,7 @@ fn test_outline() {
                 .into(),
                 rhs: Value {
                     value: SpecOptionValue::Version(
-                        package::version::Version::new(v).unwrap().into(),
+                        version::Version::new(v).unwrap(),
                     ),
                 }
                 .into(),
@@ -756,8 +803,8 @@ fn main() -> Result<()> {
     test_z3();
 
     // TODO: Fix version comparison
-    let a = package::version::Version::new("3.2.3").unwrap();
-    let b = package::version::Version::new("2.3.4.4").unwrap();
+    let a = version::Version::new("3.2.3").unwrap();
+    let b = version::Version::new("2.3.4.4").unwrap();
 
     if a > b {
         tracing::info!("Correct");

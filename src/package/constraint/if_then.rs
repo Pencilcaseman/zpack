@@ -147,9 +147,9 @@ impl ConstraintUtils for IfThen {
     }
 }
 
-impl Into<Constraint> for IfThen {
-    fn into(self) -> Constraint {
-        Constraint::IfThen(Box::new(self))
+impl From<IfThen> for Constraint {
+    fn from(val: IfThen) -> Self {
+        Constraint::IfThen(Box::new(val))
     }
 }
 

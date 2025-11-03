@@ -36,7 +36,7 @@ use std::{fmt::Write, str::FromStr};
 
 use pyo3::prelude::*;
 
-use crate::package::registry::BuiltVersionRegistry;
+use crate::package::{constraint::CmpType, registry::BuiltVersionRegistry};
 
 /// Version strings with a specified, non-lexicographic order
 pub const STATIC_STRING_VERSIONS: [&str; 9] = [
@@ -185,10 +185,155 @@ impl Version {
         assert!(self.parts.len() & 1 == 1);
         self.parts.len() / 2
     }
+
+    pub fn cmp_dynamic(
+        &self,
+        op: CmpType,
+        vars: &[z3::ast::Dynamic],
+        registry: &BuiltVersionRegistry,
+    ) -> z3::ast::Bool {
+        unsafe {
+            match op {
+                CmpType::LessOrEqual => {
+                    self.cmp_less_equal_dynamic(vars, registry)
+                }
+
+                CmpType::Greater => {
+                    self.cmp_less_equal_dynamic(vars, registry).not()
+                }
+
+                CmpType::NotEqual => self.cmp_eq_dynamic(vars, registry).not(),
+
+                CmpType::Equal => self.cmp_eq_dynamic(vars, registry),
+
+                CmpType::GreaterOrEqual => {
+                    self.cmp_greater_equal_dynamic(vars, registry)
+                }
+
+                CmpType::Less => {
+                    self.cmp_greater_equal_dynamic(vars, registry).not()
+                }
+            }
+        }
+    }
+
+    /// # Safety
+    /// `len(vars) == self.parts().len()`
+    pub unsafe fn cmp_less_equal_dynamic(
+        &self,
+        vars: &[z3::ast::Dynamic],
+        registry: &BuiltVersionRegistry,
+    ) -> z3::ast::Bool {
+        let mut bools = Vec::new();
+
+        for (var, val) in vars.iter().zip(self.parts()) {
+            let cond = match val {
+                Part::Int(i) => var.as_int().unwrap().le(registry
+                    .part_to_dynamic(Part::Int(*i))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Str(s) => var.as_int().unwrap().le(registry
+                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Sep(c) => var.as_string().unwrap().eq(registry
+                    .part_to_dynamic(Part::Sep(*c))
+                    .as_string()
+                    .unwrap()),
+
+                Part::Wildcard(w) => match w {
+                    WildcardType::Single => continue,
+                    WildcardType::Rest => break,
+                },
+            };
+
+            bools.push(cond)
+        }
+
+        z3::ast::Bool::and(&bools)
+    }
+
+    /// # Safety
+    /// `len(vars) == self.parts().len()`
+    pub unsafe fn cmp_eq_dynamic(
+        &self,
+        vars: &[z3::ast::Dynamic],
+        registry: &BuiltVersionRegistry,
+    ) -> z3::ast::Bool {
+        let mut bools = Vec::new();
+
+        for (var, val) in vars.iter().zip(self.parts()) {
+            let cond = match val {
+                Part::Int(i) => var.as_int().unwrap().eq(registry
+                    .part_to_dynamic(Part::Int(*i))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Str(s) => var.as_int().unwrap().eq(registry
+                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Sep(c) => var.as_string().unwrap().eq(registry
+                    .part_to_dynamic(Part::Sep(*c))
+                    .as_string()
+                    .unwrap()),
+
+                Part::Wildcard(w) => match w {
+                    WildcardType::Single => continue,
+                    WildcardType::Rest => break,
+                },
+            };
+
+            bools.push(cond)
+        }
+
+        z3::ast::Bool::and(&bools)
+    }
+
+    /// # Safety
+    /// `len(vars) == self.parts().len()`
+    pub unsafe fn cmp_greater_equal_dynamic(
+        &self,
+        vars: &[z3::ast::Dynamic],
+        registry: &BuiltVersionRegistry,
+    ) -> z3::ast::Bool {
+        let mut bools = Vec::new();
+
+        for (var, val) in vars.iter().zip(self.parts()) {
+            let cond = match val {
+                Part::Int(i) => var.as_int().unwrap().ge(registry
+                    .part_to_dynamic(Part::Int(*i))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Str(s) => var.as_int().unwrap().ge(registry
+                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .as_int()
+                    .unwrap()),
+
+                Part::Sep(c) => var.as_string().unwrap().eq(registry
+                    .part_to_dynamic(Part::Sep(*c))
+                    .as_string()
+                    .unwrap()),
+
+                Part::Wildcard(w) => match w {
+                    WildcardType::Single => continue,
+                    WildcardType::Rest => break,
+                },
+            };
+
+            bools.push(cond)
+        }
+
+        z3::ast::Bool::and(&bools)
+    }
 }
 
 impl std::cmp::Ord for Version {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
         // Version comparison logic:
         //
         // - Short versions are bigger => 1 > 1.2 > 1.2.3 > 1.2.3.4

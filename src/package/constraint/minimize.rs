@@ -1,7 +1,7 @@
-use std::{any::Any, collections::HashSet};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
-use z3::{Optimize, ast::Bool};
+use z3::{Optimize, SortKind, ast::Bool};
 
 use super::ConstraintUtils;
 use crate::{
@@ -88,7 +88,12 @@ impl ConstraintUtils for Minimize {
         registry: &mut BuiltRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
         for item in self.item.to_z3_clauses(registry)? {
-            optimizer.minimize(&item);
+            if matches!(
+                item.sort_kind(),
+                SortKind::Int | SortKind::Real | SortKind::BV
+            ) {
+                optimizer.minimize(&item);
+            }
         }
 
         Ok(())
@@ -102,9 +107,9 @@ impl ConstraintUtils for Minimize {
     }
 }
 
-impl Into<Constraint> for Minimize {
-    fn into(self) -> Constraint {
-        Constraint::Minimize(Box::new(self))
+impl From<Minimize> for Constraint {
+    fn from(val: Minimize) -> Self {
+        Constraint::Minimize(Box::new(val))
     }
 }
 

@@ -1,10 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use crate::{
     package::{
         BuiltRegistry,
         outline::SolverError,
-        version::{self, Version},
+        version::{self, Part, Version},
     },
     spec,
 };
@@ -122,6 +125,25 @@ impl BuiltVersionRegistry {
     ) -> Option<&[z3::ast::Dynamic]> {
         let idx = self.versions.get(&idx)?;
         Some(&self.solver_vars[*idx])
+    }
+
+    pub fn part_to_dynamic(&self, part: Part) -> z3::ast::Dynamic {
+        match part {
+            Part::Int(i) => {
+                z3::ast::Int::from_u64((self.offset() + i) as u64).into()
+            }
+
+            Part::Str(s) => z3::ast::Int::from_u64(
+                *self.lookup_str(&s).expect("Internal solver error") as u64,
+            )
+            .into(),
+
+            Part::Sep(c) => {
+                z3::ast::String::from_str(&c.to_string()).unwrap().into()
+            }
+
+            Part::Wildcard(_) => unreachable!(),
+        }
     }
 
     pub fn int_to_part(&self, int: usize) -> version::Part {

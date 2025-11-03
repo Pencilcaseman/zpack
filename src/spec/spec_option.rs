@@ -118,16 +118,18 @@ impl SpecOptionValue {
                         }
                     } else {
                         unsafe {
-                            version.push(version::Part::Sep(
-                                dynamic
-                                    .as_string()
-                                    .unwrap()
-                                    .as_string()
-                                    .unwrap()
-                                    .chars()
-                                    .next()
-                                    .unwrap(),
-                            ));
+                            if let Some(thing) = dynamic
+                                .as_string()
+                                .unwrap()
+                                .as_string()
+                                .unwrap()
+                                .chars()
+                                .next()
+                            {
+                                version.push(version::Part::Sep(thing));
+                            } else {
+                                break;
+                            }
                         };
                     }
                 }
@@ -162,7 +164,7 @@ impl SpecOption {
     /// Construct a type descriptor instance of a [`SpecOption`]
     ///
     /// * `t`: The datatype of this option
-    pub fn new_from_type(t: SpecOptionType) -> Self {
+    pub fn new_from_type(_t: SpecOptionType) -> Self {
         Self { value: None, default: None, valid: None }
     }
 

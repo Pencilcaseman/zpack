@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashSet};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 use z3::{Optimize, SortKind, ast::Bool};

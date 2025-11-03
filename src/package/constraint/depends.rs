@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
-use super::{CmpType, ConstraintUtils};
+use super::ConstraintUtils;
 use crate::package::{
     self,
     constraint::{Constraint, ConstraintType},
@@ -23,10 +23,7 @@ impl Depends {
 }
 
 impl ConstraintUtils for Depends {
-    fn get_type<'a>(
-        &'a self,
-        _registry: &package::BuiltRegistry,
-    ) -> ConstraintType {
+    fn get_type(&self, _registry: &package::BuiltRegistry) -> ConstraintType {
         ConstraintType::Depends
     }
 
@@ -104,9 +101,9 @@ impl Depends {
     }
 }
 
-impl Into<Constraint> for Depends {
-    fn into(self) -> Constraint {
-        Constraint::Depends(Box::new(self))
+impl From<Depends> for Constraint {
+    fn from(val: Depends) -> Self {
+        Constraint::Depends(Box::new(val))
     }
 }
 
