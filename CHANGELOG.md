@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.15](https://github.com/Pencilcaseman/zpack/compare/v0.1.14...v0.1.15) - 2025-11-03
+
+### Added
+
+- *(version)* Version comparison logic
+- *(constraint)* Comparison constraints
+- *(constraint)* Maximize and Minimize constraints
+- *(solver)* Constraint description improvements
+- *(env)* Nix and direnv
+- Better formatting of constraints
+- *(solver)* Type checking
+- *(version)* Support version constraints
+- *(solver)* Initial solver implementation
+
+### Fixed
+
+- *(version)* Fix version documentation
+- *(ci)* Fix Rust CI
+
+### Other
+
+- cleanup
+- *(version)* Cleanup
+- *(version)* Complete version refactor
+- *(version)* Start of version rewrite and refactor
+- *(version)* Groundwork for rewriting the Version class
+- *(outline)* Clean up and simplify code
+- *(solver)* refactor
+- Restore old CI and remove schema
+- *(Version)* Refactor Python API
+- *(python)* Expose initial constraint Python API
+- *(ci)* Rust CI + Code cleanup
+- *(solver)* Improve error handling and logging
+- *(solver)* Cleanup and improvements
+
 ## [0.1.14](https://github.com/Pencilcaseman/zpack/compare/v0.1.13...v0.1.14) - 2025-10-04
 
 ### Other
