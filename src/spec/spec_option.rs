@@ -6,6 +6,7 @@ use crate::package::{self, version, version::Version};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecOptionType {
+    Unknown,
     Bool,
     Int,
     Float,
@@ -85,6 +86,8 @@ impl SpecOptionValue {
         registry: &package::BuiltRegistry,
     ) -> Self {
         match dtype {
+            SpecOptionType::Unknown => panic!("Internal solver error."),
+
             SpecOptionType::Bool => {
                 Self::Bool(dynamic.as_bool().unwrap().as_bool().unwrap())
             }
@@ -189,6 +192,7 @@ impl SpecOption {
         };
 
         match wip_registry.spec_options()[idx].0 {
+            SpecOptionType::Unknown => panic!("Internal solver error"),
             SpecOptionType::Bool => Bool::new_const(n).into(),
             SpecOptionType::Int => Int::new_const(n).into(),
             SpecOptionType::Float => Float::new_const_double(n).into(),

@@ -35,7 +35,7 @@
 
 use std::{fmt::Write, str::FromStr};
 
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::package::{constraint::CmpType, registry::BuiltVersionRegistry};
 
@@ -333,32 +333,6 @@ impl Version {
     }
 }
 
-impl std::cmp::Ord for Version {
-    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
-        // Version comparison logic:
-        //
-        // - Short versions are bigger => 1 > 1.2 > 1.2.3 > 1.2.3.4
-        // - Strings are smaller than numbers => 1.alpha < 1.2
-        // - Numbers are sorted by value => 1.2.3 < 1.2.4 < 1.3.2 < 2.3 < 3
-        // - Strings are sorted lexicographically with a few exceptions:
-        //     - git > dev > devel > main > master > alpha > beta > latest >
-        //       stable > everything else
-        // - Separators must match
-        // - Wildcards => 1.2.3 == 1.*.3 == 1.> == 1.2.> == 1.*.*
-        //     - Single matches any string or number
-        //     - Rest matches the rest of a version
-        //         - Regardless of remaining separators
-
-        todo!()
-    }
-}
-
-impl std::cmp::PartialOrd for Version {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 impl std::fmt::Display for WildcardType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -386,5 +360,21 @@ impl std::fmt::Display for Version {
         }
 
         Ok(())
+    }
+}
+
+#[pymethods]
+impl Version {
+    #[new]
+    fn py_new(ver: &str) -> Result<Self, PyErr> {
+        Self::new(ver).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{self:?}")
+    }
+
+    fn __str__(&self) -> String {
+        format!("{self}")
     }
 }

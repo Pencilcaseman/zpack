@@ -4,8 +4,12 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 use z3::{Optimize, ast::Bool};
 
 use crate::{
-    package::{self, BuiltRegistry, outline::SolverError},
-    spec,
+    package::{
+        self, BuiltRegistry,
+        outline::SolverError,
+        registry::{BuiltVersionRegistry, Registry},
+    },
+    spec::{self, SpecOptionType},
 };
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
@@ -28,29 +32,6 @@ pub use num_of::NumOf;
 pub use spec_option::SpecOption;
 pub use value::Value;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ConstraintType {
-    Depends,
-    SpecOption,
-    Value(spec::SpecOptionType),
-    Cmp,
-    IfThen,
-    Maximize,
-    Minimize,
-}
-
-#[derive(Debug, Clone)]
-pub enum Constraint {
-    Cmp(Box<Cmp>),
-    Depends(Box<Depends>),
-    IfThen(Box<IfThen>),
-    Maximize(Box<Maximize>),
-    Minimize(Box<Minimize>),
-    NumOf(Box<NumOf>),
-    SpecOption(Box<SpecOption>),
-    Value(Box<Value>),
-}
-
 macro_rules! constraint_inner {
     ($constraint:ident, $inner:ident => $code:block) => {
         match $constraint {
@@ -66,104 +47,22 @@ macro_rules! constraint_inner {
     };
 }
 
-impl std::fmt::Display for Constraint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        constraint_inner!(self, inner => { write!(f, "{}", inner) })
-    }
-}
-
-impl ConstraintUtils for Constraint {
-    fn get_type<'a>(
-        &'a self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        constraint_inner!(self, inner => { inner.get_type(registry) })
-    }
-
-    fn try_get_type<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        constraint_inner!(self, inner => { inner.try_get_type(wip_registry) })
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-        constraint_type: ConstraintType,
-    ) {
-        constraint_inner!(self, inner => {
-            inner.set_type(wip_registry, constraint_type);
-        })
-    }
-
-    fn type_check<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Result<(), Box<SolverError>> {
-        constraint_inner!(self, inner => { inner.type_check(wip_registry)})
-    }
-
-    fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
-        constraint_inner!(self, inner => { inner.extract_spec_options()})
-    }
-
-    fn extract_dependencies(&self) -> HashSet<String> {
-        constraint_inner!(self, inner => { inner.extract_dependencies()})
-    }
-
-    fn cmp_to_z3<'a>(
-        &self,
-        other: &Constraint,
-        op: CmpType,
-        registry: &mut package::BuiltRegistry<'a>,
-    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        constraint_inner!(self, inner => {
-            inner.cmp_to_z3(other, op, registry)
-        })
-    }
-
-    fn to_z3_clauses<'a>(
-        &self,
-        registry: &mut package::BuiltRegistry<'a>,
-    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
-        constraint_inner!(self, inner => { inner.to_z3_clauses(registry)})
-    }
-
-    fn to_python_any<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        constraint_inner!(self, inner => { inner.to_python_any(py)})
-    }
-
-    fn add_to_solver<'a>(
-        &self,
-        toggle: &Bool,
-        optimizer: &Optimize,
-        registry: &mut BuiltRegistry<'a>,
-    ) -> Result<(), Box<SolverError>> {
-        constraint_inner!(self, inner => {
-            inner.add_to_solver(toggle, optimizer, registry)
-        })
-    }
-}
-
 pub trait ConstraintUtils:
     Send + Sync + std::fmt::Debug + std::fmt::Display + Into<Constraint>
 {
-    fn get_type(&self, registry: &package::BuiltRegistry) -> ConstraintType;
+    fn get_value_type<'a, V>(
+        &'a self,
+        registry: Option<&Registry<'a, V>>,
+    ) -> Option<SpecOptionType>;
 
-    fn try_get_type<'a>(
+    fn get_value_type_default<'a>(&'a self) -> Option<SpecOptionType> {
+        self.get_value_type::<BuiltVersionRegistry>(None)
+    }
+
+    fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType>;
-
-    // TODO: Refactor to take SpecOptionType?
-    fn set_type<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-        constraint_type: ConstraintType,
+        value_type: SpecOptionType,
     );
 
     fn type_check<'a>(
@@ -255,6 +154,96 @@ pub trait ConstraintUtils:
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyAny>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum Constraint {
+    Cmp(Box<Cmp>),
+    Depends(Box<Depends>),
+    IfThen(Box<IfThen>),
+    Maximize(Box<Maximize>),
+    Minimize(Box<Minimize>),
+    NumOf(Box<NumOf>),
+    SpecOption(Box<SpecOption>),
+    Value(Box<Value>),
+}
+
+impl std::fmt::Display for Constraint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        constraint_inner!(self, inner => { write!(f, "{}", inner) })
+    }
+}
+
+impl ConstraintUtils for Constraint {
+    fn get_value_type<'a, V>(
+        &'a self,
+        registry: Option<&Registry<'a, V>>,
+    ) -> Option<SpecOptionType> {
+        constraint_inner!(self, inner => {
+            inner.get_value_type(registry)
+        })
+    }
+
+    fn set_value_type<'a>(
+        &'a self,
+        wip_registry: &mut package::WipRegistry<'a>,
+        value_type: SpecOptionType,
+    ) {
+        constraint_inner!(self, inner => {
+            inner.set_value_type(wip_registry, value_type);
+        })
+    }
+
+    fn type_check<'a>(
+        &'a self,
+        wip_registry: &mut package::WipRegistry<'a>,
+    ) -> Result<(), Box<SolverError>> {
+        constraint_inner!(self, inner => { inner.type_check(wip_registry)})
+    }
+
+    fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
+        constraint_inner!(self, inner => { inner.extract_spec_options()})
+    }
+
+    fn extract_dependencies(&self) -> HashSet<String> {
+        constraint_inner!(self, inner => { inner.extract_dependencies()})
+    }
+
+    fn cmp_to_z3<'a>(
+        &self,
+        other: &Constraint,
+        op: CmpType,
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
+        constraint_inner!(self, inner => {
+            inner.cmp_to_z3(other, op, registry)
+        })
+    }
+
+    fn to_z3_clauses<'a>(
+        &self,
+        registry: &mut package::BuiltRegistry<'a>,
+    ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
+        constraint_inner!(self, inner => { inner.to_z3_clauses(registry)})
+    }
+
+    fn add_to_solver<'a>(
+        &self,
+        toggle: &Bool,
+        optimizer: &Optimize,
+        registry: &mut BuiltRegistry<'a>,
+    ) -> Result<(), Box<SolverError>> {
+        constraint_inner!(self, inner => {
+            inner.add_to_solver(toggle, optimizer, registry)
+        })
+    }
+
+    fn to_python_any<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        constraint_inner!(self, inner => { inner.to_python_any(py)})
+    }
 }
 
 impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {

@@ -1,16 +1,19 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 use z3::{Optimize, SortKind, ast::Bool};
 
 use super::ConstraintUtils;
 use crate::{
     package::{
         self, BuiltRegistry,
-        constraint::{Constraint, ConstraintType},
+        constraint::{Cmp, Constraint},
         outline::SolverError,
     },
-    spec::SpecOption,
+    spec::{SpecOption, SpecOptionType},
 };
 
 #[pyclass]
@@ -21,46 +24,48 @@ pub struct Maximize {
 }
 
 impl ConstraintUtils for Maximize {
-    fn get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        ConstraintType::Maximize
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<SpecOptionType> {
+        None
     }
 
-    fn try_get_type<'a>(
-        &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::Maximize)
-    }
-
-    fn set_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        constraint_type: ConstraintType,
+        value_type: SpecOptionType,
     ) {
-        self.item.set_type(wip_registry, constraint_type);
+        self.item.set_value_type(wip_registry, value_type);
     }
 
+    #[tracing::instrument(skip(wip_registry))]
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
         self.item.type_check(wip_registry)?;
 
-        if let Some(known) = self.item.try_get_type(wip_registry)
-            && !matches!(
-                known,
-                ConstraintType::SpecOption | ConstraintType::Value(_)
-            )
-        {
-            Err(Box::new(SolverError::IncorrectConstraintType {
-                expected: ConstraintType::SpecOption,
-                received: known,
-            }))
-        } else {
-            Ok(())
+        let Some(value_type) = self.item.get_value_type(Some(wip_registry))
+        else {
+            tracing::error!("Can only Maximize a Value constraint");
+            return Err(Box::new(SolverError::InvalidNonValueConstraint));
+        };
+
+        match value_type {
+            SpecOptionType::Unknown => todo!(),
+
+            SpecOptionType::Bool | SpecOptionType::Str => {
+                tracing::error!("Can only maximize Int, Float or Version");
+                return Err(Box::new(SolverError::IncorrectValueType {
+                    expected: SpecOptionType::Int,
+                    received: value_type,
+                }));
+            }
+
+            SpecOptionType::Int
+            | SpecOptionType::Float
+            | SpecOptionType::Version => Ok(()),
         }
     }
 
@@ -76,9 +81,9 @@ impl ConstraintUtils for Maximize {
         &self,
         _registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
-        let msg = "cannot convert Maximize constraint into Z3 clause";
-        tracing::error!(msg);
-        Err(Box::new(SolverError::InvalidConstraint(msg.to_string())))
+        panic!(
+            "Cannot convert Maximize constraint into Z3 clause. Use add_to_solver"
+        )
     }
 
     fn add_to_solver<'a>(
@@ -116,5 +121,21 @@ impl From<Maximize> for Constraint {
 impl std::fmt::Display for Maximize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Maximize( {} )", self.item)
+    }
+}
+
+#[pymethods]
+impl Maximize {
+    #[new]
+    fn py_new(item: Constraint) -> Self {
+        Self { item }
+    }
+
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

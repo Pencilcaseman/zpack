@@ -1,16 +1,19 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 use z3::ast::Int;
 
 use super::ConstraintUtils;
 use crate::{
     package::{
         self,
-        constraint::{CmpType, Constraint, ConstraintType},
+        constraint::{Cmp, CmpType, Constraint},
         outline::SolverError,
     },
-    spec::{self, SpecOption},
+    spec::{self, SpecOption, SpecOptionType},
 };
 
 #[pyclass]
@@ -21,28 +24,19 @@ pub struct NumOf {
 }
 
 impl ConstraintUtils for NumOf {
-    fn get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        ConstraintType::Value(spec::SpecOptionType::Int)
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<SpecOptionType> {
+        Some(SpecOptionType::Int)
     }
 
-    fn try_get_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::Value(spec::SpecOptionType::Int))
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-        _constraint_type: ConstraintType,
+        _value_type: SpecOptionType,
     ) {
-        tracing::warn!(
-            "attempting to change data type of NumOf. This does nothing"
-        );
+        panic!("Cannot set value type of NumOf");
     }
 
     fn type_check<'a>(
@@ -148,5 +142,21 @@ impl std::fmt::Display for NumOf {
             write!(f, "{}{}", of, if idx == self.of.len() { "" } else { ", " })
         })?;
         f.write_str(" )")
+    }
+}
+
+#[pymethods]
+impl NumOf {
+    #[new]
+    fn py_new(of: Vec<Constraint>) -> Self {
+        Self { of }
+    }
+
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

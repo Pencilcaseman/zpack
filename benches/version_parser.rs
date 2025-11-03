@@ -12,15 +12,17 @@ fn criterion_benchmark(c: &mut Criterion) {
         "v1.0.0-alpha.1",
         "v1.0.0-0.3.7",
         "1.0.0-x.7.z.92",
-        "v1.0.0-x-y-z.--",
+        "v1.0.0-x-y-z",
         "1.0.0-alpha+001",
         "v1.0.0+20130313144700",
         "1.0.0-beta+exp.sha.5114f85",
-        "v1.0.0+21AF26D3----117B344092BD",
+        "v1.0.0+21AF26D3-x.y.x-117B344092BD",
         "v123456789.123456789.123456789-123456789+0123456789",
     ];
 
     for input in bench_suite.into_iter() {
+        assert!(Version::new(input).is_ok(), "Invalid version specifier");
+
         c.bench_function(&format!("semver.org '{}'", input), |b| {
             b.iter(|| black_box(Version::new(input)))
         });

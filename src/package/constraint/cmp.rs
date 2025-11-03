@@ -1,14 +1,19 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
+use z3::Solver;
 
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintType, ConstraintUtils},
+        constraint::{Constraint, ConstraintUtils},
         outline::SolverError,
+        registry::BuiltVersionRegistry,
     },
-    spec,
+    spec::{self, SpecOptionType},
 };
 
 #[pyclass]
@@ -20,6 +25,19 @@ pub enum CmpType {
     Equal,
     GreaterOrEqual,
     Greater,
+}
+
+impl From<CompareOp> for CmpType {
+    fn from(value: CompareOp) -> Self {
+        match value {
+            CompareOp::Lt => Self::Less,
+            CompareOp::Le => Self::LessOrEqual,
+            CompareOp::Eq => Self::Equal,
+            CompareOp::Ne => Self::NotEqual,
+            CompareOp::Gt => Self::Greater,
+            CompareOp::Ge => Self::GreaterOrEqual,
+        }
+    }
 }
 
 impl std::fmt::Display for CmpType {
@@ -48,25 +66,62 @@ pub struct Cmp {
     pub op: CmpType,
 }
 
+impl Cmp {
+    pub fn can_cmp(t: SpecOptionType, op: CmpType) -> bool {
+        match op {
+            CmpType::Less
+            | CmpType::LessOrEqual
+            | CmpType::GreaterOrEqual
+            | CmpType::Greater => match t {
+                SpecOptionType::Bool => false,
+
+                SpecOptionType::Unknown
+                | SpecOptionType::Int
+                | SpecOptionType::Float
+                | SpecOptionType::Str
+                | SpecOptionType::Version => true,
+            },
+
+            CmpType::NotEqual | CmpType::Equal => true,
+        }
+    }
+
+    pub(crate) fn py_richcmp_helper(
+        lhs: Constraint,
+        rhs: Constraint,
+        op: CmpType,
+    ) -> Result<Constraint, PyErr> {
+        let lhs_type = lhs.get_value_type_default();
+        let rhs_type = rhs.get_value_type_default();
+
+        if let (Some(lhs_type), Some(rhs_type)) = (lhs_type, rhs_type)
+            && lhs_type == rhs_type
+            && Cmp::can_cmp(lhs_type, op)
+        {
+            Ok(Cmp { lhs, rhs, op }.into())
+        } else {
+            Err(PyNotImplementedError::new_err(format!(
+                "Cannot compare type {lhs_type:?} from constraint {lhs} with type {rhs_type:?} from constraint {rhs}"
+            )))
+        }
+    }
+}
+
 impl ConstraintUtils for Cmp {
-    fn get_type(&self, _registry: &package::BuiltRegistry) -> ConstraintType {
-        ConstraintType::Cmp
-    }
-
-    fn try_get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::Cmp)
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<spec::SpecOptionType> {
+        Some(spec::SpecOptionType::Bool)
     }
 
-    fn set_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        constraint_type: ConstraintType,
+        value_type: spec::SpecOptionType,
     ) {
-        self.lhs.set_type(wip_registry, constraint_type);
-        self.rhs.set_type(wip_registry, constraint_type);
+        self.lhs.set_value_type(wip_registry, value_type);
+        self.rhs.set_value_type(wip_registry, value_type);
     }
 
     #[tracing::instrument(skip(self, wip_registry))]
@@ -74,37 +129,36 @@ impl ConstraintUtils for Cmp {
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        // Types must be the same
-        // Propagate types from known to unknown
+        let Some(lhs_type) = self.lhs.get_value_type(Some(wip_registry)) else {
+            return Err(Box::new(SolverError::InvalidNonValueConstraint));
+        };
 
-        let lhs_type = self.lhs.try_get_type(wip_registry);
-        let rhs_type = self.rhs.try_get_type(wip_registry);
+        let Some(rhs_type) = self.rhs.get_value_type(Some(wip_registry)) else {
+            return Err(Box::new(SolverError::InvalidNonValueConstraint));
+        };
 
         match (lhs_type, rhs_type) {
-            (None, None) => Ok(()),
-
-            (None, Some(rhs)) => {
-                self.lhs.set_type(wip_registry, rhs);
+            (SpecOptionType::Unknown, SpecOptionType::Unknown) => Ok(()),
+            (SpecOptionType::Unknown, known) => {
+                self.lhs.set_value_type(wip_registry, known);
                 Ok(())
             }
-
-            (Some(lhs), None) => {
-                self.rhs.set_type(wip_registry, lhs);
+            (known, SpecOptionType::Unknown) => {
+                self.rhs.set_value_type(wip_registry, known);
                 Ok(())
             }
-
-            (Some(lhs), Some(rhs)) => {
-                if lhs != rhs {
+            (lhs_known, rhs_known) => {
+                if lhs_known == rhs_known {
+                    Ok(())
+                } else {
                     tracing::error!(
-                        "cannot compare differing types {lhs:?} and {rhs:?}"
+                        "Cannot compare differing types {lhs_type:?} and {rhs_type:?}"
                     );
 
-                    Err(SolverError::IncorrectConstraintType {
-                        expected: lhs,
-                        received: rhs,
-                    })
-                } else {
-                    Ok(())
+                    Err(Box::new(SolverError::IncorrectValueType {
+                        expected: lhs_type,
+                        received: rhs_type,
+                    }))
                 }
             }
         }?;
@@ -116,25 +170,15 @@ impl ConstraintUtils for Cmp {
         // Both types are now the same, so we can get away with checking just
         // one of lhs and rhs
 
-        // For each operation type, ensure the operation is valid
-        let Some(lhs_type) = self.lhs.try_get_type(wip_registry) else {
+        let Some(lhs_type) = self.lhs.get_value_type(Some(wip_registry)) else {
             return Ok(());
         };
 
-        let can_cmp = match self.op {
-            CmpType::Less
-            | CmpType::LessOrEqual
-            | CmpType::GreaterOrEqual
-            | CmpType::Greater => can_compare_non_eq(lhs_type),
-
-            CmpType::NotEqual | CmpType::Equal => can_compare_eq(lhs_type),
-        };
-
-        if can_cmp {
+        if Cmp::can_cmp(lhs_type, self.op) {
             Ok(())
         } else {
             let msg = format!(
-                "cannot compare type {lhs_type:?} with operator '{}'",
+                "Cannot compare type {lhs_type:?} with operator '{}'",
                 self.op
             );
             tracing::error!("{msg}");
@@ -180,43 +224,18 @@ impl std::fmt::Display for Cmp {
     }
 }
 
-fn can_compare_non_eq(ct: ConstraintType) -> bool {
-    match ct {
-        ConstraintType::Depends
-        | ConstraintType::Cmp
-        | ConstraintType::IfThen
-        | ConstraintType::Maximize
-        | ConstraintType::Minimize => false,
-
-        ConstraintType::SpecOption => unreachable!(),
-
-        ConstraintType::Value(spec_option_type) => match spec_option_type {
-            spec::SpecOptionType::Bool => false,
-
-            spec::SpecOptionType::Int
-            | spec::SpecOptionType::Float
-            | spec::SpecOptionType::Str
-            | spec::SpecOptionType::Version => true,
-        },
+#[pymethods]
+impl Cmp {
+    #[new]
+    fn py_new(lhs: Constraint, rhs: Constraint, op: CmpType) -> Self {
+        Self { lhs, rhs, op }
     }
-}
 
-fn can_compare_eq(ct: ConstraintType) -> bool {
-    match ct {
-        ConstraintType::Depends
-        | ConstraintType::Cmp
-        | ConstraintType::IfThen => true,
-
-        ConstraintType::Maximize | ConstraintType::Minimize => false,
-
-        ConstraintType::SpecOption => unreachable!(),
-
-        ConstraintType::Value(spec_option_type) => match spec_option_type {
-            spec::SpecOptionType::Bool
-            | spec::SpecOptionType::Int
-            | spec::SpecOptionType::Float
-            | spec::SpecOptionType::Str
-            | spec::SpecOptionType::Version => true,
-        },
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

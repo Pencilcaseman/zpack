@@ -10,7 +10,7 @@ repository = "https://github.com/Pencilcaseman/zpack"
 license-file = "./LICENSE"
 keywords = ["package-manager", "build-tool", "hpc", "tooling"]
 categories = ["command-line-utilities", "config", "development-tools::build-utils", "science"]
-rust-version = "1.85.1"
+rust-version = "1.88.0"
 
 include = []
 exclude = []

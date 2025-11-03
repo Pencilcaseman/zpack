@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 
 use crate::{
     package::{
         self,
-        constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
+        constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
         outline::SolverError,
     },
     spec::{self, SpecOptionValue},
@@ -19,26 +22,19 @@ pub struct Value {
 }
 
 impl ConstraintUtils for Value {
-    fn get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        ConstraintType::Value(self.value.to_type())
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<spec::SpecOptionType> {
+        Some(self.value.to_type())
     }
 
-    fn try_get_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::Value(self.value.to_type()))
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-        _constraint_type: ConstraintType,
+        _value_type: spec::SpecOptionType,
     ) {
-        tracing::error!("Cannot change datatype of constraint type Value");
+        tracing::error!("Cannot change datatype of Value constraint")
     }
 
     fn type_check<'a>(
@@ -99,5 +95,16 @@ impl From<Value> for Constraint {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.value)
+    }
+}
+
+#[pymethods]
+impl Value {
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

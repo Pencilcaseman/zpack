@@ -18,11 +18,10 @@ use crate::{
     package::{
         self,
         constraint::{
-            self, Constraint, ConstraintType, SOFT_PACKAGE_WEIGHT, SpecOption,
-            Value,
+            self, Constraint, SOFT_PACKAGE_WEIGHT, SpecOption, Value,
         },
     },
-    spec,
+    spec::{self, SpecOptionType},
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
@@ -87,9 +86,11 @@ pub enum SolverError {
         name: String,
     },
 
-    IncorrectConstraintType {
-        expected: ConstraintType,
-        received: ConstraintType,
+    InvalidNonValueConstraint,
+
+    IncorrectValueType {
+        expected: SpecOptionType,
+        received: SpecOptionType,
     },
 
     InvalidConstraint(String),

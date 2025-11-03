@@ -40,10 +40,15 @@ fn register_module_package_constraint(
     let child_module = PyModule::new(parent_module.py(), "constraint")?;
     use package::constraint;
 
+    child_module.add_class::<constraint::Cmp>()?;
+    child_module.add_class::<constraint::CmpType>()?;
     child_module.add_class::<constraint::Depends>()?;
     child_module.add_class::<constraint::IfThen>()?;
+    child_module.add_class::<constraint::Maximize>()?;
+    child_module.add_class::<constraint::Minimize>()?;
     child_module.add_class::<constraint::NumOf>()?;
     child_module.add_class::<constraint::SpecOption>()?;
+    child_module.add_class::<constraint::Value>()?;
 
     register_submodule(
         parent_module,

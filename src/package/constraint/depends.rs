@@ -1,12 +1,18 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 
 use super::ConstraintUtils;
-use crate::package::{
-    self,
-    constraint::{Constraint, ConstraintType},
-    outline::SolverError,
+use crate::{
+    package::{
+        self,
+        constraint::{Cmp, Constraint},
+        outline::SolverError,
+    },
+    spec::SpecOptionType,
 };
 
 #[pyclass]
@@ -23,24 +29,19 @@ impl Depends {
 }
 
 impl ConstraintUtils for Depends {
-    fn get_type(&self, _registry: &package::BuiltRegistry) -> ConstraintType {
-        ConstraintType::Depends
+    fn get_value_type<'a, V>(
+        &'a self,
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<SpecOptionType> {
+        Some(SpecOptionType::Bool)
     }
 
-    fn try_get_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::Depends)
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-        _constraint_type: ConstraintType,
+        _value_type: crate::spec::SpecOptionType,
     ) {
         // Nothing to set
-        tracing::warn!("attempting to set type of Depends. This does nothing");
     }
 
     fn type_check<'a>(
@@ -93,14 +94,6 @@ impl ConstraintUtils for Depends {
     }
 }
 
-#[pymethods]
-impl Depends {
-    #[new]
-    pub fn py_new(name: String) -> PyResult<Self> {
-        Ok(Self::new(name))
-    }
-}
-
 impl From<Depends> for Constraint {
     fn from(val: Depends) -> Self {
         Constraint::Depends(Box::new(val))
@@ -110,5 +103,21 @@ impl From<Depends> for Constraint {
 impl std::fmt::Display for Depends {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Depends( {} )", self.on)
+    }
+}
+
+#[pymethods]
+impl Depends {
+    #[new]
+    pub fn py_new(name: String) -> PyResult<Self> {
+        Ok(Self::new(name))
+    }
+
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

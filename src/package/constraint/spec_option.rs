@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 
 use crate::{
     package::{
         self,
-        constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
+        constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
         outline::SolverError,
     },
     spec,
@@ -22,49 +25,37 @@ pub struct SpecOption {
 }
 
 impl ConstraintUtils for SpecOption {
-    fn get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        let idx = registry
-            .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
-            .expect("option missing type");
+        registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<spec::SpecOptionType> {
+        match registry {
+            Some(r) => {
+                let Some(idx) = r
+                    .lookup_option(&self.package_name, Some(&self.option_name))
+                else {
+                    return Some(spec::SpecOptionType::Unknown);
+                };
 
-        ConstraintType::Value(registry.spec_options()[idx].0)
+                Some(r.spec_options()[idx].0)
+            }
+            None => Some(spec::SpecOptionType::Unknown),
+        }
     }
 
-    fn try_get_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        let idx = wip_registry.lookup_option(
-            &self.package_name,
-            Some(self.option_name.as_ref()),
-        )?;
-
-        Some(ConstraintType::Value(wip_registry.spec_options()[idx].0))
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
-        constraint_type: ConstraintType,
+        value_type: spec::SpecOptionType,
     ) {
-        let ConstraintType::Value(option_type) = constraint_type else {
-            tracing::error!(
-                "cannot set data type of SpecOption to anything but ConstraintType::Value(...)"
-            );
-            panic!("TODO: Improve error handling here");
-        };
-
         wip_registry
             .insert_option(
                 &self.package_name,
                 Some(self.option_name.as_ref()),
-                option_type,
+                value_type,
                 None,
             )
-            .unwrap();
+            .expect("Internal solver error");
     }
 
     fn type_check<'a>(
@@ -94,9 +85,8 @@ impl ConstraintUtils for SpecOption {
         op: CmpType,
         registry: &mut package::BuiltRegistry<'a>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
-        let ConstraintType::Value(value_type) = self.get_type(registry) else {
-            panic!("Internal solver error");
-        };
+        let value_type =
+            self.get_value_type(Some(registry)).expect("Internal solver error");
 
         let t = self.to_z3_clauses(registry)?;
         let o = other.to_z3_clauses(registry)?;
@@ -122,6 +112,8 @@ impl ConstraintUtils for SpecOption {
         }
 
         match value_type {
+            spec::SpecOptionType::Unknown => panic!("Internal solver error"),
+
             spec::SpecOptionType::Bool => match op {
                 CmpType::Less
                 | CmpType::LessOrEqual
@@ -205,7 +197,7 @@ impl ConstraintUtils for SpecOption {
         else {
             if registry.lookup_option(&self.package_name, None).is_some() {
                 tracing::error!(
-                    "missing variable {}:{}",
+                    "Missing variable {}:{}",
                     self.package_name,
                     self.option_name
                 );
@@ -223,9 +215,8 @@ impl ConstraintUtils for SpecOption {
             };
         };
 
-        let ConstraintType::Value(value_type) = self.get_type(registry) else {
-            panic!("Expected Value");
-        };
+        let value_type =
+            self.get_value_type(Some(registry)).expect("Internal solver error");
 
         if matches!(value_type, spec::SpecOptionType::Version) {
             Ok(registry
@@ -268,5 +259,21 @@ impl std::fmt::Display for SpecOption {
             "Package '{}' -> Option '{}'",
             self.package_name, self.option_name
         )
+    }
+}
+
+#[pymethods]
+impl SpecOption {
+    #[new]
+    fn py_new(package_name: String, option_name: String) -> Self {
+        Self { package_name, option_name }
+    }
+
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }

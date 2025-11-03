@@ -684,7 +684,10 @@ fn main() -> Result<()> {
     //     zpack::spec::parse::consume_spec_option(&tokenized)
     // );
 
-    println!("{:?}", package::version::Version::new("1..2.3-4321+alpha.*.>"));
+    println!(
+        "{:?}",
+        package::version::Version::new("1.2.3-4321+alpha.*.>").unwrap()
+    );
 
     let test_graph = petgraph::graph::DiGraph::<i32, ()>::from_edges([
         (0, 1),
@@ -698,16 +701,6 @@ fn main() -> Result<()> {
     println!("{:?}", petgraph::dot::Dot::new(&test_graph));
 
     test_outline();
-
-    // TODO: Fix version comparison
-    let a = version::Version::new("3.2.3").unwrap();
-    let b = version::Version::new("2.3.4.4").unwrap();
-
-    if a > b {
-        tracing::info!("Correct");
-    } else {
-        tracing::error!("Version comparison incorrect");
-    }
 
     Ok(())
 }

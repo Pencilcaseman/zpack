@@ -1,12 +1,19 @@
 use std::collections::HashSet;
 
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::{
+    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
+    prelude::*,
+};
 use z3::SortKind;
 
-use super::{ConstraintType, ConstraintUtils};
+use super::ConstraintUtils;
 use crate::{
-    package::{self, constraint::Constraint, outline::SolverError},
-    spec,
+    package::{
+        self,
+        constraint::{Cmp, Constraint},
+        outline::SolverError,
+    },
+    spec::{self, SpecOptionType},
 };
 
 #[pyclass(unsendable)]
@@ -20,75 +27,43 @@ pub struct IfThen {
 }
 
 impl ConstraintUtils for IfThen {
-    fn get_type<'a>(
+    fn get_value_type<'a, V>(
         &'a self,
-        _registry: &package::BuiltRegistry<'a>,
-    ) -> ConstraintType {
-        ConstraintType::IfThen
+        _registry: Option<&package::registry::Registry<'a, V>>,
+    ) -> Option<spec::SpecOptionType> {
+        None
     }
 
-    fn try_get_type<'a>(
+    fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-    ) -> Option<ConstraintType> {
-        Some(ConstraintType::IfThen)
-    }
-
-    fn set_type<'a>(
-        &'a self,
-        _wip_registry: &mut package::WipRegistry<'a>,
-        _constraint_type: ConstraintType,
+        _value_type: spec::SpecOptionType,
     ) {
-        tracing::warn!(
-            "attempting to change data type of IfThen. This does nothing"
-        );
+        panic!("Cannot set value type of IfThen");
     }
 
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        let Some(cond_type) = self.cond.try_get_type(wip_registry) else {
-            self.cond.set_type(
-                wip_registry,
-                ConstraintType::Value(spec::SpecOptionType::Bool),
-            );
-
-            return Ok(());
-        };
-
-        match cond_type {
-            ConstraintType::Depends | ConstraintType::Cmp => Ok(()),
-
-            ConstraintType::IfThen
-            | ConstraintType::Maximize
-            | ConstraintType::Minimize => {
-                let msg = format!(
-                    "invalid condition '{cond_type:?}' for IfThen. Consider using Boolean operators like And, Or, Not, etc."
-                );
-
-                tracing::error!("{msg}");
-
-                Err(Box::new(SolverError::InvalidConstraint(msg)))
+        match self.cond.get_value_type(Some(wip_registry)) {
+            Some(SpecOptionType::Unknown) => {
+                self.cond.set_value_type(wip_registry, SpecOptionType::Bool);
+                Ok(())
             }
 
-            ConstraintType::Value(value) => {
-                if matches!(value, spec::SpecOptionType::Bool) {
-                    Ok(())
+            Some(other) => {
+                if other != SpecOptionType::Bool {
+                    Err(Box::new(SolverError::IncorrectValueType {
+                        expected: SpecOptionType::Bool,
+                        received: other,
+                    }))
                 } else {
-                    tracing::error!(
-                        "cannot use non-Boolean value {value:?} in IfThen condition"
-                    );
-
-                    Err(Box::new(SolverError::InvalidConstraint(
-                        "non-Boolean condition in IfThen".into(),
-                    )))
+                    Ok(())
                 }
             }
 
-            ConstraintType::SpecOption => {
-                unreachable!()
-            }
+            None => Err(Box::new(SolverError::InvalidNonValueConstraint)),
         }
     }
 
@@ -156,5 +131,21 @@ impl From<IfThen> for Constraint {
 impl std::fmt::Display for IfThen {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "If( {} ) Then [ {} ]", self.cond, self.then)
+    }
+}
+
+#[pymethods]
+impl IfThen {
+    #[new]
+    fn py_new(cond: Constraint, then: Constraint) -> Self {
+        Self { cond, then }
+    }
+
+    fn __richcmp__(
+        &self,
+        rhs: Constraint,
+        op: CompareOp,
+    ) -> Result<Constraint, PyErr> {
+        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
     }
 }
