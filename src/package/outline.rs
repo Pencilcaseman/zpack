@@ -212,30 +212,27 @@ impl SpecOutline {
                         Some(Some(old_val)) => {
                             if let Some(reason) = reason_tracker
                                 .get(&(dep.name.clone(), opt_name.clone()))
+                                && old_val != src_val
                             {
-                                if old_val != src_val {
-                                    tracing::error!(
-                                        "conflicting default values detected"
-                                    );
+                                tracing::error!(
+                                    "conflicting default values detected"
+                                );
 
-                                    let e = SolverError::DefaultConflict {
-                                        package_name: dep.name.clone(),
-                                        default_name: opt_name.clone(),
-                                        first_setter: reason.clone(),
-                                        first_value: old_val.clone(),
-                                        conflict_setter: match reason_tracker
-                                            .get(&(
-                                                src_name.clone(),
-                                                opt_name.clone(),
-                                            )) {
-                                            Some(val) => val.clone(),
-                                            None => src_name.clone(),
-                                        },
-                                        conflict_value: src_val.clone(),
-                                    };
+                                let e = SolverError::DefaultConflict {
+                                    package_name: dep.name.clone(),
+                                    default_name: opt_name.clone(),
+                                    first_setter: reason.clone(),
+                                    first_value: old_val.clone(),
+                                    conflict_setter: match reason_tracker.get(
+                                        &(src_name.clone(), opt_name.clone()),
+                                    ) {
+                                        Some(val) => val.clone(),
+                                        None => src_name.clone(),
+                                    },
+                                    conflict_value: src_val.clone(),
+                                };
 
-                                    return Err(Box::new(e));
-                                }
+                                return Err(Box::new(e));
                             }
                         }
                         Some(None) => {
@@ -329,7 +326,7 @@ impl SpecOutline {
                     option_name
                 );
 
-                // Cannot skip this call since VersionRegistry must be updated
+                // Cannot skip this call since registry must be updated
                 let val = value.to_z3_dynamic(
                     package_name,
                     option_name,

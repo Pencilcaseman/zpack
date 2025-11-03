@@ -101,7 +101,7 @@ impl Cmp {
             Ok(Cmp { lhs, rhs, op }.into())
         } else {
             Err(PyNotImplementedError::new_err(format!(
-                "Cannot compare type {lhs_type:?} from constraint {lhs} with type {rhs_type:?} from constraint {rhs}"
+                "Cannot compare type {lhs_type:?} from constraint {lhs} with type {rhs_type:?} from constraint {rhs} using operator '{op}'"
             )))
         }
     }
