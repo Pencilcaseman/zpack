@@ -9,7 +9,8 @@
 //! To operate within the bounds of the solver, we specify some comparison rules
 //! that are logically consistent and have beneficial properties:
 //!
-//! - Shorter versions are bigger => 1 > 1.2 > 1.2.3 > 1.2.3.4
+//! - We can only compare versions with the same length
+//!     - x.y > 1.2.3 ==> x.y.z > 1.2.3 (z is introduced as a new component)
 //! - Strings are smaller than numbers => 1.alpha < 1.2
 //! - Numbers are sorted by value => 1.2.3 < 1.2.4 < 1.3.2 < 2.3 < 3
 //! - Strings are sorted lexicographically with a few exceptions:
