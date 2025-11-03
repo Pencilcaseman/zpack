@@ -16,11 +16,12 @@
           packages = with pkgs; [
             python3
 
-            rustc
-            rustup
-            cargo
+            # rustc
+            # rustup
+            # cargo
 
             clang
+            lld
             llvm
             llvmPackages.bintools
             clang-tools

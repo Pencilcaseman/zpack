@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
 use pyo3::{IntoPyObjectExt, prelude::*};
 
@@ -7,7 +7,6 @@ use crate::{
         self,
         constraint::{CmpType, Constraint, ConstraintType, ConstraintUtils},
         outline::SolverError,
-        version::Part,
     },
     spec,
 };
