@@ -30,16 +30,9 @@ pub type SpecMap = HashMap<String, Option<spec::SpecOptionValue>>;
 #[pyclass]
 #[derive(Clone, Debug, Default)]
 pub struct PackageOutline {
-    #[pyo3(get, set)]
     pub name: String,
-
-    #[pyo3(get, set)]
     pub constraints: Vec<Constraint>,
-
-    #[pyo3(get, set)]
     pub set_options: HashMap<String, spec::SpecOptionValue>,
-
-    #[pyo3(get, set)]
     pub set_defaults: HashMap<String, Option<spec::SpecOptionValue>>,
 }
 

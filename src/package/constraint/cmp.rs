@@ -9,7 +9,7 @@ use z3::Solver;
 use crate::{
     package::{
         self,
-        constraint::{Constraint, ConstraintUtils},
+        constraint::{Constraint, ConstraintUtils, IfThen},
         outline::SolverError,
         registry::BuiltVersionRegistry,
     },
@@ -229,6 +229,13 @@ impl Cmp {
     #[new]
     fn py_new(lhs: Constraint, rhs: Constraint, op: CmpType) -> Self {
         Self { lhs, rhs, op }
+    }
+
+    /// Wrap this condition in an IfThen constraint.
+    ///
+    /// cond.if_then(then) => If ( cond ) Then ( then )
+    fn if_then(&self, then: Constraint) -> IfThen {
+        IfThen { cond: self.clone().into(), then }
     }
 
     fn __richcmp__(

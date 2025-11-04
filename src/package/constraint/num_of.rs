@@ -43,7 +43,23 @@ impl ConstraintUtils for NumOf {
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        self.of.iter().try_for_each(|c| c.type_check(wip_registry))
+        self.of.iter().try_for_each(|c| {
+            match c.get_value_type(Some(wip_registry)) {
+                Some(t) => {
+                    if t != SpecOptionType::Bool {
+                        Err(Box::new(SolverError::IncorrectValueType {
+                            expected: SpecOptionType::Bool,
+                            received: t,
+                        }))
+                    } else {
+                        Ok(())
+                    }
+                }
+                None => Err(Box::new(SolverError::InvalidNonValueConstraint)),
+            }?;
+
+            c.type_check(wip_registry)
+        })
     }
 
     fn extract_spec_options(&self) -> Vec<(&str, &str, SpecOption)> {

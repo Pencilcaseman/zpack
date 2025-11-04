@@ -1,5 +1,8 @@
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyRuntimeError, prelude::*};
 
+use anyhow::Result;
+
+pub mod entry;
 pub mod package;
 pub mod spec;
 pub mod util;
@@ -97,11 +100,18 @@ fn init_tracing() {
     tracing::warn!("tracing activated");
 }
 
+#[pyfunction]
+fn main_entry() -> PyResult<()> {
+    entry::entry().map_err(|e| PyRuntimeError::new_err(e.to_string()))
+}
+
 #[pymodule]
 fn zpack(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_module_package(m)?;
 
     m.add_function(wrap_pyfunction!(init_tracing, m)?)?;
+
+    m.add_function(wrap_pyfunction!(main_entry, m)?)?;
 
     Ok(())
 }

@@ -638,6 +638,52 @@ fn test_outline() {
     // child.wait().expect("dot command failed");
 }
 
+fn test_config() {
+    use config::Config;
+    use serde::{Deserialize, Serialize};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    #[derive(Debug, Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum PackagePathConfig {
+        Simple(PathBuf),
+        Full(PackagePath),
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct PackagePath {
+        path: PathBuf,
+
+        #[serde(default)]
+        recursive: bool,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct TestConfig {
+        package_paths: HashMap<String, PackagePathConfig>,
+
+        #[serde(default)]
+        extra_package_paths: Vec<PathBuf>,
+    }
+
+    let settings = Config::builder()
+        .add_source(config::File::with_name(
+            "/Users/tobydavis/.config/zpack.yaml",
+        ))
+        .add_source(
+            config::Environment::with_prefix("ZPACK")
+                .try_parsing(true)
+                .list_separator(":"),
+        )
+        .build()
+        .unwrap();
+
+    println!("Settings: {settings:#?}");
+
+    println!("{:?}", settings.try_deserialize::<TestConfig>().unwrap());
+}
+
 fn main() -> Result<()> {
     tracing::subscriber::set_global_default(
         zpack::util::subscriber::subscriber(),
@@ -701,6 +747,8 @@ fn main() -> Result<()> {
     println!("{:?}", petgraph::dot::Dot::new(&test_graph));
 
     test_outline();
+
+    test_config();
 
     Ok(())
 }

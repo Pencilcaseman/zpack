@@ -16,6 +16,9 @@ dependencies = [
     "maturin>=1.9.4",
 ]
 
+[project.scripts]
+zpack = "zpack:main_entry"
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 

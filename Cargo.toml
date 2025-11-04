@@ -51,9 +51,10 @@ mpi = ["dep:mpi"]
 anyhow = { version = "1.0.100" }
 ariadne = { version = "0.6.0", features = ["auto-color"] }
 chumsky = { version = "0.11.1", features = [] }
-clap = { version = "4.5.51", features = ["deprecated", "derive", "cargo", "env", "unicode", "wrap_help", "string"] }
+clap = { version = "4.5.51", features = ["derive", "cargo", "env", "unicode", "wrap_help", "string"] }
 clap_complete = { version = "4.5.60", features = [] }
-config-rs = "0.1.3"
+config = { version = "0.15.18", features = ["yaml"] }
+derive = "1.0.0"
 dyn-clone = "1.0.20"
 either = "1.15.0"
 itertools = "0.14.0"
@@ -62,6 +63,7 @@ num-traits = { version = "0.2.19", features = ["i128"] }
 petgraph = { version = "0.8.3", features = ["serde-1", "rayon", "generate"] }
 pyo3 = { version = "0.27.1", features = ["full"] }
 saphyr = "0.0.6"
+serde = { version = "1.0.228", features = ["alloc", "derive"] }
 smallvec = "1.15.1"
 syntect = { version = "5.3.0", features = ["default-fancy"] }
 tempfile = "3.23.0"
