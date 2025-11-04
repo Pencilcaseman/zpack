@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17](https://github.com/Pencilcaseman/zpack/compare/v0.1.16...v0.1.17) - 2025-11-04
+
+### Fixed
+
+- *(CI)* Fix python wheels
+- Justfile updates
+
+### Other
+
+- Merge branch 'master' of github.com:Pencilcaseman/zpack
+
 ## [0.1.16](https://github.com/Pencilcaseman/zpack/compare/v0.1.15...v0.1.16) - 2025-11-04
 
 ### Added
