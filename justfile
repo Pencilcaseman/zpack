@@ -4,7 +4,10 @@ DEFAULT_RELEASE_ARGS := "--features z3_bundled"
 default:
     just --list
 
-full: clean test-dev dev py-dev test-release release py-release bench install-dev install-release
+full: clean doc test-dev dev py-dev test-release release py-release bench install-dev install-release
+
+doc extra-args=DEFAULT_RELEASE_ARGS:
+    cargo doc {{ extra-args }}
 
 dev extra-args=DEFAULT_DEV_ARGS:
     cargo run {{ extra-args }}
@@ -60,7 +63,7 @@ install-release \
     export CFLAGS="-O3 -mtune=native -march=native -flto -fPIC"
     export CXXFLAGS="-O3 -mtune=native -march=native -flto -fPIC"
 
-    cargo install --path . --features {{ cargo-extra-args }}
+    cargo install --path . {{ cargo-extra-args }}
 
     export MATURIN_PEP517_ARGS="--features pyo3/extension-module {{ pip-extra-args }}"
     pip install .  -v
