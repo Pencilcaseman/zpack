@@ -8,8 +8,9 @@ use crate::{
         self, BuiltRegistry,
         outline::SolverError,
         registry::{BuiltVersionRegistry, Registry},
+        version::Version,
     },
-    spec::{self, SpecOptionType},
+    spec::{self, SpecOptionType, SpecOptionValue},
 };
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
@@ -250,7 +251,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {
     type Error = PyErr;
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        fn extract<'a2, 'py2, T, F, E>(
+        fn extract_constraint<'a2, 'py2, T, F, E>(
             obj: &Borrowed<'a2, 'py2, PyAny>,
             to: F,
         ) -> Result<Constraint, E>
@@ -262,16 +263,58 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {
             Ok((to)(Box::new(obj.extract::<T>()?)))
         }
 
-        extract::<Cmp, _, _>(&obj, Constraint::Cmp)
-            .or_else(|_| extract::<Depends, _, _>(&obj, Constraint::Depends))
-            .or_else(|_| extract::<IfThen, _, _>(&obj, Constraint::IfThen))
-            .or_else(|_| extract::<Maximize, _, _>(&obj, Constraint::Maximize))
-            .or_else(|_| extract::<Minimize, _, _>(&obj, Constraint::Minimize))
-            .or_else(|_| extract::<NumOf, _, _>(&obj, Constraint::NumOf))
+        fn extract_value<'a2, 'py2, T, F, E>(
+            obj: &Borrowed<'a2, 'py2, PyAny>,
+            to: F,
+        ) -> Result<Constraint, E>
+        where
+            T: FromPyObject<'a2, 'py2, Error = E> + 'static,
+            F: FnOnce(T) -> SpecOptionValue,
+            E: Into<<Constraint as FromPyObject<'a2, 'py2>>::Error>,
+        {
+            Ok(Constraint::Value(Box::new(Value {
+                value: (to)(obj.extract::<T>()?),
+            })))
+        }
+
+        extract_constraint::<Cmp, _, _>(&obj, Constraint::Cmp)
             .or_else(|_| {
-                extract::<SpecOption, _, _>(&obj, Constraint::SpecOption)
+                extract_constraint::<Depends, _, _>(&obj, Constraint::Depends)
             })
-            .or_else(|_| extract::<Value, _, _>(&obj, Constraint::Value))
+            .or_else(|_| {
+                extract_constraint::<IfThen, _, _>(&obj, Constraint::IfThen)
+            })
+            .or_else(|_| {
+                extract_constraint::<Maximize, _, _>(&obj, Constraint::Maximize)
+            })
+            .or_else(|_| {
+                extract_constraint::<Minimize, _, _>(&obj, Constraint::Minimize)
+            })
+            .or_else(|_| {
+                extract_constraint::<NumOf, _, _>(&obj, Constraint::NumOf)
+            })
+            .or_else(|_| {
+                extract_constraint::<SpecOption, _, _>(
+                    &obj,
+                    Constraint::SpecOption,
+                )
+            })
+            .or_else(|_| {
+                extract_constraint::<Value, _, _>(&obj, Constraint::Value)
+            })
+            .or_else(|_| {
+                extract_value::<bool, _, _>(&obj, SpecOptionValue::Bool)
+            })
+            .or_else(|_| extract_value::<i64, _, _>(&obj, SpecOptionValue::Int))
+            .or_else(|_| {
+                extract_value::<f64, _, _>(&obj, SpecOptionValue::Float)
+            })
+            .or_else(|_| {
+                extract_value::<String, _, _>(&obj, SpecOptionValue::Str)
+            })
+            .or_else(|_| {
+                extract_value::<Version, _, _>(&obj, SpecOptionValue::Version)
+            })
             .map_err(|_| {
                 let msg = format!(
                     "cannot convert '{}' to Constraint",
