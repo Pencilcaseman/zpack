@@ -15,40 +15,10 @@ use syntect::{
     parsing::SyntaxSet,
     util::{LinesWithEndings, as_24_bit_terminal_escaped},
 };
-use zpack::package::{
-    self,
+use zpack::{
     constraint::{Cmp, CmpType, Maximize, Minimize, NumOf},
-    version,
+    package::{self, version},
 };
-
-fn build_cli() -> Command {
-    Command::new("zpack")
-        .long_version(format!("{}\n{}", crate_version!(), crate_description!()))
-        .arg(
-            Arg::new("file")
-                .short('f')
-                .help("some input file")
-                .value_hint(ValueHint::AnyPath),
-        )
-        .subcommand(
-            Command::new("print").about("Print something").arg(
-                Arg::new("file")
-                    .short('f')
-                    .help("Input file")
-                    .value_hint(ValueHint::ExecutablePath),
-            ),
-        )
-        .arg(
-            Arg::new("generator")
-                .long("generate")
-                .action(ArgAction::Set)
-                .value_parser(value_parser!(Shell)),
-        )
-}
-
-fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
-    generate(generator, cmd, cmd.get_name().to_string(), &mut io::stdout());
-}
 
 fn test_yaml() {
     let yaml_str = r#"
@@ -138,10 +108,8 @@ fn test_outline() {
     use std::collections::HashMap;
 
     use zpack::{
-        package::{
-            constraint::{Depends, IfThen, SpecOption, Value},
-            outline::{PackageOutline, SpecOutline},
-        },
+        constraint::{Depends, IfThen, SpecOption, Value},
+        package::outline::{PackageOutline, SpecOutline},
         spec::SpecOptionValue,
     };
 
@@ -375,25 +343,22 @@ fn test_outline() {
     };
 
     let openmpi_versions = [
-        "5.0.8",
-        "5.0.7",
-        "5.0.6",
-        "5.0.5",
+        "5.0.8", "5.0.7", "5.0.6", "5.0.5",
         "5.0.4",
-        "5.0.3",
-        "5.0.2",
-        "5.0.1",
-        "5.0.0",
-        "4.1.8",
-        "4.1.7",
-        "4.1.6",
-        "4.1.5",
-        "4.1.4",
-        "4.1.3",
-        "4.1.2",
-        "4.1.1",
-        "4.1.0",
-        "10.2.3.4.5.6.7.8.9.10",
+        // "5.0.3",
+        // "5.0.2",
+        // "5.0.1",
+        // "5.0.0",
+        // "4.1.8",
+        // "4.1.7",
+        // "4.1.6",
+        // "4.1.5",
+        // "4.1.4",
+        // "4.1.3",
+        // "4.1.2",
+        // "4.1.1",
+        // "4.1.0",
+        // "10.2.3.4.5.6.7.8.9.10",
     ]
     .into_iter()
     .map(|v| {
@@ -503,36 +468,36 @@ fn test_outline() {
         set_defaults: HashMap::default(),
     };
 
-    let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
-        .into_iter()
-        .map(|v| {
-            Cmp {
-                lhs: SpecOption {
-                    package_name: "hwloc".into(),
-                    option_name: "version".into(),
-                }
-                .into(),
-                rhs: Value {
-                    value: SpecOptionValue::Version(
-                        version::Version::new(v).unwrap(),
-                    ),
-                }
-                .into(),
-                op: CmpType::Equal,
-            }
-            .into()
-        })
-        .collect();
+    // let hwloc_versions = ["2.12.2", "2.12.1", "2.12.0"]
+    //     .into_iter()
+    //     .map(|v| {
+    //         Cmp {
+    //             lhs: SpecOption {
+    //                 package_name: "hwloc".into(),
+    //                 option_name: "version".into(),
+    //             }
+    //             .into(),
+    //             rhs: Value {
+    //                 value: SpecOptionValue::Version(
+    //                     version::Version::new(v).unwrap(),
+    //                 ),
+    //             }
+    //             .into(),
+    //             op: CmpType::Equal,
+    //         }
+    //         .into()
+    //     })
+    //     .collect();
 
     let hwloc_outline = PackageOutline {
         name: "hwloc".into(),
         constraints: vec![
-            Cmp {
-                lhs: NumOf { of: hwloc_versions }.into(),
-                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
-                op: CmpType::Equal,
-            }
-            .into(),
+            // Cmp {
+            //     lhs: NumOf { of: hwloc_versions }.into(),
+            //     rhs: Value { value: SpecOptionValue::Int(1) }.into(),
+            //     op: CmpType::Equal,
+            // }
+            // .into(),
             Depends::new("gcc".into()).into(),
         ],
         set_options: HashMap::default(),
@@ -568,9 +533,6 @@ fn test_outline() {
     outline.required.push("hpl".to_string());
 
     outline.propagate_defaults().unwrap();
-
-    let mut config = z3::Config::new();
-    config.set_bool_param_value("unsat_core", true);
 
     let (optimizer, registry) = outline.gen_spec_solver().unwrap();
 
@@ -639,10 +601,10 @@ fn test_outline() {
 }
 
 fn test_config() {
+    use std::{collections::HashMap, path::PathBuf};
+
     use config::Config;
     use serde::{Deserialize, Serialize};
-    use std::collections::HashMap;
-    use std::path::PathBuf;
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(untagged)]
@@ -694,24 +656,13 @@ fn main() -> Result<()> {
     println!("Thing:  {thing}");
     println!("Things: {things:?}");
 
-    let matches = build_cli().get_matches();
-
-    if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
-        let mut cmd = build_cli();
-        eprintln!("Generating completion file for {generator}...");
-        print_completions(generator, &mut cmd);
-    }
-
-    // if let Some(print) = matches.subcommand_matches("print")
-    //     && let Some(file) = print.get_one::<String>("file")
-    // {
-    //     println!("File path: {file}");
-    // }
-
     test_yaml();
 
-    let package_option =
-        &Yaml::load_from_str(r#"txt="Hello, \"Quoted\" World!""#).unwrap()[0];
+    let package_option = &Yaml::load_from_str(
+        r#"txt="Hello, \"Quoted\"
+    World!""#,
+    )
+    .unwrap()[0];
     let _s = package_option.clone().into_string().unwrap();
 
     println!();
@@ -748,7 +699,9 @@ fn main() -> Result<()> {
 
     test_outline();
 
-    test_config();
+    // test_config();
+    //
+    // zpack::cli::entry::entry(false).unwrap();
 
     Ok(())
 }

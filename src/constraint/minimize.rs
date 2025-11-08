@@ -5,11 +5,8 @@ use z3::{Optimize, SortKind, ast::Bool};
 
 use super::ConstraintUtils;
 use crate::{
-    package::{
-        self, BuiltRegistry,
-        constraint::{Cmp, Constraint},
-        outline::SolverError,
-    },
+    constraint::{Cmp, Constraint},
+    package::{self, BuiltRegistry, outline::SolverError},
     spec::{SpecOption, SpecOptionType},
 };
 
@@ -54,10 +51,10 @@ impl ConstraintUtils for Minimize {
 
             SpecOptionType::Bool | SpecOptionType::Str => {
                 tracing::error!("Can only minimize Int, Float or Version");
-                return Err(Box::new(SolverError::IncorrectValueType {
+                Err(Box::new(SolverError::IncorrectValueType {
                     expected: SpecOptionType::Int,
                     received: value_type,
-                }));
+                }))
             }
 
             SpecOptionType::Int
@@ -74,20 +71,20 @@ impl ConstraintUtils for Minimize {
         self.item.extract_dependencies()
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        _registry: &mut package::BuiltRegistry<'a>,
+        _registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let msg = "cannot convert Minimize constraint into Z3 clause";
         tracing::error!(msg);
         Err(Box::new(SolverError::InvalidConstraint(msg.to_string())))
     }
 
-    fn add_to_solver<'a>(
+    fn add_to_solver(
         &self,
         _toggle: &Bool,
         optimizer: &Optimize,
-        registry: &mut BuiltRegistry<'a>,
+        registry: &mut BuiltRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         for item in self.item.to_z3_clauses(registry)? {
             if matches!(
@@ -111,7 +108,7 @@ impl ConstraintUtils for Minimize {
 
 impl From<Minimize> for Constraint {
     fn from(val: Minimize) -> Self {
-        Constraint::Minimize(Box::new(val))
+        Self::Minimize(Box::new(val))
     }
 }
 
@@ -124,7 +121,7 @@ impl std::fmt::Display for Minimize {
 #[pymethods]
 impl Minimize {
     #[new]
-    fn py_new(item: Constraint) -> Self {
+    const fn py_new(item: Constraint) -> Self {
         Self { item }
     }
 
@@ -133,6 +130,6 @@ impl Minimize {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

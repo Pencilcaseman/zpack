@@ -27,7 +27,6 @@
 
 // pub mod spec;
 
-pub mod constraint;
 pub mod outline;
 pub mod registry;
 pub mod version;

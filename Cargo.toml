@@ -48,9 +48,10 @@ tracing_release_max_level_trace = ["tracing/release_max_level_trace"]
 mpi = ["dep:mpi"]
 
 [dependencies]
+anstyle = "1.0.13"
 anyhow = { version = "1.0.100" }
 ariadne = { version = "0.6.0", features = ["auto-color"] }
-chumsky = { version = "0.11.1", features = [] }
+chumsky = { version = "0.11.2", features = [] }
 clap = { version = "4.5.51", features = ["derive", "cargo", "env", "unicode", "wrap_help", "string"] }
 clap_complete = { version = "4.5.60", features = [] }
 config = { version = "0.15.18", features = ["yaml"] }
@@ -61,7 +62,7 @@ itertools = "0.14.0"
 mpi = { version = "0.8.0", optional=true, features = ["user-operations", "derive", "complex"] }
 num-traits = { version = "0.2.19", features = ["i128"] }
 petgraph = { version = "0.8.3", features = ["serde-1", "rayon", "generate"] }
-pyo3 = { version = "0.27.1", features = ["full"] }
+pyo3 = { version = "0.27.1", features = ["full", "auto-initialize", "experimental-inspect"] }
 saphyr = "0.0.6"
 serde = { version = "1.0.228", features = ["alloc", "derive"] }
 smallvec = "1.15.1"

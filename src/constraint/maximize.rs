@@ -1,18 +1,12 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 use z3::{Optimize, SortKind, ast::Bool};
 
 use super::ConstraintUtils;
 use crate::{
-    package::{
-        self, BuiltRegistry,
-        constraint::{Cmp, Constraint},
-        outline::SolverError,
-    },
+    constraint::{Cmp, Constraint},
+    package::{self, BuiltRegistry, outline::SolverError},
     spec::{SpecOption, SpecOptionType},
 };
 
@@ -57,10 +51,10 @@ impl ConstraintUtils for Maximize {
 
             SpecOptionType::Bool | SpecOptionType::Str => {
                 tracing::error!("Can only maximize Int, Float or Version");
-                return Err(Box::new(SolverError::IncorrectValueType {
+                Err(Box::new(SolverError::IncorrectValueType {
                     expected: SpecOptionType::Int,
                     received: value_type,
-                }));
+                }))
             }
 
             SpecOptionType::Int
@@ -77,20 +71,20 @@ impl ConstraintUtils for Maximize {
         self.item.extract_dependencies()
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        _registry: &mut package::BuiltRegistry<'a>,
+        _registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         panic!(
             "Cannot convert Maximize constraint into Z3 clause. Use add_to_solver"
         )
     }
 
-    fn add_to_solver<'a>(
+    fn add_to_solver(
         &self,
         _toggle: &Bool,
         optimizer: &Optimize,
-        registry: &mut BuiltRegistry<'a>,
+        registry: &mut BuiltRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         for item in self.item.to_z3_clauses(registry)? {
             if matches!(
@@ -114,7 +108,7 @@ impl ConstraintUtils for Maximize {
 
 impl From<Maximize> for Constraint {
     fn from(val: Maximize) -> Self {
-        Constraint::Maximize(Box::new(val))
+        Self::Maximize(Box::new(val))
     }
 }
 
@@ -127,7 +121,7 @@ impl std::fmt::Display for Maximize {
 #[pymethods]
 impl Maximize {
     #[new]
-    fn py_new(item: Constraint) -> Self {
+    const fn py_new(item: Constraint) -> Self {
         Self { item }
     }
 
@@ -136,6 +130,6 @@ impl Maximize {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

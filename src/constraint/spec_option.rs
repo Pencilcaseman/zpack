@@ -1,17 +1,11 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 
 use crate::{
-    package::{
-        self,
-        constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
-        outline::SolverError,
-    },
-    spec,
+    constraint::{Cmp, CmpType, Constraint, ConstraintUtils, IfThen, Value},
+    package::{self, outline::SolverError},
+    spec::{self, SpecOptionValue},
 };
 
 #[pyclass]
@@ -58,9 +52,9 @@ impl ConstraintUtils for SpecOption {
             .expect("Internal solver error");
     }
 
-    fn type_check<'a>(
+    fn type_check(
         &self,
-        _wip_registry: &mut package::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         // Nothing to type check
         Ok(())
@@ -79,11 +73,11 @@ impl ConstraintUtils for SpecOption {
         HashSet::default()
     }
 
-    fn cmp_to_z3<'a>(
+    fn cmp_to_z3(
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let value_type =
             self.get_value_type(Some(registry)).expect("Internal solver error");
@@ -161,6 +155,10 @@ impl ConstraintUtils for SpecOption {
                     panic!("Internal solver error");
                 };
 
+                tracing::warn!(
+                    "tinglage: spec option cmp {self:?} {version:?}"
+                );
+
                 // Ensure there is room
                 registry.expand_version_to_fit(
                     &self.package_name,
@@ -186,9 +184,9 @@ impl ConstraintUtils for SpecOption {
         }
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         tracing::info!("{}:{}", self.package_name, self.option_name);
 
@@ -206,13 +204,12 @@ impl ConstraintUtils for SpecOption {
                     package: self.package_name.clone(),
                     name: self.option_name.clone(),
                 }));
-            } else {
-                tracing::error!("Missing package {}", self.package_name);
+            }
+            tracing::error!("Missing package {}", self.package_name);
 
-                return Err(Box::new(SolverError::MissingPackage {
-                    dep: self.package_name.clone(),
-                }));
-            };
+            return Err(Box::new(SolverError::MissingPackage {
+                name: self.package_name.clone(),
+            }));
         };
 
         let value_type =
@@ -222,7 +219,7 @@ impl ConstraintUtils for SpecOption {
             Ok(registry
                 .version_registry()
                 .lookup_solver_vars(idx)
-                .map(|vars| vars.to_vec())
+                .map(<[z3::ast::Dynamic]>::to_vec)
                 .unwrap())
         } else {
             let Some(dynamic) = &registry.spec_options()[idx].1 else {
@@ -248,7 +245,7 @@ impl ConstraintUtils for SpecOption {
 
 impl From<SpecOption> for Constraint {
     fn from(val: SpecOption) -> Self {
-        Constraint::SpecOption(Box::new(val))
+        Self::SpecOption(Box::new(val))
     }
 }
 
@@ -265,7 +262,7 @@ impl std::fmt::Display for SpecOption {
 #[pymethods]
 impl SpecOption {
     #[new]
-    fn py_new(package_name: String, option_name: String) -> Self {
+    const fn py_new(package_name: String, option_name: String) -> Self {
         Self { package_name, option_name }
     }
 
@@ -274,6 +271,18 @@ impl SpecOption {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
+    }
+
+    fn if_then(&self, then: Constraint) -> IfThen {
+        IfThen {
+            cond: Cmp {
+                lhs: self.clone().into(),
+                rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                op: CmpType::Equal,
+            }
+            .into(),
+            then,
+        }
     }
 }

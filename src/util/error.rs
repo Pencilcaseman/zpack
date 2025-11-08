@@ -24,7 +24,7 @@ pub struct FinalizedParserError<'a, SourceType> {
 }
 
 impl<'a, SourceType> ParserErrorWrapper<'a, SourceType> {
-    pub fn new(
+    pub const fn new(
         name: &'a str,
         source: SourceType,
         errors: Vec<ParserErrorType<'a>>,
@@ -50,7 +50,7 @@ impl<'a, SourceType> ParserErrorWrapper<'a, SourceType> {
             (self.name, self.errors[0].span().into_range()),
         );
 
-        for err in self.errors.into_iter() {
+        for err in self.errors {
             let c = colors.next();
 
             #[cfg(not(feature = "cheap_errors"))]

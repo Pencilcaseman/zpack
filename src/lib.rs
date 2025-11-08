@@ -1,117 +1,105 @@
-use pyo3::{exceptions::PyRuntimeError, prelude::*};
+#![warn(clippy::pedantic, clippy::nursery)]
 
-use anyhow::Result;
+use pyo3::prelude::*;
 
-pub mod entry;
+pub mod cli;
+pub mod constraint;
+pub mod interface;
 pub mod package;
 pub mod spec;
 pub mod util;
 
-fn register_submodule(
-    parent: &Bound<'_, PyModule>,
-    submodule: &Bound<'_, PyModule>,
-    full_name: &str,
-) -> PyResult<()> {
-    parent.add_submodule(submodule)?;
-
-    // Register in sys.modules
-    parent
-        .py()
-        .import("sys")?
-        .getattr("modules")?
-        .set_item(full_name, submodule)?;
-
-    Ok(())
+fn gen_init(m: &Bound<'_, PyModule>, name: &str) -> PyResult<()> {
+    Python::attach(|py| py.import("sys")?.getattr("modules")?.set_item(name, m))
 }
 
-fn register_module_package_outline(
-    parent_module: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-    let child_module = PyModule::new(parent_module.py(), "outline")?;
-    use package::outline;
+#[pymodule(name = "constraint")]
+pub mod py_constraint {
+    use pyo3::prelude::*;
 
-    child_module.add_class::<outline::PackageOutline>()?;
+    #[pymodule_export]
+    pub use crate::constraint::Cmp;
+    #[pymodule_export]
+    pub use crate::constraint::CmpType;
+    #[pymodule_export]
+    pub use crate::constraint::Depends;
+    #[pymodule_export]
+    pub use crate::constraint::IfThen;
+    #[pymodule_export]
+    pub use crate::constraint::Maximize;
+    #[pymodule_export]
+    pub use crate::constraint::Minimize;
+    #[pymodule_export]
+    pub use crate::constraint::NumOf;
+    #[pymodule_export]
+    pub use crate::constraint::SpecOption;
+    #[pymodule_export]
+    pub use crate::constraint::Value;
 
-    register_submodule(parent_module, &child_module, "zpack.package.outline")?;
-
-    Ok(())
+    /// Hacky workaround from <https://github.com/PyO3/pyo3/issues/759>
+    ///
+    /// # Errors
+    /// May error if sys.modules is not loadable
+    #[pymodule_init]
+    pub fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        super::gen_init(m, "zpack.constraint")
+    }
 }
 
-fn register_module_package_constraint(
-    parent_module: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-    let child_module = PyModule::new(parent_module.py(), "constraint")?;
-    use package::constraint;
+#[pymodule(name = "package")]
+pub mod py_package {
+    use pyo3::prelude::*;
 
-    child_module.add_class::<constraint::Cmp>()?;
-    child_module.add_class::<constraint::CmpType>()?;
-    child_module.add_class::<constraint::Depends>()?;
-    child_module.add_class::<constraint::IfThen>()?;
-    child_module.add_class::<constraint::Maximize>()?;
-    child_module.add_class::<constraint::Minimize>()?;
-    child_module.add_class::<constraint::NumOf>()?;
-    child_module.add_class::<constraint::SpecOption>()?;
-    child_module.add_class::<constraint::Value>()?;
+    #[pymodule_export]
+    pub use crate::package::outline::PackageOutline;
+    #[pymodule_export]
+    pub use crate::package::version::Version;
 
-    register_submodule(
-        parent_module,
-        &child_module,
-        "zpack.package.constraint",
-    )?;
-
-    Ok(())
+    /// Hacky workaround from <https://github.com/PyO3/pyo3/issues/759>
+    ///
+    /// # Errors
+    /// May error if sys.modules is not loadable
+    #[pymodule_init]
+    pub fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        super::gen_init(m, "zpack.package")
+    }
 }
 
-fn register_module_package_version(
-    parent_module: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-    let child_module = PyModule::new(parent_module.py(), "version")?;
+#[pymodule(name = "zpack")]
+pub mod py_zpack {
+    use pyo3::{exceptions::PyRuntimeError, prelude::*};
 
-    child_module.add_class::<package::version::Version>()?;
+    #[pymodule_export]
+    pub use super::py_constraint;
+    #[pymodule_export]
+    pub use super::py_package;
 
-    register_submodule(parent_module, &child_module, "zpack.package.version")?;
+    /// The main python entry point
+    ///
+    /// # Errors
+    /// Errors here will contain information from the root cause of the issue.
+    /// It may also be worth calling
+    /// [`zpack.init_tracing()`](py_tracing::init_tracing), as additional
+    /// information is logged throughout the execution of `zpack`.
+    #[pyfunction]
+    pub fn main_entry() -> PyResult<()> {
+        crate::cli::entry(true)
+            .map_err(|e| PyRuntimeError::new_err(format!("{e:?}")))
+    }
 
-    Ok(())
-}
+    /// Initialize the tracing subscriber in Python so internal logs are printed
+    ///
+    /// # Panics
+    /// Panics if the subscriber cannot be created or set as the default
+    #[pyfunction]
+    pub fn init_tracing() {
+        Python::attach(|_py| {
+            tracing::subscriber::set_global_default(
+                crate::util::subscriber::subscriber(),
+            )
+            .expect("Failed to set subscriber");
+        });
 
-fn register_module_package(
-    parent_module: &Bound<'_, PyModule>,
-) -> PyResult<()> {
-    let child_module = PyModule::new(parent_module.py(), "package")?;
-
-    register_module_package_outline(&child_module)?;
-    register_module_package_constraint(&child_module)?;
-    register_module_package_version(&child_module)?;
-
-    register_submodule(parent_module, &child_module, "zpack.package")?;
-
-    Ok(())
-}
-
-#[pyfunction]
-fn init_tracing() {
-    Python::attach(|_py| {
-        tracing::subscriber::set_global_default(
-            crate::util::subscriber::subscriber(),
-        )
-        .expect("Failed to set subscriber");
-    });
-
-    tracing::warn!("tracing activated");
-}
-
-#[pyfunction]
-fn main_entry() -> PyResult<()> {
-    entry::entry().map_err(|e| PyRuntimeError::new_err(e.to_string()))
-}
-
-#[pymodule]
-fn zpack(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    register_module_package(m)?;
-
-    m.add_function(wrap_pyfunction!(init_tracing, m)?)?;
-
-    m.add_function(wrap_pyfunction!(main_entry, m)?)?;
-
-    Ok(())
+        tracing::warn!("tracing activated");
+    }
 }

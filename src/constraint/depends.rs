@@ -1,17 +1,11 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 
 use super::ConstraintUtils;
 use crate::{
-    package::{
-        self,
-        constraint::{Cmp, Constraint},
-        outline::SolverError,
-    },
+    constraint::{Cmp, Constraint},
+    package::{self, outline::SolverError},
     spec::SpecOptionType,
 };
 
@@ -23,7 +17,8 @@ pub struct Depends {
 }
 
 impl Depends {
-    pub fn new(on: String) -> Self {
+    #[must_use]
+    pub const fn new(on: String) -> Self {
         Self { on }
     }
 }
@@ -44,9 +39,9 @@ impl ConstraintUtils for Depends {
         // Nothing to set
     }
 
-    fn type_check<'a>(
+    fn type_check(
         &self,
-        _wip_registry: &mut package::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         // Nothing to type-check
         Ok(())
@@ -62,15 +57,15 @@ impl ConstraintUtils for Depends {
         HashSet::from([self.on.clone()])
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let Some(idx) = registry.lookup_option(&self.on, None) else {
             tracing::error!("package '{}' has no activation variable", self.on);
 
             return Err(Box::new(SolverError::MissingPackage {
-                dep: self.on.clone(),
+                name: self.on.clone(),
             }));
         };
 
@@ -96,7 +91,7 @@ impl ConstraintUtils for Depends {
 
 impl From<Depends> for Constraint {
     fn from(val: Depends) -> Self {
-        Constraint::Depends(Box::new(val))
+        Self::Depends(Box::new(val))
     }
 }
 
@@ -109,8 +104,9 @@ impl std::fmt::Display for Depends {
 #[pymethods]
 impl Depends {
     #[new]
-    pub fn py_new(name: String) -> PyResult<Self> {
-        Ok(Self::new(name))
+    #[must_use]
+    pub const fn py_new(name: String) -> Self {
+        Self::new(name)
     }
 
     fn __richcmp__(
@@ -118,6 +114,6 @@ impl Depends {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

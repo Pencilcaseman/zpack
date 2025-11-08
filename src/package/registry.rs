@@ -50,6 +50,7 @@ pub struct BuiltVersionRegistry {
 }
 
 impl WipVersionRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -64,12 +65,13 @@ impl WipVersionRegistry {
             version::Part::Int(_)
             | version::Part::Sep(_)
             | version::Part::Wildcard(_) => None,
-        }))
+        }));
     }
 
     /// Thing
     ///
     /// - `versions` maps from registry index to count
+    #[must_use]
     pub fn build(
         self,
         versions: HashMap<usize, usize>,
@@ -77,7 +79,9 @@ impl WipVersionRegistry {
         let mut strings: Vec<String> = self.strings.into_iter().collect();
         strings.sort();
         strings.extend(
-            version::STATIC_STRING_VERSIONS.iter().map(|s| s.to_string()),
+            version::STATIC_STRING_VERSIONS
+                .iter()
+                .map(std::string::ToString::to_string),
         );
 
         let offset = strings.len();
@@ -111,14 +115,17 @@ impl WipVersionRegistry {
 }
 
 impl BuiltVersionRegistry {
+    #[must_use]
     pub fn lookup_str(&self, txt: &str) -> Option<&usize> {
         self.string_to_id.get(txt)
     }
 
+    #[must_use]
     pub fn lookup_id(&self, id: &usize) -> Option<&String> {
         self.id_to_string.get(id)
     }
 
+    #[must_use]
     pub fn lookup_solver_vars(
         &self,
         idx: usize,
@@ -127,6 +134,7 @@ impl BuiltVersionRegistry {
         Some(&self.solver_vars[*idx])
     }
 
+    #[must_use]
     pub fn part_to_dynamic(&self, part: Part) -> z3::ast::Dynamic {
         match part {
             Part::Int(i) => {
@@ -146,11 +154,12 @@ impl BuiltVersionRegistry {
         }
     }
 
+    #[must_use]
     pub fn int_to_part(&self, int: usize) -> version::Part {
         if int >= self.offset() {
             version::Part::Int(int - self.offset())
         } else {
-            version::Part::Str(self.lookup_id(&int).unwrap().to_string())
+            version::Part::Str(self.lookup_id(&int).unwrap().clone())
         }
     }
 
@@ -179,14 +188,18 @@ impl BuiltVersionRegistry {
 
             current_parts += 1;
         }
+
+        println!("Resized: {:?}", self.solver_vars[idx]);
     }
 
-    pub fn offset(&self) -> usize {
+    #[must_use]
+    pub const fn offset(&self) -> usize {
         self.offset
     }
 }
 
 impl<'a> Registry<'a, WipVersionRegistry> {
+    #[must_use]
     pub fn build(self) -> Registry<'a, BuiltVersionRegistry> {
         let mut versions = HashMap::new();
         let mut count = 0;
@@ -211,7 +224,8 @@ impl<'a> Registry<'a, WipVersionRegistry> {
     }
 }
 
-impl<'a> Registry<'a, BuiltVersionRegistry> {
+impl Registry<'_, BuiltVersionRegistry> {
+    #[must_use]
     pub fn lookup_version_solver_vars<'b>(
         &self,
         package: &'b str,
@@ -228,15 +242,13 @@ impl<'a> Registry<'a, BuiltVersionRegistry> {
         parts: usize,
     ) -> Result<(), Box<SolverError>> {
         let idx = self.lookup_option(package, option).ok_or_else(|| {
-            Box::new(match option {
-                Some(name) => SolverError::MissingVariable {
+            Box::new(option.map_or_else(
+                || SolverError::MissingPackage { name: package.to_string() },
+                |name| SolverError::MissingVariable {
                     package: package.to_string(),
                     name: name.to_string(),
                 },
-                None => {
-                    SolverError::MissingPackage { dep: package.to_string() }
-                }
-            })
+            ))
         })?;
 
         self.version_registry.expand_to_fit(idx, parts);
@@ -278,7 +290,7 @@ impl<'a, T> Registry<'a, T> {
                     name: name.to_string(),
                 }),
                 None => Box::new(SolverError::MissingPackage {
-                    dep: package.to_string(),
+                    name: package.to_string(),
                 }),
             });
         };
@@ -301,11 +313,11 @@ impl<'a, T> Registry<'a, T> {
         dtype: spec::SpecOptionType,
         value: Option<z3::ast::Dynamic>,
     ) -> Result<(), Box<SolverError>> {
+        tracing::info!("Inserting {package}:{option:?} with type {dtype:?}");
+
         if let Some(idx) = self.lookup_option(package, option) {
-            if self.spec_options[idx].0 != dtype {
-                // TODO: Proper error handling
-                panic!("Conflicting datatypes")
-            }
+            // TODO: Proper error handling
+            assert!(self.spec_options[idx].0 == dtype, "Conflicting datatypes");
         }
 
         let idx = self.spec_option_map.len();
@@ -325,11 +337,11 @@ impl<'a, T> Registry<'a, T> {
         &self.spec_options
     }
 
-    pub fn version_registry(&self) -> &T {
+    pub const fn version_registry(&self) -> &T {
         &self.version_registry
     }
 
-    pub fn version_registry_mut(&mut self) -> &mut T {
+    pub const fn version_registry_mut(&mut self) -> &mut T {
         &mut self.version_registry
     }
 
@@ -365,14 +377,13 @@ impl<'a, T> Registry<'a, T> {
         let idx = self.lookup_option(package, option).ok_or_else(|| {
             tracing::error!("missing option {package}:{option:?}");
 
-            if let Some(name) = option {
-                SolverError::MissingVariable {
+            option.map_or_else(
+                || SolverError::MissingPackage { name: package.to_string() },
+                |name| SolverError::MissingVariable {
                     package: package.to_string(),
                     name: name.to_string(),
-                }
-            } else {
-                SolverError::MissingPackage { dep: package.to_string() }
-            }
+                },
+            )
         })?;
 
         let val = &self.spec_options()[idx];

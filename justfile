@@ -43,7 +43,7 @@ py-release extra-args=DEFAULT_RELEASE_ARGS:
     export CFLAGS="-O3 -mtune=native -march=native -flto -fPIC"
     export CXXFLAGS="-O3 -mtune=native -march=native -flto -fPIC"
 
-    maturin build --release --features pyo3/extension-module {{ extra-args }}
+    maturin develop --release --features pyo3/extension-module {{ extra-args }}
 
 install-dev \
     cargo-extra-args=DEFAULT_DEV_ARGS \

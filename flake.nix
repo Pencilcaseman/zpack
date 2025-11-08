@@ -14,18 +14,17 @@
         {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
-            python3
-
+            # python3
             # rustc
             # rustup
             # cargo
 
-            clang
-            lld
-            llvm
-            llvmPackages.bintools
-            clang-tools
-            lldb
+            # clang
+            # lld
+            # llvm
+            # llvmPackages.bintools
+            # clang-tools
+            # lldb
           ];
 
           buildInputs = with pkgs; [

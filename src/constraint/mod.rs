@@ -56,7 +56,7 @@ pub trait ConstraintUtils:
         registry: Option<&Registry<'a, V>>,
     ) -> Option<SpecOptionType>;
 
-    fn get_value_type_default<'a>(&'a self) -> Option<SpecOptionType> {
+    fn get_value_type_default(&self) -> Option<SpecOptionType> {
         self.get_value_type::<BuiltVersionRegistry>(None)
     }
 
@@ -66,6 +66,10 @@ pub trait ConstraintUtils:
         value_type: SpecOptionType,
     );
 
+    /// Type check a constraint and ensure it is valid.
+    ///
+    /// # Errors
+    /// Errors if the constraint variable types are invalid.
     fn type_check<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
@@ -75,12 +79,17 @@ pub trait ConstraintUtils:
 
     fn extract_dependencies(&self) -> HashSet<String>;
 
+    /// Compare `self` against [`other`] and return a Z3 clause representing it.
+    ///
+    /// # Errors
+    /// Errors if the [`Constraint`] inputs cannot be compared or converted to
+    /// Z3 clauses.
     #[tracing::instrument]
-    fn cmp_to_z3<'a>(
+    fn cmp_to_z3(
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         let s = self.to_z3_clauses(registry)?;
         let o = other.to_z3_clauses(registry)?;
@@ -98,9 +107,7 @@ pub trait ConstraintUtils:
             }
 
             CmpType::Equal => {
-                if s.len() != o.len() {
-                    Ok(Bool::from_bool(false).into())
-                } else {
+                if s.len() == o.len() {
                     let conds: Vec<Bool> = s
                         .into_iter()
                         .zip(o.into_iter())
@@ -108,13 +115,13 @@ pub trait ConstraintUtils:
                         .collect();
 
                     Ok(Bool::and(&conds).into())
+                } else {
+                    Ok(Bool::from_bool(false).into())
                 }
             }
 
             CmpType::NotEqual => {
-                if s.len() != o.len() {
-                    Ok(Bool::from_bool(true).into())
-                } else {
+                if s.len() == o.len() {
                     let conds: Vec<Bool> = s
                         .into_iter()
                         .zip(o.into_iter())
@@ -122,21 +129,23 @@ pub trait ConstraintUtils:
                         .collect();
 
                     Ok(Bool::or(&conds).into())
+                } else {
+                    Ok(Bool::from_bool(true).into())
                 }
             }
         }
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>>;
 
-    fn add_to_solver<'a>(
+    fn add_to_solver(
         &self,
         toggle: &Bool,
         optimizer: &Optimize,
-        registry: &mut BuiltRegistry<'a>,
+        registry: &mut BuiltRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         for clause in self.to_z3_clauses(registry)? {
             let assertion = toggle.implies(clause.as_bool().unwrap());
@@ -171,7 +180,7 @@ pub enum Constraint {
 
 impl std::fmt::Display for Constraint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        constraint_inner!(self, inner => { write!(f, "{}", inner) })
+        constraint_inner!(self, inner => { write!(f, "{inner}") })
     }
 }
 
@@ -192,7 +201,7 @@ impl ConstraintUtils for Constraint {
     ) {
         constraint_inner!(self, inner => {
             inner.set_value_type(wip_registry, value_type);
-        })
+        });
     }
 
     fn type_check<'a>(
@@ -210,29 +219,29 @@ impl ConstraintUtils for Constraint {
         constraint_inner!(self, inner => { inner.extract_dependencies()})
     }
 
-    fn cmp_to_z3<'a>(
+    fn cmp_to_z3(
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         constraint_inner!(self, inner => {
             inner.cmp_to_z3(other, op, registry)
         })
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         constraint_inner!(self, inner => { inner.to_z3_clauses(registry)})
     }
 
-    fn add_to_solver<'a>(
+    fn add_to_solver(
         &self,
         toggle: &Bool,
         optimizer: &Optimize,
-        registry: &mut BuiltRegistry<'a>,
+        registry: &mut BuiltRegistry<'_>,
     ) -> Result<(), Box<SolverError>> {
         constraint_inner!(self, inner => {
             inner.add_to_solver(toggle, optimizer, registry)
@@ -337,14 +346,14 @@ impl<'py> IntoPyObject<'py> for Constraint {
         py: Python<'py>,
     ) -> Result<Self::Output, Self::Error> {
         match self {
-            Constraint::Cmp(val) => val.to_python_any(py),
-            Constraint::Depends(val) => val.to_python_any(py),
-            Constraint::IfThen(val) => val.to_python_any(py),
-            Constraint::Maximize(val) => val.to_python_any(py),
-            Constraint::Minimize(val) => val.to_python_any(py),
-            Constraint::NumOf(val) => val.to_python_any(py),
-            Constraint::SpecOption(val) => val.to_python_any(py),
-            Constraint::Value(val) => val.to_python_any(py),
+            Self::Cmp(val) => val.to_python_any(py),
+            Self::Depends(val) => val.to_python_any(py),
+            Self::IfThen(val) => val.to_python_any(py),
+            Self::Maximize(val) => val.to_python_any(py),
+            Self::Minimize(val) => val.to_python_any(py),
+            Self::NumOf(val) => val.to_python_any(py),
+            Self::SpecOption(val) => val.to_python_any(py),
+            Self::Value(val) => val.to_python_any(py),
         }
     }
 }

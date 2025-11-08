@@ -6,7 +6,7 @@ pub enum Number {
 }
 
 pub fn parse_num(num: &str) -> Result<Number> {
-    let num = num.replace("_", "");
+    let num = num.replace('_', "");
 
     match str::parse::<i64>(&num) {
         Ok(integer) => Ok(Number::Integer(integer)),

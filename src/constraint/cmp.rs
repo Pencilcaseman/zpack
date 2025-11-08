@@ -4,15 +4,10 @@ use pyo3::{
     IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
     prelude::*,
 };
-use z3::Solver;
 
 use crate::{
-    package::{
-        self,
-        constraint::{Constraint, ConstraintUtils, IfThen},
-        outline::SolverError,
-        registry::BuiltVersionRegistry,
-    },
+    constraint::{Constraint, ConstraintUtils, IfThen},
+    package::{self, outline::SolverError},
     spec::{self, SpecOptionType},
 };
 
@@ -43,12 +38,12 @@ impl From<CompareOp> for CmpType {
 impl std::fmt::Display for CmpType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            CmpType::Less => "<",
-            CmpType::LessOrEqual => "<=",
-            CmpType::NotEqual => "!=",
-            CmpType::Equal => "==",
-            CmpType::GreaterOrEqual => ">=",
-            CmpType::Greater => ">",
+            Self::Less => "<",
+            Self::LessOrEqual => "<=",
+            Self::NotEqual => "!=",
+            Self::Equal => "==",
+            Self::GreaterOrEqual => ">=",
+            Self::Greater => ">",
         })
     }
 }
@@ -67,7 +62,8 @@ pub struct Cmp {
 }
 
 impl Cmp {
-    pub fn can_cmp(t: SpecOptionType, op: CmpType) -> bool {
+    #[must_use]
+    pub const fn can_cmp(t: SpecOptionType, op: CmpType) -> bool {
         match op {
             CmpType::Less
             | CmpType::LessOrEqual
@@ -91,14 +87,23 @@ impl Cmp {
         rhs: Constraint,
         op: CmpType,
     ) -> Result<Constraint, PyErr> {
-        let lhs_type = lhs.get_value_type_default();
-        let rhs_type = rhs.get_value_type_default();
+        let Some(lhs_type) = lhs.get_value_type_default() else {
+            return Err(PyNotImplementedError::new_err(format!(
+                "Constraint {lhs} does not return a value"
+            )));
+        };
 
-        if let (Some(lhs_type), Some(rhs_type)) = (lhs_type, rhs_type)
-            && lhs_type == rhs_type
-            && Cmp::can_cmp(lhs_type, op)
-        {
-            Ok(Cmp { lhs, rhs, op }.into())
+        let Some(rhs_type) = rhs.get_value_type_default() else {
+            return Err(PyNotImplementedError::new_err(format!(
+                "Constraint {rhs} does not return a value"
+            )));
+        };
+
+        let is_unknown = lhs_type == SpecOptionType::Unknown
+            || rhs_type == SpecOptionType::Unknown;
+
+        if lhs_type == rhs_type && Self::can_cmp(lhs_type, op) || is_unknown {
+            Ok(Self { lhs, rhs, op }.into())
         } else {
             Err(PyNotImplementedError::new_err(format!(
                 "Cannot compare type {lhs_type:?} from constraint {lhs} with type {rhs_type:?} from constraint {rhs} using operator '{op}'"
@@ -117,11 +122,14 @@ impl ConstraintUtils for Cmp {
 
     fn set_value_type<'a>(
         &'a self,
-        wip_registry: &mut package::WipRegistry<'a>,
+        _wip_registry: &mut package::WipRegistry<'a>,
         value_type: spec::SpecOptionType,
     ) {
-        self.lhs.set_value_type(wip_registry, value_type);
-        self.rhs.set_value_type(wip_registry, value_type);
+        assert_eq!(
+            value_type,
+            SpecOptionType::Bool,
+            "Cmp constraint always returns a Boolean result"
+        );
     }
 
     #[tracing::instrument(skip(self, wip_registry))]
@@ -138,7 +146,9 @@ impl ConstraintUtils for Cmp {
         };
 
         match (lhs_type, rhs_type) {
-            (SpecOptionType::Unknown, SpecOptionType::Unknown) => Ok(()),
+            (SpecOptionType::Unknown, SpecOptionType::Unknown) => {
+                panic!("Double blind comparison")
+            }
             (SpecOptionType::Unknown, known) => {
                 self.lhs.set_value_type(wip_registry, known);
                 Ok(())
@@ -174,7 +184,7 @@ impl ConstraintUtils for Cmp {
             return Ok(());
         };
 
-        if Cmp::can_cmp(lhs_type, self.op) {
+        if Self::can_cmp(lhs_type, self.op) {
             Ok(())
         } else {
             let msg = format!(
@@ -194,12 +204,15 @@ impl ConstraintUtils for Cmp {
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
-        Default::default()
+        let mut res = HashSet::new();
+        res.extend(self.lhs.extract_dependencies());
+        res.extend(self.rhs.extract_dependencies());
+        res
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         Ok(vec![self.lhs.cmp_to_z3(&self.rhs, self.op, registry)?])
     }
@@ -214,7 +227,7 @@ impl ConstraintUtils for Cmp {
 
 impl From<Cmp> for Constraint {
     fn from(val: Cmp) -> Self {
-        Constraint::Cmp(Box::new(val))
+        Self::Cmp(Box::new(val))
     }
 }
 
@@ -227,13 +240,13 @@ impl std::fmt::Display for Cmp {
 #[pymethods]
 impl Cmp {
     #[new]
-    fn py_new(lhs: Constraint, rhs: Constraint, op: CmpType) -> Self {
+    const fn py_new(lhs: Constraint, rhs: Constraint, op: CmpType) -> Self {
         Self { lhs, rhs, op }
     }
 
-    /// Wrap this condition in an IfThen constraint.
+    /// Wrap this condition in an `IfThen` constraint.
     ///
-    /// cond.if_then(then) => If ( cond ) Then ( then )
+    /// `cond.if_then(then)` => If ( cond ) Then ( then )
     fn if_then(&self, then: Constraint) -> IfThen {
         IfThen { cond: self.clone().into(), then }
     }
@@ -243,6 +256,6 @@ impl Cmp {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Self::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

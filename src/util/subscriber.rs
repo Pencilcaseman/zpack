@@ -1,4 +1,5 @@
 #[cfg(debug_assertions)]
+#[must_use]
 pub fn subscriber() -> impl tracing::Subscriber {
     // Debug implementation
 

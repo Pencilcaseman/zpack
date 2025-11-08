@@ -1,18 +1,12 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 use z3::SortKind;
 
 use super::ConstraintUtils;
 use crate::{
-    package::{
-        self,
-        constraint::{Cmp, Constraint},
-        outline::SolverError,
-    },
+    constraint::{Cmp, Constraint},
+    package::{self, outline::SolverError},
     spec::{self, SpecOptionType},
 };
 
@@ -46,25 +40,32 @@ impl ConstraintUtils for IfThen {
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
-        match self.cond.get_value_type(Some(wip_registry)) {
-            Some(SpecOptionType::Unknown) => {
-                self.cond.set_value_type(wip_registry, SpecOptionType::Bool);
-                Ok(())
-            }
+        let Some(value_type) = self.cond.get_value_type(Some(wip_registry))
+        else {
+            return Err(Box::new(SolverError::InvalidNonValueConstraint));
+        };
 
-            Some(other) => {
-                if other != SpecOptionType::Bool {
+        self.cond.set_value_type(wip_registry, SpecOptionType::Bool);
+
+        match value_type {
+            SpecOptionType::Unknown => Ok(()),
+
+            other => {
+                if other == SpecOptionType::Bool {
+                    self.cond
+                        .set_value_type(wip_registry, SpecOptionType::Bool);
+                    Ok(())
+                } else {
                     Err(Box::new(SolverError::IncorrectValueType {
                         expected: SpecOptionType::Bool,
                         received: other,
                     }))
-                } else {
-                    Ok(())
                 }
             }
+        }?;
 
-            None => Err(Box::new(SolverError::InvalidNonValueConstraint)),
-        }
+        self.cond.type_check(wip_registry)?;
+        self.then.type_check(wip_registry)
     }
 
     fn extract_spec_options(&self) -> Vec<(&str, &str, spec::SpecOption)> {
@@ -82,9 +83,9 @@ impl ConstraintUtils for IfThen {
     }
 
     #[tracing::instrument]
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         tracing::info!("(If '{:?}' then '{:?}')", self.cond, self.then);
 
@@ -124,7 +125,7 @@ impl ConstraintUtils for IfThen {
 
 impl From<IfThen> for Constraint {
     fn from(val: IfThen) -> Self {
-        Constraint::IfThen(Box::new(val))
+        Self::IfThen(Box::new(val))
     }
 }
 
@@ -137,7 +138,7 @@ impl std::fmt::Display for IfThen {
 #[pymethods]
 impl IfThen {
     #[new]
-    fn py_new(cond: Constraint, then: Constraint) -> Self {
+    const fn py_new(cond: Constraint, then: Constraint) -> Self {
         Self { cond, then }
     }
 
@@ -146,6 +147,6 @@ impl IfThen {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

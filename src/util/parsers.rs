@@ -3,10 +3,11 @@ use std::borrow::Borrow;
 use num_traits::{Signed, Unsigned};
 
 /// Given a string of the form "Lorem ipsum dolor1234", returns the number 1234
+#[must_use]
 pub fn parse_number<T: std::str::FromStr>(s: &str) -> Option<T> {
     s.chars()
         .skip_while(|c| !c.is_ascii_digit())
-        .take_while(|c| c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
         .collect::<String>()
         .parse()
         .ok()
@@ -38,7 +39,7 @@ where
     I: Iterator,
     I::Item: Borrow<u8>,
 {
-    pub fn new(bytes: I) -> Self {
+    pub const fn new(bytes: I) -> Self {
         Self { bytes, phantom: std::marker::PhantomData }
     }
 }
@@ -49,7 +50,7 @@ where
     I: Iterator,
     I::Item: Borrow<u8>,
 {
-    pub fn new(bytes: I) -> Self {
+    pub const fn new(bytes: I) -> Self {
         Self { bytes, phantom: std::marker::PhantomData }
     }
 }

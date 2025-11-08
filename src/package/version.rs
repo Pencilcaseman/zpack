@@ -37,13 +37,16 @@ use std::{fmt::Write, str::FromStr};
 
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::package::{constraint::CmpType, registry::BuiltVersionRegistry};
+use crate::{constraint::CmpType, package::registry::BuiltVersionRegistry};
 
 /// Version strings with a specified, non-lexicographic order
 pub const STATIC_STRING_VERSIONS: [&str; 9] = [
     "stable", "latest", "beta", "alpha", "master", "main", "devel", "dev",
     "git",
 ];
+
+/// Valid version separators
+pub const VERSION_SEPARATORS: [char; 3] = ['.', '-', '+'];
 
 /// Wildcard specifier in a version.
 ///
@@ -91,6 +94,16 @@ pub enum ParseError {
 }
 
 impl Part {
+    /// Convert a [`Part`] into a [`z3::ast::Dynamic`], if possible.
+    ///
+    /// - [`Part::Int`] => [`z3::ast::Int`]
+    /// - [`Part::Int`] => [`z3::ast::Int`]
+    /// - [`Part::Int`] => [`z3::ast::Int`]
+    ///
+    /// # Panics
+    /// Panics if this is a [`Part::Str`] but the string does not appear in the
+    /// provided [`BuiltVersionRegistry`]
+    #[must_use]
     pub fn to_z3_dynamic(
         &self,
         version_registry: &BuiltVersionRegistry,
@@ -98,22 +111,22 @@ impl Part {
         use z3::ast::{Int, String};
 
         match self {
-            Part::Int(v) => Some(
+            Self::Int(v) => Some(
                 Int::from_u64((*v + version_registry.offset()) as u64).into(),
             ),
 
-            Part::Str(v) => {
+            Self::Str(v) => {
                 let idx = version_registry
                     .lookup_str(v)
                     .expect("Internal solver error");
                 Some(Int::from_u64(*idx as u64).into())
             }
 
-            Part::Sep(v) => {
+            Self::Sep(v) => {
                 Some(String::from_str(&v.to_string()).unwrap().into())
             }
 
-            Part::Wildcard(_) => None,
+            Self::Wildcard(_) => None,
         }
     }
 }
@@ -135,20 +148,18 @@ impl Version {
             } else if let Ok(num) = seg.parse::<usize>() {
                 Ok(Part::Int(num))
             } else if seg.chars().all(|c| c.is_ascii_alphanumeric()) {
-                if !seg.is_empty() {
-                    Ok(Part::Str(seg.to_string()))
-                } else {
+                if seg.is_empty() {
                     Err(ParseError::EmptyPart)
+                } else {
+                    Ok(Part::Str(seg.to_string()))
                 }
             } else {
                 Err(ParseError::InvalidPart(seg.to_string()))
             }
         };
 
-        let seps = ['.', '-', '+'];
-
         let mut last = 0;
-        for (idx, m) in txt.match_indices(|c| seps.contains(&c)) {
+        for (idx, m) in txt.match_indices(|c| VERSION_SEPARATORS.contains(&c)) {
             segments.push(parse_seg(&txt[last..idx])?);
             segments.push(Part::Sep(m.chars().next().unwrap()));
             last = idx + 1;
@@ -163,7 +174,8 @@ impl Version {
         Ok(Self { parts: segments })
     }
 
-    pub fn empty() -> Version {
+    #[must_use]
+    pub const fn empty() -> Self {
         Self { parts: Vec::new() }
     }
 
@@ -173,20 +185,32 @@ impl Version {
         self.parts.push(part);
     }
 
+    #[must_use]
     pub fn parts(&self) -> &[Part] {
         &self.parts
     }
 
+    #[must_use]
     pub fn num_segments(&self) -> usize {
-        assert!(self.parts.len() & 1 == 1);
+        assert_eq!(
+            self.parts.len() & 1,
+            1,
+            "Invalid version. Expected n separators and n + 1 segments"
+        );
         self.parts.len() / 2 + 1
     }
 
+    #[must_use]
     pub fn num_separators(&self) -> usize {
-        assert!(self.parts.len() & 1 == 1);
+        assert_eq!(
+            self.parts.len() & 1,
+            1,
+            "Invalid version. Expected n separators and n + 1 segments"
+        );
         self.parts.len() / 2
     }
 
+    #[must_use]
     pub fn cmp_dynamic(
         &self,
         op: CmpType,
@@ -219,7 +243,11 @@ impl Version {
     }
 
     /// # Safety
-    /// `len(vars) == self.parts().len()`
+    /// `len(vars) == self.parts().len()`.
+    ///
+    /// # Panics
+    /// Any panics are internal solver errors.
+    #[must_use]
     pub unsafe fn cmp_less_equal_dynamic(
         &self,
         vars: &[z3::ast::Dynamic],
@@ -235,7 +263,7 @@ impl Version {
                     .unwrap()),
 
                 Part::Str(s) => var.as_int().unwrap().le(registry
-                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .part_to_dynamic(Part::Str(s.clone()))
                     .as_int()
                     .unwrap()),
 
@@ -250,7 +278,7 @@ impl Version {
                 },
             };
 
-            bools.push(cond)
+            bools.push(cond);
         }
 
         z3::ast::Bool::and(&bools)
@@ -258,6 +286,7 @@ impl Version {
 
     /// # Safety
     /// `len(vars) == self.parts().len()`
+    #[must_use]
     pub unsafe fn cmp_eq_dynamic(
         &self,
         vars: &[z3::ast::Dynamic],
@@ -265,7 +294,12 @@ impl Version {
     ) -> z3::ast::Bool {
         let mut bools = Vec::new();
 
+        println!("vars: {vars:?}");
+        println!("parts: {:?}", self.parts());
+
         for (var, val) in vars.iter().zip(self.parts()) {
+            println!("{var:?} {val:?}");
+
             let cond = match val {
                 Part::Int(i) => var.as_int().unwrap().eq(registry
                     .part_to_dynamic(Part::Int(*i))
@@ -273,14 +307,11 @@ impl Version {
                     .unwrap()),
 
                 Part::Str(s) => var.as_int().unwrap().eq(registry
-                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .part_to_dynamic(Part::Str(s.clone()))
                     .as_int()
                     .unwrap()),
 
-                Part::Sep(c) => var.as_string().unwrap().eq(registry
-                    .part_to_dynamic(Part::Sep(*c))
-                    .as_string()
-                    .unwrap()),
+                Part::Sep(c) => var.eq(registry.part_to_dynamic(Part::Sep(*c))),
 
                 Part::Wildcard(w) => match w {
                     WildcardType::Single => continue,
@@ -288,7 +319,7 @@ impl Version {
                 },
             };
 
-            bools.push(cond)
+            bools.push(cond);
         }
 
         z3::ast::Bool::and(&bools)
@@ -296,6 +327,7 @@ impl Version {
 
     /// # Safety
     /// `len(vars) == self.parts().len()`
+    #[must_use]
     pub unsafe fn cmp_greater_equal_dynamic(
         &self,
         vars: &[z3::ast::Dynamic],
@@ -311,7 +343,7 @@ impl Version {
                     .unwrap()),
 
                 Part::Str(s) => var.as_int().unwrap().ge(registry
-                    .part_to_dynamic(Part::Str(s.to_string()))
+                    .part_to_dynamic(Part::Str(s.clone()))
                     .as_int()
                     .unwrap()),
 
@@ -326,7 +358,7 @@ impl Version {
                 },
             };
 
-            bools.push(cond)
+            bools.push(cond);
         }
 
         z3::ast::Bool::and(&bools)
@@ -336,8 +368,8 @@ impl Version {
 impl std::fmt::Display for WildcardType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WildcardType::Single => f.write_char('*'),
-            WildcardType::Rest => f.write_char('>'),
+            Self::Single => f.write_char('*'),
+            Self::Rest => f.write_char('>'),
         }
     }
 }
@@ -345,10 +377,10 @@ impl std::fmt::Display for WildcardType {
 impl std::fmt::Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Part::Int(i) => write!(f, "{i}"),
-            Part::Str(s) => f.write_str(s),
-            Part::Sep(c) => f.write_char(*c),
-            Part::Wildcard(w) => w.fmt(f),
+            Self::Int(i) => write!(f, "{i}"),
+            Self::Str(s) => f.write_str(s),
+            Self::Sep(c) => f.write_char(*c),
+            Self::Wildcard(w) => w.fmt(f),
         }
     }
 }
@@ -356,7 +388,7 @@ impl std::fmt::Display for Part {
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for part in &self.parts {
-            f.write_str(&part.to_string())?
+            f.write_str(&part.to_string())?;
         }
 
         Ok(())

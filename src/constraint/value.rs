@@ -1,16 +1,10 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 
 use crate::{
-    package::{
-        self,
-        constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
-        outline::SolverError,
-    },
+    constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
+    package::{self, outline::SolverError},
     spec::{self, SpecOptionValue},
 };
 
@@ -34,7 +28,7 @@ impl ConstraintUtils for Value {
         _wip_registry: &mut package::WipRegistry<'a>,
         _value_type: spec::SpecOptionType,
     ) {
-        tracing::error!("Cannot change datatype of Value constraint")
+        tracing::error!("Cannot change datatype of Value constraint");
     }
 
     fn type_check<'a>(
@@ -62,18 +56,18 @@ impl ConstraintUtils for Value {
         HashSet::default()
     }
 
-    fn cmp_to_z3<'a>(
+    fn cmp_to_z3(
         &self,
         _other: &Constraint,
         _op: CmpType,
-        _registry: &mut package::BuiltRegistry<'a>,
+        _registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         todo!()
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         Ok(self.value.to_z3_dynamic(registry))
     }
@@ -88,7 +82,7 @@ impl ConstraintUtils for Value {
 
 impl From<Value> for Constraint {
     fn from(val: Value) -> Self {
-        Constraint::Value(Box::new(val))
+        Self::Value(Box::new(val))
     }
 }
 
@@ -105,6 +99,6 @@ impl Value {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

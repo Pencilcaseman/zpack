@@ -1,19 +1,13 @@
 use std::collections::HashSet;
 
-use pyo3::{
-    IntoPyObjectExt, basic::CompareOp, exceptions::PyNotImplementedError,
-    prelude::*,
-};
+use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 use z3::ast::Int;
 
 use super::ConstraintUtils;
 use crate::{
-    package::{
-        self,
-        constraint::{Cmp, CmpType, Constraint},
-        outline::SolverError,
-    },
-    spec::{self, SpecOption, SpecOptionType},
+    constraint::{Cmp, CmpType, Constraint},
+    package::{self, outline::SolverError},
+    spec::{SpecOption, SpecOptionType},
 };
 
 #[pyclass]
@@ -44,19 +38,24 @@ impl ConstraintUtils for NumOf {
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
         self.of.iter().try_for_each(|c| {
-            match c.get_value_type(Some(wip_registry)) {
-                Some(t) => {
-                    if t != SpecOptionType::Bool {
+            tracing::warn!("Type checking {c}");
+
+            c.get_value_type(Some(wip_registry)).map_or_else(
+                || Err(Box::new(SolverError::InvalidNonValueConstraint)),
+                |t| {
+                    if t == SpecOptionType::Bool {
+                        Ok(())
+                    } else if t == SpecOptionType::Unknown {
+                        c.set_value_type(wip_registry, SpecOptionType::Bool);
+                        Ok(())
+                    } else {
                         Err(Box::new(SolverError::IncorrectValueType {
                             expected: SpecOptionType::Bool,
                             received: t,
                         }))
-                    } else {
-                        Ok(())
                     }
-                }
-                None => Err(Box::new(SolverError::InvalidNonValueConstraint)),
-            }?;
+                },
+            )?;
 
             c.type_check(wip_registry)
         })
@@ -68,14 +67,17 @@ impl ConstraintUtils for NumOf {
     }
 
     fn extract_dependencies(&self) -> HashSet<String> {
-        self.of.iter().flat_map(|b| b.extract_dependencies()).collect()
+        self.of
+            .iter()
+            .flat_map(super::ConstraintUtils::extract_dependencies)
+            .collect()
     }
 
-    fn cmp_to_z3<'a>(
+    fn cmp_to_z3(
         &self,
         other: &Constraint,
         op: CmpType,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<z3::ast::Dynamic, Box<SolverError>> {
         // Safe to unwrap since we've already type checked everything
         // Self to index on `s` as this always returns one clause
@@ -101,13 +103,13 @@ impl ConstraintUtils for NumOf {
         })
     }
 
-    fn to_z3_clauses<'a>(
+    fn to_z3_clauses(
         &self,
-        registry: &mut package::BuiltRegistry<'a>,
+        registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
         let mut clauses = Vec::new();
 
-        // TODO: Move this to type_check
+        // TODO: Simplyify because type checked?
         for constraint in &self.of {
             let conds = constraint.to_z3_clauses(registry)?;
 
@@ -147,7 +149,7 @@ impl ConstraintUtils for NumOf {
 
 impl From<NumOf> for Constraint {
     fn from(val: NumOf) -> Self {
-        Constraint::NumOf(Box::new(val))
+        Self::NumOf(Box::new(val))
     }
 }
 
@@ -164,7 +166,7 @@ impl std::fmt::Display for NumOf {
 #[pymethods]
 impl NumOf {
     #[new]
-    fn py_new(of: Vec<Constraint>) -> Self {
+    const fn py_new(of: Vec<Constraint>) -> Self {
         Self { of }
     }
 
@@ -173,6 +175,6 @@ impl NumOf {
         rhs: Constraint,
         op: CompareOp,
     ) -> Result<Constraint, PyErr> {
-        Cmp::py_richcmp_helper(self.clone().into(), rhs.clone(), op.into())
+        Cmp::py_richcmp_helper(self.clone().into(), rhs, op.into())
     }
 }

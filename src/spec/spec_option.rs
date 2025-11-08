@@ -35,7 +35,8 @@ impl SpecOptionValue {
     /// Map a spec value to a spec type.
     ///
     /// This is commonly used for validation
-    pub fn to_type(&self) -> SpecOptionType {
+    #[must_use]
+    pub const fn to_type(&self) -> SpecOptionType {
         match self {
             Self::Bool(_) => SpecOptionType::Bool,
             Self::Int(_) => SpecOptionType::Int,
@@ -48,6 +49,7 @@ impl SpecOptionValue {
     /// Compare a spec value to a spec type.
     ///
     /// * `t`: The type to compare against
+    #[must_use]
     pub fn is_type(&self, t: SpecOptionType) -> bool {
         self.to_type() == t
     }
@@ -56,6 +58,7 @@ impl SpecOptionValue {
     ///
     /// The dynamic type of the returned value matches the enum variant held by
     /// [`Self`]
+    #[must_use]
     pub fn to_z3_dynamic(
         &self,
         registry: &package::BuiltRegistry,
@@ -77,6 +80,7 @@ impl SpecOptionValue {
         }
     }
 
+    #[must_use]
     pub fn from_z3_dynamic(
         package: &str,
         option: Option<&str>,
@@ -101,6 +105,8 @@ impl SpecOptionValue {
                 Self::Str(dynamic.as_string().unwrap().as_string().unwrap())
             }
             SpecOptionType::Version => {
+                println!("Evaluating version");
+
                 let mut version = Version::empty();
 
                 let solved = registry
@@ -167,15 +173,17 @@ impl SpecOption {
     /// Construct a type descriptor instance of a [`SpecOption`]
     ///
     /// * `t`: The datatype of this option
-    pub fn new_from_type(_t: SpecOptionType) -> Self {
+    #[must_use]
+    pub const fn new_from_type(_t: SpecOptionType) -> Self {
         Self { value: None, default: None, valid: None }
     }
 
+    #[must_use]
     pub fn serialize_name(&self, package: &str, name: &str) -> String {
-        format!("{}/{}", package, name)
+        format!("{package}/{name}")
     }
 
-    pub fn to_z3_dynamic<'a>(
+    pub fn to_empty_z3_dynamic<'a>(
         &self,
         package: &'a str,
         name: &'a str,
