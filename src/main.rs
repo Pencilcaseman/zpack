@@ -110,7 +110,7 @@ fn test_outline() {
     use zpack::{
         constraint::{Depends, IfThen, SpecOption, Value},
         package::outline::{PackageOutline, SpecOutline},
-        spec::SpecOptionValue,
+        spec::OptionValue,
     };
 
     let hpl_outline = PackageOutline {
@@ -153,7 +153,7 @@ fn test_outline() {
         set_options: HashMap::default(),
         set_defaults: HashMap::from([(
             "static".into(),
-            Some(SpecOptionValue::Bool(true)),
+            Some(OptionValue::Bool(true)),
         )]),
     };
 
@@ -170,7 +170,7 @@ fn test_outline() {
                                 option_name: "openblas".into(),
                             }
                             .into(),
-                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                            rhs: Value { value: OptionValue::Bool(true) }
                                 .into(),
                             op: CmpType::Equal,
                         }
@@ -181,7 +181,7 @@ fn test_outline() {
                                 option_name: "mkl".into(),
                             }
                             .into(),
-                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                            rhs: Value { value: OptionValue::Bool(true) }
                                 .into(),
                             op: CmpType::Equal,
                         }
@@ -189,7 +189,7 @@ fn test_outline() {
                     ],
                 }
                 .into(),
-                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
+                rhs: Value { value: OptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
             }
             .into(),
@@ -200,7 +200,7 @@ fn test_outline() {
                         option_name: "openblas".into(),
                     }
                     .into(),
-                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                    rhs: Value { value: OptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
                 }
                 .into(),
@@ -214,7 +214,7 @@ fn test_outline() {
                         option_name: "mkl".into(),
                     }
                     .into(),
-                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                    rhs: Value { value: OptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
                 }
                 .into(),
@@ -225,7 +225,7 @@ fn test_outline() {
 
         set_options: HashMap::from([(
             "openblas".into(),
-            SpecOptionValue::Bool(true),
+            OptionValue::Bool(true),
         )]),
         set_defaults: HashMap::from([("something".into(), None)]),
     };
@@ -243,7 +243,7 @@ fn test_outline() {
                                 option_name: "openmpi".into(),
                             }
                             .into(),
-                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                            rhs: Value { value: OptionValue::Bool(true) }
                                 .into(),
                             op: CmpType::Equal,
                         }
@@ -254,7 +254,7 @@ fn test_outline() {
                                 option_name: "mpich".into(),
                             }
                             .into(),
-                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                            rhs: Value { value: OptionValue::Bool(true) }
                                 .into(),
                             op: CmpType::Equal,
                         }
@@ -265,7 +265,7 @@ fn test_outline() {
                                 option_name: "intelmpi".into(),
                             }
                             .into(),
-                            rhs: Value { value: SpecOptionValue::Bool(true) }
+                            rhs: Value { value: OptionValue::Bool(true) }
                                 .into(),
                             op: CmpType::Equal,
                         }
@@ -273,7 +273,7 @@ fn test_outline() {
                     ],
                 }
                 .into(),
-                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
+                rhs: Value { value: OptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
             }
             .into(),
@@ -284,7 +284,7 @@ fn test_outline() {
                         option_name: "openmpi".into(),
                     }
                     .into(),
-                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                    rhs: Value { value: OptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
                 }
                 .into(),
@@ -298,7 +298,7 @@ fn test_outline() {
                         option_name: "mpich".into(),
                     }
                     .into(),
-                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                    rhs: Value { value: OptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
                 }
                 .into(),
@@ -312,7 +312,7 @@ fn test_outline() {
                         option_name: "intelmpi".into(),
                     }
                     .into(),
-                    rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                    rhs: Value { value: OptionValue::Bool(true) }.into(),
                     op: CmpType::Equal,
                 }
                 .into(),
@@ -323,7 +323,7 @@ fn test_outline() {
 
         set_options: HashMap::from([(
             "openmpi".into(),
-            SpecOptionValue::Bool(true),
+            OptionValue::Bool(true),
         )]),
         set_defaults: HashMap::default(),
     };
@@ -369,9 +369,7 @@ fn test_outline() {
             }
             .into(),
             rhs: Value {
-                value: SpecOptionValue::Version(
-                    version::Version::new(v).unwrap(),
-                ),
+                value: OptionValue::Version(version::Version::new(v).unwrap()),
             }
             .into(),
             op: CmpType::Equal,
@@ -385,7 +383,7 @@ fn test_outline() {
         constraints: vec![
             Cmp {
                 lhs: NumOf { of: openmpi_versions }.into(),
-                rhs: Value { value: SpecOptionValue::Int(1) }.into(),
+                rhs: Value { value: OptionValue::Int(1) }.into(),
                 op: CmpType::Equal,
             }
             .into(),
@@ -396,7 +394,7 @@ fn test_outline() {
                 }
                 .into(),
                 rhs: Value {
-                    value: SpecOptionValue::Version(
+                    value: OptionValue::Version(
                         version::Version::new("*.2.>").unwrap(),
                     ),
                 }
@@ -411,7 +409,7 @@ fn test_outline() {
                 }
                 .into(),
                 rhs: Value {
-                    value: SpecOptionValue::Version(
+                    value: OptionValue::Version(
                         version::Version::new("*.*.8").unwrap(),
                     ),
                 }
@@ -436,7 +434,7 @@ fn test_outline() {
         set_defaults: HashMap::from([
             // ("static".into(), None),
             // ("static".into(), Some(SpecOptionValue::Bool(false))),
-            ("fabrics".into(), Some(SpecOptionValue::Str("auto".into()))),
+            ("fabrics".into(), Some(OptionValue::Str("auto".into()))),
         ]),
     };
 
@@ -510,7 +508,7 @@ fn test_outline() {
         set_options: HashMap::default(),
         set_defaults: HashMap::from([(
             "static".into(),
-            Some(SpecOptionValue::Bool(true)),
+            Some(OptionValue::Bool(true)),
         )]),
     };
 
@@ -584,6 +582,8 @@ fn test_outline() {
     //     .stdin(std::process::Stdio::piped())
     //     .spawn()
     //     .expect("Failed to spawn dot process");
+    //
+    // use std::io::Write;
     //
     // if let Some(mut stdin) = child.stdin.take() {
     //     write!(

@@ -13,6 +13,7 @@ pub fn subscriber() -> impl tracing::Subscriber {
 }
 
 #[cfg(not(debug_assertions))]
+#[must_use]
 pub fn subscriber() -> impl tracing::Subscriber {
     // Release implementation
 

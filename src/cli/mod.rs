@@ -91,6 +91,7 @@ where
 
             let mut outline = SpecOutline::new(outlines).unwrap();
             outline.required.push("hpl".to_string());
+            outline.required.push("openmpi".to_string());
 
             outline.propagate_defaults().unwrap();
 
@@ -103,6 +104,7 @@ where
 
             println!("\n\n");
 
+            let timer = std::time::Instant::now();
             match optimizer.check(&[]) {
                 z3::SatResult::Unsat => {
                     tracing::info!("unsat");
@@ -138,6 +140,7 @@ where
                     }
                 }
             }
+            println!("Elapsed: {:?}", timer.elapsed());
         });
     } else if let Some(generator) =
         matches.get_one::<Shell>("generator").copied()

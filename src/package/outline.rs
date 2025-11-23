@@ -19,19 +19,19 @@ use crate::{
         Value,
     },
     package::{self},
-    spec::{self, SpecOptionType},
+    spec::{self, OptionType},
 };
 
 pub type PackageDiGraph = DiGraph<PackageOutline, u8>;
-pub type SpecMap = HashMap<String, Option<spec::SpecOptionValue>>;
+pub type SpecMap = HashMap<String, Option<spec::OptionValue>>;
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
 pub struct PackageOutline {
     pub name: String,
     pub constraints: Vec<Constraint>,
-    pub set_options: HashMap<String, spec::SpecOptionValue>,
-    pub set_defaults: HashMap<String, Option<spec::SpecOptionValue>>,
+    pub set_options: HashMap<String, spec::OptionValue>,
+    pub set_defaults: HashMap<String, Option<spec::OptionValue>>,
 }
 
 impl std::fmt::Display for PackageOutline {
@@ -81,8 +81,8 @@ pub enum SolverError {
     InvalidNonValueConstraint,
 
     IncorrectValueType {
-        expected: SpecOptionType,
-        received: SpecOptionType,
+        expected: OptionType,
+        received: OptionType,
     },
 
     InvalidConstraint(String),
@@ -105,9 +105,9 @@ pub enum SolverError {
         package_name: String,
         default_name: String,
         first_setter: String,
-        first_value: spec::SpecOptionValue,
+        first_value: spec::OptionValue,
         conflict_setter: String,
-        conflict_value: spec::SpecOptionValue,
+        conflict_value: spec::OptionValue,
     },
 
     InvalidNumberOfClauses(usize),
@@ -169,8 +169,6 @@ impl SpecOutline {
     pub fn propagate_defaults(&mut self) -> Result<(), Box<SolverError>> {
         use petgraph::algo::toposort;
 
-        tracing::info!("propagating default values");
-
         let mut reason_tracker = HashMap::<(String, String), String>::new();
 
         let sorted = toposort(&self.graph, None).map_err(SolverError::Cycle)?;
@@ -178,8 +176,6 @@ impl SpecOutline {
         for idx in sorted {
             let src_name = self.graph[idx].name.clone();
             let src_defaults = self.graph[idx].set_defaults.clone();
-
-            tracing::info!("propagating default values for {src_name}");
 
             let deps: Vec<_> = self
                 .graph
@@ -191,10 +187,6 @@ impl SpecOutline {
                 let dep = &mut self.graph[dep];
 
                 for (opt_name, src_val) in &src_defaults {
-                    tracing::info!(
-                        "propagating default value {src_name}:{opt_name}"
-                    );
-
                     // Skip None values
                     let Some(src_val) = src_val else {
                         continue;
@@ -215,12 +207,12 @@ impl SpecOutline {
                                     default_name: opt_name.clone(),
                                     first_setter: reason.clone(),
                                     first_value: old_val.clone(),
-                                    conflict_setter: match reason_tracker.get(
-                                        &(src_name.clone(), opt_name.clone()),
-                                    ) {
-                                        Some(val) => val.clone(),
-                                        None => src_name,
-                                    },
+                                    conflict_setter: reason_tracker
+                                        .get(&(
+                                            src_name.clone(),
+                                            opt_name.clone(),
+                                        ))
+                                        .map_or(src_name, Clone::clone),
                                     conflict_value: src_val.clone(),
                                 };
 
@@ -239,12 +231,9 @@ impl SpecOutline {
                                 Some(src_val.clone()),
                             );
 
-                            let reason = match reason_tracker
+                            let reason = reason_tracker
                                 .get(&(src_name.clone(), opt_name.clone()))
-                            {
-                                Some(prev) => prev.clone(),
-                                None => src_name.clone(),
-                            };
+                                .map_or_else(|| src_name.clone(), Clone::clone);
 
                             reason_tracker.insert(
                                 (dep.name.clone(), opt_name.clone()),
@@ -266,10 +255,8 @@ impl SpecOutline {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
-            tracing::info!("checking types for package '{}'", package.name);
-
             for constraint in &package.constraints {
-                tracing::info!("checking types for constraint '{constraint}'");
+                tracing::debug!("checking types for constraint '{constraint}'");
 
                 constraint.type_check(wip_registry)?;
             }
@@ -293,7 +280,7 @@ impl SpecOutline {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
-            tracing::info!("creating activation toggle for {}", package.name);
+            tracing::debug!("creating activation toggle for {}", package.name);
 
             let package_toggle = z3::ast::Bool::new_const(package.name.clone());
 
@@ -307,7 +294,7 @@ impl SpecOutline {
                 .insert_option(
                     &package.name,
                     None,
-                    spec::SpecOptionType::Bool,
+                    spec::OptionType::Bool,
                     Some(package_toggle.into()),
                 )
                 .unwrap();
@@ -317,7 +304,7 @@ impl SpecOutline {
                 .iter()
                 .flat_map(|c| c.extract_spec_options())
             {
-                tracing::info!(
+                tracing::debug!(
                     "creating variable for {}:{}",
                     package_name,
                     option_name
@@ -334,7 +321,7 @@ impl SpecOutline {
                     wip_registry.lookup_option(package_name, Some(option_name))
                 {
                     if wip_registry.spec_options()[idx].1.is_some() {
-                        tracing::info!(
+                        tracing::debug!(
                             "solver variable {package_name}:{option_name} already exists. Continuing"
                         );
                     } else {
@@ -363,8 +350,8 @@ impl SpecOutline {
             let package = &self.graph[idx];
 
             for (name, value) in &package.set_options {
-                tracing::info!(
-                    "adding explicit value {}:{name} -> {value}",
+                tracing::debug!(
+                    "Adding explicit value {}:{name} -> {value}",
                     package.name
                 );
 
@@ -456,8 +443,6 @@ impl SpecOutline {
         for idx in self.graph.node_indices() {
             let package = &self.graph[idx];
 
-            tracing::info!("adding constraints for {}", package.name);
-
             let Some(idx) = registry.lookup_option(&package.name, None) else {
                 tracing::error!("package '{}' not found", package.name);
 
@@ -476,7 +461,7 @@ impl SpecOutline {
             let package_toggle = &dynamic.as_bool().unwrap();
 
             for constraint in &package.constraints {
-                tracing::info!(
+                tracing::debug!(
                     "adding constraint {} -> {}",
                     package.name,
                     constraint
@@ -496,8 +481,6 @@ impl SpecOutline {
     pub fn gen_spec_solver(
         &mut self,
     ) -> Result<(Optimize, package::BuiltRegistry<'_>), Box<SolverError>> {
-        tracing::info!("generating spec solver");
-
         let optimizer = Optimize::new();
         let mut wip_registry = package::WipRegistry::default();
 

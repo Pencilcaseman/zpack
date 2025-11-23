@@ -1,3 +1,5 @@
+import math
+
 import zpack
 from zpack.constraint import *
 from zpack.package import Version, PackageOutline
@@ -25,11 +27,13 @@ class Blas:
         constraints = [
             SpecOption("blas", "openblas").if_then(Depends("openblas")),
             SpecOption("blas", "mkl").if_then(Depends("mkl")),
-
-            NumOf([
-                SpecOption("blas", "openblas"),
-                SpecOption("blas", "mkl"),
-            ]) == 1
+            NumOf(
+                [
+                    SpecOption("blas", "openblas"),
+                    SpecOption("blas", "mkl"),
+                ]
+            )
+            == 1,
         ]
 
         outline = PackageOutline("blas")
@@ -44,12 +48,14 @@ class Mpi:
             SpecOption("mpi", "openmpi").if_then(Depends("openmpi")),
             SpecOption("mpi", "mpich").if_then(Depends("mpich")),
             SpecOption("mpi", "intelmpi").if_then(Depends("intelmpi")),
-
-            NumOf([
-                SpecOption("mpi", "openmpi"),
-                SpecOption("mpi", "mpich"),
-                SpecOption("mpi", "intelmpi"),
-            ]) == 1
+            NumOf(
+                [
+                    SpecOption("mpi", "openmpi"),
+                    SpecOption("mpi", "mpich"),
+                    SpecOption("mpi", "intelmpi"),
+                ]
+            )
+            == 1,
         ]
 
         outline = PackageOutline("mpi")
@@ -60,9 +66,7 @@ class Mpi:
 
 class OpenBlas:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("openblas")
         outline.push_constraints(constraints)
@@ -72,9 +76,7 @@ class OpenBlas:
 
 class Mkl:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("mkl")
         outline.push_constraints(constraints)
@@ -88,44 +90,61 @@ class OpenMpi:
             "5.0.8",
             "5.0.7",
             "5.0.6",
-            # "5.0.5",
-            # "5.0.4",
-            # "5.0.3",
-            # "5.0.2",
-            # "5.0.1",
-            # "5.0.0",
-            # "4.1.8",
-            # "4.1.7",
-            # "4.1.6",
-            # "4.1.5",
-            # "4.1.4",
-            # "4.1.3",
-            # "4.1.2",
-            # "4.1.1",
-            # "4.1.0",
-            # "1.2.3",
-            # "1.2.3.4.5.6.7.8.9.10",
+            "5.0.5",
+            "5.0.4",
+            "5.0.3",
+            "5.0.2",
+            "5.0.1",
+            "5.0.0",
+            "4.1.8",
+            "4.1.7",
+            "4.1.6",
+            "4.1.5",
+            "4.1.4",
+            "4.1.3",
+            "4.1.2",
+            "4.1.1",
+            "4.1.0",
         ]
+
+        # n = int(math.cbrt(100000))
+        # self.versions = []
+        # for major in range(n):
+        #     for minor in range(n):
+        #         for patch in range(n):
+        #             self.versions.append(f"{major}.{minor}.{patch}")
 
     def outline(self):
         outline = PackageOutline("openmpi")
 
         version_option = SpecOption("openmpi", "version")
 
-        version_constraints = [
-            version_option == Version(v) for v in self.versions
-        ]
+        version_constraints = [version_option == Version(v) for v in self.versions]
 
         constraints = [
             NumOf(version_constraints) == 1,
-
+            Maximize(SpecOption("openmpi", "version")),
             Depends("openpmix"),
             Depends("openprrte"),
-            Depends("hwloc"),
+            # Depends("hwloc"),
             Depends("c-compiler"),
         ]
 
-        print(constraints)
+        # prev = 0
+        # for _ in range(10000):
+        #     next = prev + 1
+        #     constraints.append(
+        #         SpecOption("openmpi", f"var_{prev}").if_then(
+        #             SpecOption("openmpi", f"var_{next}")
+        #         )
+        #     )
+        #     prev = next
+
+        # constraints.append(
+        #     SpecOption("openmpi", f"var_{prev}").if_then(Depends("hwloc"))
+        # )
+
+        # print(constraints)
 
         outline.push_constraints(constraints)
 
@@ -134,9 +153,7 @@ class OpenMpi:
 
 class Mpich:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("mpich")
         outline.push_constraints(constraints)
@@ -146,9 +163,7 @@ class Mpich:
 
 class IntelMpi:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("intelmpi")
         outline.push_constraints(constraints)
@@ -158,9 +173,7 @@ class IntelMpi:
 
 class OpenPmix:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("openpmix")
         outline.push_constraints(constraints)
@@ -170,9 +183,7 @@ class OpenPmix:
 
 class OpenPrrte:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("openprrte")
         outline.push_constraints(constraints)
@@ -182,9 +193,7 @@ class OpenPrrte:
 
 class HwLoc:
     def outline(self):
-        constraints = [
-            Depends("c-compiler")
-        ]
+        constraints = [Depends("c-compiler")]
 
         outline = PackageOutline("hwloc")
         outline.push_constraints(constraints)

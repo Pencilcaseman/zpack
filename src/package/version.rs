@@ -286,6 +286,9 @@ impl Version {
 
     /// # Safety
     /// `len(vars) == self.parts().len()`
+    ///
+    /// # Panics
+    /// Any panics are internal solver errors.
     #[must_use]
     pub unsafe fn cmp_eq_dynamic(
         &self,
@@ -294,12 +297,7 @@ impl Version {
     ) -> z3::ast::Bool {
         let mut bools = Vec::new();
 
-        println!("vars: {vars:?}");
-        println!("parts: {:?}", self.parts());
-
         for (var, val) in vars.iter().zip(self.parts()) {
-            println!("{var:?} {val:?}");
-
             let cond = match val {
                 Part::Int(i) => var.as_int().unwrap().eq(registry
                     .part_to_dynamic(Part::Int(*i))

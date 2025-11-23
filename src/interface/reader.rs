@@ -37,13 +37,9 @@ where
     T: for<'a> FromPyObject<'a, 'py>,
     for<'a> <T as FromPyObject<'a, 'py>>::Error: std::fmt::Display,
 {
-    println!("instance = {instance:?}");
-
     let res = instance
         .call_method0(method)
         .map_err(|e| ReadError::PyErr(e.to_string()))?;
-
-    println!("res = {res:?}");
 
     res.extract::<T>().map_err(|e| ReadError::PyErr(e.to_string()))
 }

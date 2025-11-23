@@ -8,7 +8,7 @@ use pyo3::{
 use crate::{
     constraint::{Constraint, ConstraintUtils, IfThen},
     package::{self, outline::SolverError},
-    spec::{self, SpecOptionType},
+    spec::{self, OptionType},
 };
 
 #[pyclass]
@@ -63,19 +63,19 @@ pub struct Cmp {
 
 impl Cmp {
     #[must_use]
-    pub const fn can_cmp(t: SpecOptionType, op: CmpType) -> bool {
+    pub const fn can_cmp(t: OptionType, op: CmpType) -> bool {
         match op {
             CmpType::Less
             | CmpType::LessOrEqual
             | CmpType::GreaterOrEqual
             | CmpType::Greater => match t {
-                SpecOptionType::Bool => false,
+                OptionType::Bool => false,
 
-                SpecOptionType::Unknown
-                | SpecOptionType::Int
-                | SpecOptionType::Float
-                | SpecOptionType::Str
-                | SpecOptionType::Version => true,
+                OptionType::Unknown
+                | OptionType::Int
+                | OptionType::Float
+                | OptionType::Str
+                | OptionType::Version => true,
             },
 
             CmpType::NotEqual | CmpType::Equal => true,
@@ -99,8 +99,8 @@ impl Cmp {
             )));
         };
 
-        let is_unknown = lhs_type == SpecOptionType::Unknown
-            || rhs_type == SpecOptionType::Unknown;
+        let is_unknown =
+            lhs_type == OptionType::Unknown || rhs_type == OptionType::Unknown;
 
         if lhs_type == rhs_type && Self::can_cmp(lhs_type, op) || is_unknown {
             Ok(Self { lhs, rhs, op }.into())
@@ -116,18 +116,18 @@ impl ConstraintUtils for Cmp {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<spec::SpecOptionType> {
-        Some(spec::SpecOptionType::Bool)
+    ) -> Option<spec::OptionType> {
+        Some(spec::OptionType::Bool)
     }
 
     fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-        value_type: spec::SpecOptionType,
+        value_type: spec::OptionType,
     ) {
         assert_eq!(
             value_type,
-            SpecOptionType::Bool,
+            OptionType::Bool,
             "Cmp constraint always returns a Boolean result"
         );
     }
@@ -146,14 +146,14 @@ impl ConstraintUtils for Cmp {
         };
 
         match (lhs_type, rhs_type) {
-            (SpecOptionType::Unknown, SpecOptionType::Unknown) => {
+            (OptionType::Unknown, OptionType::Unknown) => {
                 panic!("Double blind comparison")
             }
-            (SpecOptionType::Unknown, known) => {
+            (OptionType::Unknown, known) => {
                 self.lhs.set_value_type(wip_registry, known);
                 Ok(())
             }
-            (known, SpecOptionType::Unknown) => {
+            (known, OptionType::Unknown) => {
                 self.rhs.set_value_type(wip_registry, known);
                 Ok(())
             }

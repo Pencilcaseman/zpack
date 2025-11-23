@@ -7,7 +7,7 @@ use super::ConstraintUtils;
 use crate::{
     constraint::{Cmp, Constraint},
     package::{self, BuiltRegistry, outline::SolverError},
-    spec::{SpecOption, SpecOptionType},
+    spec::{OptionType, SpecOption},
 };
 
 #[pyclass]
@@ -21,14 +21,14 @@ impl ConstraintUtils for Maximize {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<SpecOptionType> {
+    ) -> Option<OptionType> {
         None
     }
 
     fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        value_type: SpecOptionType,
+        value_type: OptionType,
     ) {
         self.item.set_value_type(wip_registry, value_type);
     }
@@ -47,19 +47,17 @@ impl ConstraintUtils for Maximize {
         };
 
         match value_type {
-            SpecOptionType::Unknown => todo!(),
+            OptionType::Unknown => todo!(),
 
-            SpecOptionType::Bool | SpecOptionType::Str => {
+            OptionType::Bool | OptionType::Str => {
                 tracing::error!("Can only maximize Int, Float or Version");
                 Err(Box::new(SolverError::IncorrectValueType {
-                    expected: SpecOptionType::Int,
+                    expected: OptionType::Int,
                     received: value_type,
                 }))
             }
 
-            SpecOptionType::Int
-            | SpecOptionType::Float
-            | SpecOptionType::Version => Ok(()),
+            OptionType::Int | OptionType::Float | OptionType::Version => Ok(()),
         }
     }
 

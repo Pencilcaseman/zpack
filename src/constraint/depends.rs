@@ -6,7 +6,7 @@ use super::ConstraintUtils;
 use crate::{
     constraint::{Cmp, Constraint},
     package::{self, outline::SolverError},
-    spec::SpecOptionType,
+    spec::OptionType,
 };
 
 #[pyclass]
@@ -27,14 +27,14 @@ impl ConstraintUtils for Depends {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<SpecOptionType> {
-        Some(SpecOptionType::Bool)
+    ) -> Option<OptionType> {
+        Some(OptionType::Bool)
     }
 
     fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-        _value_type: crate::spec::SpecOptionType,
+        _value_type: crate::spec::OptionType,
     ) {
         // Nothing to set
     }

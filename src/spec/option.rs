@@ -5,7 +5,7 @@ use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 use crate::package::{self, version, version::Version};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum SpecOptionType {
+pub enum OptionType {
     Unknown,
     Bool,
     Int,
@@ -16,7 +16,7 @@ pub enum SpecOptionType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SpecOptionValue {
+pub enum OptionValue {
     Bool(bool),
     Int(i64),
     Float(f64),
@@ -26,23 +26,23 @@ pub enum SpecOptionValue {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct SpecOption {
-    pub value: Option<SpecOptionValue>,
-    pub default: Option<SpecOptionValue>,
-    pub valid: Option<Vec<SpecOptionValue>>,
+    pub value: Option<OptionValue>,
+    pub default: Option<OptionValue>,
+    pub valid: Option<Vec<OptionValue>>,
 }
 
-impl SpecOptionValue {
+impl OptionValue {
     /// Map a spec value to a spec type.
     ///
     /// This is commonly used for validation
     #[must_use]
-    pub const fn to_type(&self) -> SpecOptionType {
+    pub const fn to_type(&self) -> OptionType {
         match self {
-            Self::Bool(_) => SpecOptionType::Bool,
-            Self::Int(_) => SpecOptionType::Int,
-            Self::Float(_) => SpecOptionType::Float,
-            Self::Str(_) => SpecOptionType::Str,
-            Self::Version(_) => SpecOptionType::Version,
+            Self::Bool(_) => OptionType::Bool,
+            Self::Int(_) => OptionType::Int,
+            Self::Float(_) => OptionType::Float,
+            Self::Str(_) => OptionType::Str,
+            Self::Version(_) => OptionType::Version,
         }
     }
 
@@ -50,7 +50,7 @@ impl SpecOptionValue {
     ///
     /// * `t`: The type to compare against
     #[must_use]
-    pub fn is_type(&self, t: SpecOptionType) -> bool {
+    pub fn is_type(&self, t: OptionType) -> bool {
         self.to_type() == t
     }
 
@@ -58,6 +58,10 @@ impl SpecOptionValue {
     ///
     /// The dynamic type of the returned value matches the enum variant held by
     /// [`Self`]
+    ///
+    /// # Panics
+    /// This function should never panic. If it does, it is due to a version
+    /// component that cannot be represented in Z3's String type.
     #[must_use]
     pub fn to_z3_dynamic(
         &self,
@@ -84,34 +88,32 @@ impl SpecOptionValue {
     pub fn from_z3_dynamic(
         package: &str,
         option: Option<&str>,
-        dtype: SpecOptionType,
+        dtype: OptionType,
         dynamic: &z3::ast::Dynamic,
         model: &z3::Model,
         registry: &package::BuiltRegistry,
     ) -> Self {
         match dtype {
-            SpecOptionType::Unknown => panic!("Internal solver error."),
+            OptionType::Unknown => panic!("Internal solver error."),
 
-            SpecOptionType::Bool => {
+            OptionType::Bool => {
                 Self::Bool(dynamic.as_bool().unwrap().as_bool().unwrap())
             }
-            SpecOptionType::Int => {
+            OptionType::Int => {
                 Self::Int(dynamic.as_int().unwrap().as_i64().unwrap())
             }
-            SpecOptionType::Float => {
+            OptionType::Float => {
                 Self::Float(dynamic.as_float().unwrap().as_f64())
             }
-            SpecOptionType::Str => {
+            OptionType::Str => {
                 Self::Str(dynamic.as_string().unwrap().as_string().unwrap())
             }
-            SpecOptionType::Version => {
-                println!("Evaluating version");
-
+            OptionType::Version => {
                 let mut version = Version::empty();
 
                 let solved = registry
                     .lookup_version_solver_vars(package, option)
-                    .expect("Why is there nothing here???");
+                    .expect("Internal solver error");
 
                 for (i, s) in solved.iter().enumerate() {
                     let dynamic = model.eval(s, true).unwrap();
@@ -149,15 +151,15 @@ impl SpecOptionValue {
     }
 }
 
-impl Hash for SpecOptionValue {
+impl Hash for OptionValue {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
     }
 }
 
-impl std::cmp::Eq for SpecOptionValue {}
+impl std::cmp::Eq for OptionValue {}
 
-impl std::fmt::Display for SpecOptionValue {
+impl std::fmt::Display for OptionValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Bool(v) => write!(f, "{v}"),
@@ -174,7 +176,7 @@ impl SpecOption {
     ///
     /// * `t`: The datatype of this option
     #[must_use]
-    pub const fn new_from_type(_t: SpecOptionType) -> Self {
+    pub const fn new_from_type(_t: OptionType) -> Self {
         Self { value: None, default: None, valid: None }
     }
 
@@ -200,20 +202,20 @@ impl SpecOption {
         };
 
         match wip_registry.spec_options()[idx].0 {
-            SpecOptionType::Unknown => panic!("Internal solver error"),
-            SpecOptionType::Bool => Bool::new_const(n).into(),
-            SpecOptionType::Int => Int::new_const(n).into(),
-            SpecOptionType::Float => Float::new_const_double(n).into(),
-            SpecOptionType::Str => String::new_const(n).into(),
-            SpecOptionType::Version => {
+            OptionType::Unknown => panic!("Internal solver error"),
+            OptionType::Bool => Bool::new_const(n).into(),
+            OptionType::Int => Int::new_const(n).into(),
+            OptionType::Float => Float::new_const_double(n).into(),
+            OptionType::Str => String::new_const(n).into(),
+            OptionType::Version => {
                 if let Some(value) = &self.value {
-                    let SpecOptionValue::Version(v) = value else {
+                    let OptionValue::Version(v) = value else {
                         let msg = "value and dtype are inconsistent; this is an internal error";
                         tracing::error!("{msg}");
                         panic!("{msg}");
                     };
 
-                    wip_registry.version_registry_mut().push(v.clone());
+                    wip_registry.version_registry_mut().push(v);
                 }
 
                 Int::new_const(n).into()
@@ -222,33 +224,41 @@ impl SpecOption {
     }
 }
 
-impl<'a, 'py> FromPyObject<'a, 'py> for SpecOptionValue {
+impl<'a, 'py> FromPyObject<'a, 'py> for OptionValue {
     type Error = PyErr;
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        if let Ok(b) = obj.extract::<bool>() {
-            Ok(Self::Bool(b))
-        } else if let Ok(i) = obj.extract::<i64>() {
-            Ok(Self::Int(i))
-        } else if let Ok(f) = obj.extract::<f64>() {
-            Ok(Self::Float(f))
-        } else if let Ok(s) = obj.extract::<&str>() {
-            Ok(Self::Str(s.to_string()))
-        } else if let Ok(v) = obj.extract::<Version>() {
-            Ok(Self::Version(v))
-        } else {
-            let msg = format!(
-                "cannot cast Python type '{}' to SpecOptionValue",
-                obj.get_type()
-            );
-
-            tracing::error!("{msg}");
-            Err(PyTypeError::new_err(msg))
+        fn extract<'a, 'py, T, F>(
+            obj: Borrowed<'a, 'py, PyAny>,
+            map: F,
+        ) -> Result<OptionValue, <OptionValue as FromPyObject<'a, 'py>>::Error>
+        where
+            T: FromPyObject<'a, 'py>,
+            F: FnOnce(T) -> OptionValue,
+            pyo3::PyErr:
+                std::convert::From<<T as pyo3::FromPyObject<'a, 'py>>::Error>,
+        {
+            Ok(obj.extract::<T>().map(map)?)
         }
+
+        extract::<bool, _>(obj, Self::Bool)
+            .or_else(|_| extract::<i64, _>(obj, Self::Int))
+            .or_else(|_| extract::<f64, _>(obj, Self::Float))
+            .or_else(|_| extract::<String, _>(obj, Self::Str))
+            .or_else(|_| extract::<Version, _>(obj, Self::Version))
+            .map_err(|_| {
+                let msg = format!(
+                    "cannot cast Python type '{}' to SpecOptionValue",
+                    obj.get_type()
+                );
+
+                tracing::error!("{msg}");
+                PyTypeError::new_err(msg)
+            })
     }
 }
 
-impl<'py> IntoPyObject<'py> for SpecOptionValue {
+impl<'py> IntoPyObject<'py> for OptionValue {
     type Target = PyAny;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;

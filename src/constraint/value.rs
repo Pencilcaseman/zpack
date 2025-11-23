@@ -5,28 +5,28 @@ use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 use crate::{
     constraint::{Cmp, CmpType, Constraint, ConstraintUtils},
     package::{self, outline::SolverError},
-    spec::{self, SpecOptionValue},
+    spec::{self, OptionValue},
 };
 
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct Value {
     #[pyo3(get, set)]
-    pub value: SpecOptionValue,
+    pub value: OptionValue,
 }
 
 impl ConstraintUtils for Value {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<spec::SpecOptionType> {
+    ) -> Option<spec::OptionType> {
         Some(self.value.to_type())
     }
 
     fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-        _value_type: spec::SpecOptionType,
+        _value_type: spec::OptionType,
     ) {
         tracing::error!("Cannot change datatype of Value constraint");
     }
@@ -36,12 +36,12 @@ impl ConstraintUtils for Value {
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
         match &self.value {
-            SpecOptionValue::Bool(_)
-            | SpecOptionValue::Int(_)
-            | SpecOptionValue::Float(_)
-            | SpecOptionValue::Str(_) => (),
-            SpecOptionValue::Version(version) => {
-                wip_registry.version_registry_mut().push(version.clone());
+            OptionValue::Bool(_)
+            | OptionValue::Int(_)
+            | OptionValue::Float(_)
+            | OptionValue::Str(_) => (),
+            OptionValue::Version(version) => {
+                wip_registry.version_registry_mut().push(&version);
             }
         }
 

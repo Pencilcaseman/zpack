@@ -7,7 +7,7 @@ use super::ConstraintUtils;
 use crate::{
     constraint::{Cmp, Constraint},
     package::{self, outline::SolverError},
-    spec::{self, SpecOptionType},
+    spec::{self, OptionType},
 };
 
 #[pyclass(unsendable)]
@@ -24,14 +24,14 @@ impl ConstraintUtils for IfThen {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<spec::SpecOptionType> {
+    ) -> Option<spec::OptionType> {
         None
     }
 
     fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-        _value_type: spec::SpecOptionType,
+        _value_type: spec::OptionType,
     ) {
         panic!("Cannot set value type of IfThen");
     }
@@ -45,19 +45,18 @@ impl ConstraintUtils for IfThen {
             return Err(Box::new(SolverError::InvalidNonValueConstraint));
         };
 
-        self.cond.set_value_type(wip_registry, SpecOptionType::Bool);
+        self.cond.set_value_type(wip_registry, OptionType::Bool);
 
         match value_type {
-            SpecOptionType::Unknown => Ok(()),
+            OptionType::Unknown => Ok(()),
 
             other => {
-                if other == SpecOptionType::Bool {
-                    self.cond
-                        .set_value_type(wip_registry, SpecOptionType::Bool);
+                if other == OptionType::Bool {
+                    self.cond.set_value_type(wip_registry, OptionType::Bool);
                     Ok(())
                 } else {
                     Err(Box::new(SolverError::IncorrectValueType {
-                        expected: SpecOptionType::Bool,
+                        expected: OptionType::Bool,
                         received: other,
                     }))
                 }
@@ -87,8 +86,6 @@ impl ConstraintUtils for IfThen {
         &self,
         registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
-        tracing::info!("(If '{:?}' then '{:?}')", self.cond, self.then);
-
         let cond = self.cond.to_z3_clauses(registry)?;
         let var = self.then.to_z3_clauses(registry)?;
 

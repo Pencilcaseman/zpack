@@ -10,7 +10,7 @@ use crate::{
         registry::{BuiltVersionRegistry, Registry},
         version::Version,
     },
-    spec::{self, SpecOptionType, SpecOptionValue},
+    spec::{self, OptionType, OptionValue},
 };
 
 pub const SOFT_PACKAGE_WEIGHT: usize = 1;
@@ -54,16 +54,16 @@ pub trait ConstraintUtils:
     fn get_value_type<'a, V>(
         &'a self,
         registry: Option<&Registry<'a, V>>,
-    ) -> Option<SpecOptionType>;
+    ) -> Option<OptionType>;
 
-    fn get_value_type_default(&self) -> Option<SpecOptionType> {
+    fn get_value_type_default(&self) -> Option<OptionType> {
         self.get_value_type::<BuiltVersionRegistry>(None)
     }
 
     fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        value_type: SpecOptionType,
+        value_type: OptionType,
     );
 
     /// Type check a constraint and ensure it is valid.
@@ -188,7 +188,7 @@ impl ConstraintUtils for Constraint {
     fn get_value_type<'a, V>(
         &'a self,
         registry: Option<&Registry<'a, V>>,
-    ) -> Option<SpecOptionType> {
+    ) -> Option<OptionType> {
         constraint_inner!(self, inner => {
             inner.get_value_type(registry)
         })
@@ -197,7 +197,7 @@ impl ConstraintUtils for Constraint {
     fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        value_type: SpecOptionType,
+        value_type: OptionType,
     ) {
         constraint_inner!(self, inner => {
             inner.set_value_type(wip_registry, value_type);
@@ -278,7 +278,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {
         ) -> Result<Constraint, E>
         where
             T: FromPyObject<'a2, 'py2, Error = E> + 'static,
-            F: FnOnce(T) -> SpecOptionValue,
+            F: FnOnce(T) -> OptionValue,
             E: Into<<Constraint as FromPyObject<'a2, 'py2>>::Error>,
         {
             Ok(Constraint::Value(Box::new(Value {
@@ -311,18 +311,12 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Constraint {
             .or_else(|_| {
                 extract_constraint::<Value, _, _>(&obj, Constraint::Value)
             })
+            .or_else(|_| extract_value::<bool, _, _>(&obj, OptionValue::Bool))
+            .or_else(|_| extract_value::<i64, _, _>(&obj, OptionValue::Int))
+            .or_else(|_| extract_value::<f64, _, _>(&obj, OptionValue::Float))
+            .or_else(|_| extract_value::<String, _, _>(&obj, OptionValue::Str))
             .or_else(|_| {
-                extract_value::<bool, _, _>(&obj, SpecOptionValue::Bool)
-            })
-            .or_else(|_| extract_value::<i64, _, _>(&obj, SpecOptionValue::Int))
-            .or_else(|_| {
-                extract_value::<f64, _, _>(&obj, SpecOptionValue::Float)
-            })
-            .or_else(|_| {
-                extract_value::<String, _, _>(&obj, SpecOptionValue::Str)
-            })
-            .or_else(|_| {
-                extract_value::<Version, _, _>(&obj, SpecOptionValue::Version)
+                extract_value::<Version, _, _>(&obj, OptionValue::Version)
             })
             .map_err(|_| {
                 let msg = format!(

@@ -5,7 +5,7 @@ use pyo3::{IntoPyObjectExt, basic::CompareOp, prelude::*};
 use crate::{
     constraint::{Cmp, CmpType, Constraint, ConstraintUtils, IfThen, Value},
     package::{self, outline::SolverError},
-    spec::{self, SpecOptionValue},
+    spec::{self, OptionValue},
 };
 
 #[pyclass]
@@ -22,25 +22,25 @@ impl ConstraintUtils for SpecOption {
     fn get_value_type<'a, V>(
         &'a self,
         registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<spec::SpecOptionType> {
+    ) -> Option<spec::OptionType> {
         match registry {
             Some(r) => {
                 let Some(idx) = r
                     .lookup_option(&self.package_name, Some(&self.option_name))
                 else {
-                    return Some(spec::SpecOptionType::Unknown);
+                    return Some(spec::OptionType::Unknown);
                 };
 
                 Some(r.spec_options()[idx].0)
             }
-            None => Some(spec::SpecOptionType::Unknown),
+            None => Some(spec::OptionType::Unknown),
         }
     }
 
     fn set_value_type<'a>(
         &'a self,
         wip_registry: &mut package::WipRegistry<'a>,
-        value_type: spec::SpecOptionType,
+        value_type: spec::OptionType,
     ) {
         wip_registry
             .insert_option(
@@ -106,9 +106,9 @@ impl ConstraintUtils for SpecOption {
         }
 
         match value_type {
-            spec::SpecOptionType::Unknown => panic!("Internal solver error"),
+            spec::OptionType::Unknown => panic!("Internal solver error"),
 
-            spec::SpecOptionType::Bool => match op {
+            spec::OptionType::Bool => match op {
                 CmpType::Less
                 | CmpType::LessOrEqual
                 | CmpType::GreaterOrEqual
@@ -118,7 +118,7 @@ impl ConstraintUtils for SpecOption {
                 CmpType::Equal => conv_op!(t eq o, as_bool),
             },
 
-            spec::SpecOptionType::Int => match op {
+            spec::OptionType::Int => match op {
                 CmpType::Less => conv_op!(t lt o, as_int),
                 CmpType::LessOrEqual => conv_op!(t le o, as_int),
                 CmpType::NotEqual => conv_op!(t ne o, as_int),
@@ -127,7 +127,7 @@ impl ConstraintUtils for SpecOption {
                 CmpType::Greater => conv_op!(t gt o, as_int),
             },
 
-            spec::SpecOptionType::Float => match op {
+            spec::OptionType::Float => match op {
                 CmpType::Less => conv_op!(t lt o, as_float),
                 CmpType::LessOrEqual => conv_op!(t le o, as_float),
                 CmpType::NotEqual => conv_op!(t ne o, as_float),
@@ -136,7 +136,7 @@ impl ConstraintUtils for SpecOption {
                 CmpType::Greater => conv_op!(t gt o, as_float),
             },
 
-            spec::SpecOptionType::Str => match op {
+            spec::OptionType::Str => match op {
                 CmpType::Less => conv_op!(t str_lt o, as_string),
                 CmpType::LessOrEqual => conv_op!(t str_le o, as_string),
                 CmpType::NotEqual => conv_op!(t ne o, as_string),
@@ -145,19 +145,14 @@ impl ConstraintUtils for SpecOption {
                 CmpType::Greater => conv_op!(t str_gt o, as_string),
             },
 
-            spec::SpecOptionType::Version => {
+            spec::OptionType::Version => {
                 let Constraint::Value(boxed) = other else {
                     panic!("Internal solver error");
                 };
 
-                let spec::SpecOptionValue::Version(version) = &boxed.value
-                else {
+                let spec::OptionValue::Version(version) = &boxed.value else {
                     panic!("Internal solver error");
                 };
-
-                tracing::warn!(
-                    "tinglage: spec option cmp {self:?} {version:?}"
-                );
 
                 // Ensure there is room
                 registry.expand_version_to_fit(
@@ -188,8 +183,6 @@ impl ConstraintUtils for SpecOption {
         &self,
         registry: &mut package::BuiltRegistry<'_>,
     ) -> Result<Vec<z3::ast::Dynamic>, Box<SolverError>> {
-        tracing::info!("{}:{}", self.package_name, self.option_name);
-
         let Some(idx) = registry
             .lookup_option(&self.package_name, Some(self.option_name.as_ref()))
         else {
@@ -215,7 +208,7 @@ impl ConstraintUtils for SpecOption {
         let value_type =
             self.get_value_type(Some(registry)).expect("Internal solver error");
 
-        if matches!(value_type, spec::SpecOptionType::Version) {
+        if matches!(value_type, spec::OptionType::Version) {
             Ok(registry
                 .version_registry()
                 .lookup_solver_vars(idx)
@@ -278,7 +271,7 @@ impl SpecOption {
         IfThen {
             cond: Cmp {
                 lhs: self.clone().into(),
-                rhs: Value { value: SpecOptionValue::Bool(true) }.into(),
+                rhs: Value { value: OptionValue::Bool(true) }.into(),
                 op: CmpType::Equal,
             }
             .into(),

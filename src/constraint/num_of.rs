@@ -7,7 +7,7 @@ use super::ConstraintUtils;
 use crate::{
     constraint::{Cmp, CmpType, Constraint},
     package::{self, outline::SolverError},
-    spec::{SpecOption, SpecOptionType},
+    spec::{OptionType, SpecOption},
 };
 
 #[pyclass]
@@ -21,14 +21,14 @@ impl ConstraintUtils for NumOf {
     fn get_value_type<'a, V>(
         &'a self,
         _registry: Option<&package::registry::Registry<'a, V>>,
-    ) -> Option<SpecOptionType> {
-        Some(SpecOptionType::Int)
+    ) -> Option<OptionType> {
+        Some(OptionType::Int)
     }
 
     fn set_value_type<'a>(
         &'a self,
         _wip_registry: &mut package::WipRegistry<'a>,
-        _value_type: SpecOptionType,
+        _value_type: OptionType,
     ) {
         panic!("Cannot set value type of NumOf");
     }
@@ -38,19 +38,17 @@ impl ConstraintUtils for NumOf {
         wip_registry: &mut package::WipRegistry<'a>,
     ) -> Result<(), Box<SolverError>> {
         self.of.iter().try_for_each(|c| {
-            tracing::warn!("Type checking {c}");
-
             c.get_value_type(Some(wip_registry)).map_or_else(
                 || Err(Box::new(SolverError::InvalidNonValueConstraint)),
                 |t| {
-                    if t == SpecOptionType::Bool {
+                    if t == OptionType::Bool {
                         Ok(())
-                    } else if t == SpecOptionType::Unknown {
-                        c.set_value_type(wip_registry, SpecOptionType::Bool);
+                    } else if t == OptionType::Unknown {
+                        c.set_value_type(wip_registry, OptionType::Bool);
                         Ok(())
                     } else {
                         Err(Box::new(SolverError::IncorrectValueType {
-                            expected: SpecOptionType::Bool,
+                            expected: OptionType::Bool,
                             received: t,
                         }))
                     }
@@ -62,7 +60,6 @@ impl ConstraintUtils for NumOf {
     }
 
     fn extract_spec_options(&self) -> Vec<(&str, &str, SpecOption)> {
-        tracing::info!("extracting {} spec options", self.of.len());
         self.of.iter().flat_map(|c| c.extract_spec_options()).collect()
     }
 

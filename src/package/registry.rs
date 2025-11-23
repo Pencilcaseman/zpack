@@ -24,7 +24,7 @@ pub struct Registry<'a, VersionRegistryType> {
 
     // Lookup tables for type checking and solver generation
     spec_option_map: HashMap<(&'a str, Option<&'a str>), usize>,
-    spec_options: Vec<(spec::SpecOptionType, Option<z3::ast::Dynamic>)>,
+    spec_options: Vec<(spec::OptionType, Option<z3::ast::Dynamic>)>,
 
     version_registry: VersionRegistryType,
 }
@@ -56,9 +56,7 @@ impl WipVersionRegistry {
     }
 
     /// Push a new version to the registry
-    pub fn push(&mut self, ver: Version) {
-        tracing::info!("pushing version {ver}");
-
+    pub fn push(&mut self, ver: &Version) {
         self.strings.extend(ver.parts().iter().filter_map(|p| match p {
             version::Part::Str(s) => Some(s.clone()),
 
@@ -188,8 +186,6 @@ impl BuiltVersionRegistry {
 
             current_parts += 1;
         }
-
-        println!("Resized: {:?}", self.solver_vars[idx]);
     }
 
     #[must_use]
@@ -205,10 +201,7 @@ impl<'a> Registry<'a, WipVersionRegistry> {
         let mut count = 0;
 
         for idx in self.spec_option_map.values() {
-            if matches!(
-                self.spec_options[*idx].0,
-                spec::SpecOptionType::Version
-            ) {
+            if matches!(self.spec_options[*idx].0, spec::OptionType::Version) {
                 versions.insert(*idx, count);
                 count += 1;
             }
@@ -270,7 +263,7 @@ impl<'a, T> Registry<'a, T> {
         &mut self,
         package: &'a str,
         option: Option<&'a str>,
-        dtype: spec::SpecOptionType,
+        dtype: spec::OptionType,
     ) -> Result<(), Box<SolverError>> {
         self.insert_option(package, option, dtype, None)
     }
@@ -310,11 +303,9 @@ impl<'a, T> Registry<'a, T> {
         &mut self,
         package: &'a str,
         option: Option<&'a str>,
-        dtype: spec::SpecOptionType,
+        dtype: spec::OptionType,
         value: Option<z3::ast::Dynamic>,
     ) -> Result<(), Box<SolverError>> {
-        tracing::info!("Inserting {package}:{option:?} with type {dtype:?}");
-
         if let Some(idx) = self.lookup_option(package, option) {
             // TODO: Proper error handling
             assert!(self.spec_options[idx].0 == dtype, "Conflicting datatypes");
@@ -333,7 +324,7 @@ impl<'a, T> Registry<'a, T> {
 
     pub fn spec_options(
         &self,
-    ) -> &[(spec::SpecOptionType, Option<z3::ast::Dynamic>)] {
+    ) -> &[(spec::OptionType, Option<z3::ast::Dynamic>)] {
         &self.spec_options
     }
 
@@ -373,7 +364,7 @@ impl<'a, T> Registry<'a, T> {
         option: Option<&'a str>,
         model: &z3::Model,
         registry: &'a BuiltRegistry,
-    ) -> Result<spec::SpecOptionValue, Box<SolverError>> {
+    ) -> Result<spec::OptionValue, Box<SolverError>> {
         let idx = self.lookup_option(package, option).ok_or_else(|| {
             tracing::error!("missing option {package}:{option:?}");
 
@@ -396,7 +387,7 @@ impl<'a, T> Registry<'a, T> {
 
         let model_eval = model.eval(dynamic, true).unwrap();
 
-        Ok(spec::SpecOptionValue::from_z3_dynamic(
+        Ok(spec::OptionValue::from_z3_dynamic(
             package,
             option,
             val.0,
